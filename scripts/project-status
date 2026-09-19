@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "AgentForge project status"
+echo "-------------------------"
+if [[ -f .plans/ACTIVE ]]; then
+  printf 'active plan: '
+  cat .plans/ACTIVE
+else
+  echo "active plan: none"
+fi
+printf 'branch: '
+git branch --show-current
+printf 'head: '
+git rev-parse --short=12 HEAD
+git status --short

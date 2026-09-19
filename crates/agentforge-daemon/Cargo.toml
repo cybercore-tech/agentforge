@@ -1,0 +1,17 @@
+[package]
+name = "agentforge-daemon"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+publish = false
+
+[[bin]]
+name = "forged"
+path = "src/main.rs"
+
+[dependencies]
+agentforge-core = { path = "../agentforge-core" }
+
+[lints]
+workspace = true
