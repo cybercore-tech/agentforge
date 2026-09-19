@@ -11,53 +11,37 @@ Phase 0 — reliable local orchestration foundation.
 
 ## Active milestone
 
-No implementation milestone is currently active.
+- `P0-M004` — Task graph and durable state.
+- Active plan: `.plans/P0-M004-task-graph-durable-state.plan.md`.
+- Plan status: Approved.
+- Implementation status: not started.
+- Base main commit: `ff05435bf3ecaa3aba3b8e0281a2e67c038a34bb`.
 
-`.plans/ACTIVE` is intentionally absent.
+## P0-M003 final evidence
 
-## Recently completed milestones
-
-- `P0-M001` — Repository bootstrap.
-- `P0-M002` — Governance and agent contract.
-- `P0-M003` — Plan-first workflow enforcement.
-
-## P0-M003 completion evidence
-
-- Approved plan checkpoint: `89394dd4e6eef56bdb5c0313379c39e6bd0862c8`.
-- Initial implementation checkpoint: `b3ba78e462ce208bab898163b29311be6cf07631`.
-- Initial CI run: `35472609042`.
-- Initial failure classification: formatting/lint only.
-- Formatting-only repair / validated implementation head: `e095d3e8fddcd35d0ca1803b0a62cf0aae7781b0`.
-- Exact implementation CI run: `35472661178`.
-- Exact implementation CI result: all four jobs green.
-
-Closure CI and post-merge main CI remain required execution checks before P0-M004 begins.
+- Closure head: `6f483e5a4b82010fe0fc958a1cca92d4a1dd2f3e`.
+- Closure CI run: `35472745941` — all four jobs green.
+- Merged main: `ff05435bf3ecaa3aba3b8e0281a2e67c038a34bb`.
+- Post-merge CI run: `35472774527` — all four jobs green.
 
 ## Current capability
 
-AgentForge now has:
+AgentForge now has mechanically enforced plan-first development and independent GitHub Actions.
 
-- deterministic local repository gates;
-- mechanically validated active-plan state;
-- staged implementation authority checks against an Approved plan already committed in HEAD;
-- committed implementation authority checks against the parent checkpoint;
-- plan/implementation separation enforcement;
-- valid no-active-plan state between milestones;
-- GitHub Actions on pull requests, pushes to main, and manual dispatch;
-- independent Repository policy, Stable code gate, MSRV 1.85.0, and CLI smoke jobs;
-- read-only default workflow permissions;
-- exact pull-request head validation;
-- documented protected-main target policy.
+P0-M004 will add the first durable orchestration graph/state while preserving provider and storage
+separation.
 
-Task scheduling, durable task state, worktree orchestration, model adapters, MCP integration, and
-deployment automation remain intentionally unimplemented.
+## P0-M004 architecture boundary
 
-## Next planned milestone
+Core owns task-graph semantics.
 
-`P0-M004` — Task graph and durable state.
+A new state crate may own project-local persistence.
 
-P0-M004 must not begin until P0-M003 closure CI and post-merge main CI are both green.
+P0-M004 does not implement scheduling, worktrees, external agents, MCP, CI classification, or
+deployment.
 
-## Known blockers
+## Next exact action
 
-None beyond completing the P0-M003 closure/merge validation sequence.
+Require exact GitHub Actions green on this Approved plan-only checkpoint.
+
+Do not begin implementation until the plan head is green.

@@ -2,47 +2,46 @@
 
 ## Repository state
 
-- Active milestone: none.
-- Active plan: none.
-- P0-M001 status: Complete.
-- P0-M002 status: Complete.
-- P0-M003 status: Complete.
-- P0-M003 validated implementation head: `e095d3e8fddcd35d0ca1803b0a62cf0aae7781b0`.
-- P0-M003 implementation CI run: `35472661178` — all four jobs green.
+- Active milestone: `P0-M004`.
+- Active plan: `.plans/P0-M004-task-graph-durable-state.plan.md`.
+- Plan status: Approved.
+- Implementation status: not started.
+- Base main commit: `ff05435bf3ecaa3aba3b8e0281a2e67c038a34bb`.
+
+## Previous milestone evidence
+
+P0-M003 is fully complete:
+
+- closure CI `35472745941` — all four jobs green;
+- merge commit `ff05435bf3ecaa3aba3b8e0281a2e67c038a34bb`;
+- post-merge CI `35472774527` — all four jobs green.
 
 ## Resume checklist
 
 1. Read `PROJECT_SPEC.md`.
 2. Read `PROJECT_STATE.md`.
 3. Read `AGENTS.md`.
-4. Read `docs/CI.md`.
-5. Run `./scripts/project-status`.
-6. Confirm there is no active plan before starting new implementation.
-7. Confirm P0-M003 closure CI and post-merge main CI completed successfully.
-8. Never bypass repository hooks or gates.
-9. Classify failures before repair.
-10. Repair forward rather than destroying repository state.
+4. Read `.plans/ACTIVE`.
+5. Read the P0-M004 plan.
+6. Read `docs/TASK_STATE.md`.
+7. Read ADR-0009.
+8. Confirm the exact plan-only CI head is green.
+9. Do not begin implementation on a failed plan checkpoint.
+10. Classify any CI failure before editing.
 
-## Completed P0-M003 work
+## Current work
 
-P0-M003 established:
+P0-M004 establishes:
 
-- mechanical active-plan validation;
-- Approved-plan authority checks for implementation;
-- plan/implementation commit separation;
-- local policy enforcement through `scripts/gate.sh`;
-- GitHub Actions remote validation;
-- independent Repository policy, Stable code gate, MSRV, and CLI smoke jobs;
-- exact-head CI evidence;
-- documented target protection rules for `main`.
+- deterministic task identity;
+- graph/dependency validation;
+- explicit lifecycle transitions;
+- derived readiness;
+- per-task revisions;
+- storage/domain separation;
+- a versioned project-local durable snapshot.
 
-The first implementation run exposed a rustfmt-only failure. It was classified before repair and
-fixed with a formatting-only commit. The next exact-head run passed all four jobs.
+## Next implementation boundary
 
-## Next milestone
-
-The next planned milestone is:
-
-`P0-M004 — Task graph and durable state`
-
-Do not start it until the P0-M003 closure and post-merge `main` checks are green.
+Expected implementation files are limited to the workspace manifest/lockfile, task-domain code in
+`agentforge-core`, and the new `agentforge-state` crate unless the Approved plan is amended first.
