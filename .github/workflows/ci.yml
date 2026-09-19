@@ -1,0 +1,106 @@
+name: AgentForge CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  repository-policy:
+    name: Repository policy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 2
+
+      - name: Install stable Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - name: Validate text policy
+        run: ./scripts/check-text-files
+
+      - name: Validate repository structure
+        run: cargo run -p xtask --locked -- validate
+
+      - name: Validate plan-first policy
+        run: cargo run -p xtask --locked -- validate-plan-policy
+
+  stable-code:
+    name: Stable code gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Install stable Rust with lint components
+        run: |
+          rustup toolchain install stable --profile minimal --component rustfmt --component clippy
+          rustup default stable
+
+      - name: Check formatting
+        run: cargo fmt --all --check
+
+      - name: Check workspace
+        run: cargo check --workspace --all-targets --locked
+
+      - name: Run Clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Run tests
+        run: cargo test --workspace --locked
+
+  msrv:
+    name: MSRV 1.85.0
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Install MSRV
+        run: rustup toolchain install 1.85.0 --profile minimal
+
+      - name: Check workspace on MSRV
+        run: cargo +1.85.0 check --workspace --all-targets --locked
+
+      - name: Test workspace on MSRV
+        run: cargo +1.85.0 test --workspace --locked
+
+  cli-smoke:
+    name: CLI smoke
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Install stable Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - name: forge version
+        run: cargo run -p agentforge-cli --locked -- version
+
+      - name: forge doctor
+        run: cargo run -p agentforge-cli --locked -- doctor
+
+      - name: forged version
+        run: cargo run -p agentforge-daemon --locked -- --version
