@@ -11,45 +11,34 @@ Phase 0 — reliable local orchestration foundation.
 
 ## Active milestone
 
-No implementation milestone is currently active.
-
-`.plans/ACTIVE` is intentionally absent.
+- `P0-M002` — Governance and agent contract.
+- Active plan: `.plans/P0-M002-governance-agent-contract.plan.md`.
+- Plan status: Approved.
+- Implementation status: not started.
+- Base main commit: `1910967c9989d7f705f71be7039e6877493e3aa7`.
 
 ## Recently completed milestone
 
 - `P0-M001` — Repository bootstrap.
-- Plan checkpoint: `b3288eda201911ecfd2eb0d39684931d82602fc0`.
-- Implementation commit: `f25c83e242c6879b1bfffe9f221a67a48b9a5b40`.
-- Validation: local full gate passed.
-- Result: core, CLI, daemon skeleton, xtask, project controls, ADR registry, milestone registry,
-  hooks, and deterministic bootstrap gates are established.
+- Status: Complete.
 
 ## Current capability
 
-AgentForge now has:
+AgentForge has a compiling Rust workspace, core crate, CLI, daemon entry point, xtask validation,
+plan-first project controls, deterministic local gates, and permanent milestone/ADR registries.
 
-- a Rust 2024 workspace with MSRV 1.85;
-- `agentforge-core`;
-- the `forge` CLI;
-- the `forged` daemon entry point;
-- repository automation through `xtask`;
-- permanent milestone IDs;
-- plan-first project artifacts;
-- repository text policy;
-- local precommit/fast/full gates;
-- Git hook installation;
-- project status diagnostics.
+P0-M002 is defining the governance contract required before autonomous task execution exists.
 
-Agent orchestration, durable task state, worktree management, model adapters, and permissions are
-intentionally not implemented yet.
+## P0-M002 architecture boundary
 
-## Next planned milestone
+P0-M002 defines roles, capabilities, human approval boundaries, task/result semantics, and
+concurrent ownership rules.
 
-`P0-M002` — Governance and agent contract.
+It does not schedule tasks, spawn agents, create worktrees, access secrets, or contact external
+model providers.
 
-No P0-M002 implementation may begin until its plan is written, Approved, committed separately,
-and validated.
+## Next exact action
 
-## Known blockers
+Validate this exact Approved plan-only checkpoint with the full local gate.
 
-None for continued Phase 0 development.
+Do not begin Rust implementation until that exact checkpoint is green.

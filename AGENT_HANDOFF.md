@@ -2,46 +2,39 @@
 
 ## Repository state
 
-- Active milestone: none.
-- Active plan: none.
-- P0-M001 status: Complete.
-- P0-M001 implementation commit: `f25c83e242c6879b1bfffe9f221a67a48b9a5b40`.
-- P0-M001 validation: local full gate passed.
+- Active milestone: `P0-M002`.
+- Active plan: `.plans/P0-M002-governance-agent-contract.plan.md`.
+- Plan status: Approved.
+- Implementation status: not started.
+- Base main commit: `1910967c9989d7f705f71be7039e6877493e3aa7`.
 
 ## Resume checklist
 
 1. Read `PROJECT_SPEC.md`.
 2. Read `PROJECT_STATE.md`.
 3. Read `AGENTS.md`.
-4. Run `./scripts/project-status`.
-5. Confirm there is no active plan before starting new implementation.
-6. Never bypass repository hooks or gates.
-7. Classify failures before repair.
-8. Repair forward rather than destroying repository state.
+4. Read `.plans/ACTIVE`.
+5. Read the P0-M002 plan.
+6. Read the governance, roles, task-contract, and approval-boundary documents.
+7. Run `./scripts/project-status`.
+8. Require the exact plan-only checkpoint to pass `./scripts/gate.sh full`.
+9. Classify any failure before editing.
+10. Do not begin Rust implementation on a partially validated plan checkpoint.
 
-## Completed work
+## Current work
 
-P0-M001 established the AgentForge repository foundation:
+P0-M002 defines:
 
-- Rust workspace;
-- `agentforge-core`;
-- `forge`;
-- `forged`;
-- `xtask`;
-- permanent milestone registry;
-- ADR system;
-- plan-first artifacts;
-- text policy;
-- Git hooks;
-- deterministic local quality gates.
+- canonical agent roles;
+- explicit capability grants;
+- human approval boundaries;
+- task/result contract semantics;
+- concurrent write ownership rules;
+- reviewer independence;
+- escalation behavior.
 
-## Next milestone
+## Next exact action
 
-The next planned milestone is:
+Run the full gate on the plan-only checkpoint.
 
-`P0-M002 — Governance and agent contract`
-
-Its job is to define AgentForge's permanent agent-role model, task contracts, capability boundaries,
-human approval boundaries, review responsibilities, and rules for concurrent agent work.
-
-P0-M002 requires its own Approved plan checkpoint before implementation.
+Only after it is green may P0-M002 add provider-neutral domain types to `agentforge-core`.
