@@ -11,7 +11,7 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 | P0-M001 | complete | Repository bootstrap | Workspace, control files, CLI/daemon/core skeletons, and bootstrap gate exist. |
 | P0-M002 | complete | Governance and agent contract | Roles, permissions, review rules, and change policy are explicit. |
 | P0-M003 | complete | Plan-first workflow enforcement | Active plans, hooks, checkpoint validation, and remote CI are enforced. |
-| P0-M004 | planned | Task graph and durable state | Tasks and dependencies persist locally with deterministic IDs. |
+| P0-M004 | complete | Task graph and durable state | Tasks and dependencies persist locally with deterministic IDs. |
 | P0-M005 | planned | Worktree isolation manager | Tasks can create, inspect, and retire isolated Git worktrees safely. |
 | P0-M006 | planned | Agent adapter interface | External coding agents can run behind one stable adapter contract. |
 | P0-M007 | planned | Gate engine | Project format, lint, test, build, docs, and policy gates run uniformly. |

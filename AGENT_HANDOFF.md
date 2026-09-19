@@ -7,42 +7,50 @@
 - P0-M001 status: Complete.
 - P0-M002 status: Complete.
 - P0-M003 status: Complete.
-- P0-M003 validated implementation head: `e095d3e8fddcd35d0ca1803b0a62cf0aae7781b0`.
-- P0-M003 implementation CI run: `35472661178` — all four jobs green.
+- P0-M004 status: Complete.
+- P0-M004 validated implementation head: `e64fe647206ed8a0a7be19e6246c4a9f73557b1f`.
+- P0-M004 implementation CI: `35473456133` — all four jobs green.
 
 ## Resume checklist
 
 1. Read `PROJECT_SPEC.md`.
 2. Read `PROJECT_STATE.md`.
 3. Read `AGENTS.md`.
-4. Read `docs/CI.md`.
-5. Run `./scripts/project-status`.
-6. Confirm there is no active plan before starting new implementation.
-7. Confirm P0-M003 closure CI and post-merge main CI completed successfully.
-8. Never bypass repository hooks or gates.
-9. Classify failures before repair.
-10. Repair forward rather than destroying repository state.
+4. Read `docs/TASK_STATE.md`.
+5. Read ADR-0009.
+6. Run `./scripts/project-status`.
+7. Confirm P0-M004 closure CI and post-merge main CI completed successfully.
+8. Confirm there is no active plan before starting P0-M005.
+9. Never bypass repository hooks or gates.
+10. Classify failures before repair.
 
-## Completed P0-M003 work
+## Completed P0-M004 work
 
-P0-M003 established:
+P0-M004 established the durable task-state foundation:
 
-- mechanical active-plan validation;
-- Approved-plan authority checks for implementation;
-- plan/implementation commit separation;
-- local policy enforcement through `scripts/gate.sh`;
-- GitHub Actions remote validation;
-- independent Repository policy, Stable code gate, MSRV, and CLI smoke jobs;
-- exact-head CI evidence;
-- documented target protection rules for `main`.
+- deterministic `TaskId` values;
+- BTreeMap-backed deterministic `TaskGraph`;
+- dependency validation and cycle rejection;
+- derived readiness;
+- explicit lifecycle transition validation;
+- per-task revisions;
+- `agentforge-state` persistence boundary;
+- dependency-free version-1 binary snapshot codec;
+- bounded fail-closed decoding;
+- payload checksum validation;
+- project-local file store;
+- round-trip, determinism, corruption, truncation, size-bound, restored-domain, and replacement tests.
 
-The first implementation run exposed a rustfmt-only failure. It was classified before repair and
-fixed with a formatting-only commit. The next exact-head run passed all four jobs.
+Two implementation CI repair cycles were preserved in history:
+
+- run `35473369262`: formatting/lint + compilation/type;
+- run `35473425385`: final formatting/lint only;
+- run `35473456133`: 4/4 green.
 
 ## Next milestone
 
 The next planned milestone is:
 
-`P0-M004 — Task graph and durable state`
+`P0-M005 — Worktree isolation manager`
 
-Do not start it until the P0-M003 closure and post-merge `main` checks are green.
+Do not start it until the P0-M004 closure and post-merge `main` checks are green.
