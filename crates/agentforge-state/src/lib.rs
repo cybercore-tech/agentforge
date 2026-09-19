@@ -192,6 +192,12 @@ impl From<std::io::Error> for StateError {
     }
 }
 
+impl From<StateFormatError> for StateError {
+    fn from(error: StateFormatError) -> Self {
+        Self::Format(error)
+    }
+}
+
 /// Versioned snapshot format failure.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum StateFormatError {
@@ -297,8 +303,7 @@ fn wrap_payload(payload: Vec<u8>) -> Result<Vec<u8>, StateError> {
     }
 
     let checksum = checksum(&payload);
-    let mut bytes =
-        Vec::with_capacity(HEADER_BYTES + payload.len().saturating_add(CHECKSUM_BYTES));
+    let mut bytes = Vec::with_capacity(HEADER_BYTES + payload.len().saturating_add(CHECKSUM_BYTES));
     bytes.extend_from_slice(MAGIC);
     write_u16(&mut bytes, SNAPSHOT_VERSION);
     write_u64(&mut bytes, payload.len() as u64);
@@ -704,8 +709,7 @@ impl<'a> Reader<'a> {
             }));
         }
 
-        usize::try_from(count)
-            .map_err(|_| StateError::Format(StateFormatError::LengthOverflow))
+        usize::try_from(count).map_err(|_| StateError::Format(StateFormatError::LengthOverflow))
     }
 
     fn read_string(&mut self) -> Result<String, StateError> {
@@ -742,12 +746,10 @@ impl<'a> Reader<'a> {
 mod tests {
     use super::{
         CHECKSUM_BYTES, FileTaskStore, HEADER_BYTES, MAGIC, MAX_SNAPSHOT_BYTES, SNAPSHOT_VERSION,
-        StateError, StateFormatError, TaskStore, checksum, decode_snapshot, encode_record,
+        StateError, StateFormatError, TaskStore, decode_snapshot, encode_record,
         encode_snapshot, wrap_payload, write_count,
     };
-    use agentforge_core::agent::{
-        AgentRole, AgentTask, ApprovalBoundary, Capability,
-    };
+    use agentforge_core::agent::{AgentRole, AgentTask, ApprovalBoundary, Capability};
     use agentforge_core::task::{TaskGraph, TaskRecord, TaskState};
     use std::fs;
     use std::path::PathBuf;
@@ -756,9 +758,17 @@ mod tests {
     static TEST_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
     fn task(id: &str, dependencies: &[&str]) -> AgentTask {
-        let mut task = AgentTask::new(id, "P0-M004", AgentRole::Implementer, format!("Goal for {id}"));
+        let mut task = AgentTask::new(
+            id,
+            "P0-M004",
+            AgentRole::Implementer,
+            format!("Goal for {id}"),
+        );
         task.non_goals = vec!["Do not change unrelated files.".to_owned()];
-        task.dependency_task_ids = dependencies.iter().map(|value| (*value).to_owned()).collect();
+        task.dependency_task_ids = dependencies
+            .iter()
+            .map(|value| (*value).to_owned())
+            .collect();
         task.allowed_paths = vec!["crates/**".to_owned()];
         task.forbidden_paths = vec!["secrets/**".to_owned()];
         task.capabilities = vec![
@@ -774,12 +784,8 @@ mod tests {
     }
 
     fn sample_graph() -> TaskGraph {
-        let first = TaskRecord::restore(
-            task("P0-M004-T0001", &[]),
-            TaskState::Succeeded,
-            2,
-        )
-        .expect("valid first record");
+        let first = TaskRecord::restore(task("P0-M004-T0001", &[]), TaskState::Succeeded, 2)
+            .expect("valid first record");
         let second = TaskRecord::restore(
             task("P0-M004-T0002", &["P0-M004-T0001"]),
             TaskState::Pending,
@@ -882,21 +888,15 @@ mod tests {
 
     #[test]
     fn restored_domain_invalid_graph_is_rejected() {
-        let record = TaskRecord::new(task(
-            "P0-M004-T0002",
-            &["P0-M004-T0001"],
-        ))
-        .expect("record contract itself is valid");
+        let record = TaskRecord::new(task("P0-M004-T0002", &["P0-M004-T0001"]))
+            .expect("record contract itself is valid");
 
         let mut payload = Vec::new();
         write_count(&mut payload, 1, 100_000).expect("write count");
         encode_record(&mut payload, &record).expect("encode record");
         let bytes = wrap_payload(payload).expect("wrap payload");
 
-        assert!(matches!(
-            decode_snapshot(&bytes),
-            Err(StateError::Graph(_))
-        ));
+        assert!(matches!(decode_snapshot(&bytes), Err(StateError::Graph(_))));
     }
 
     #[test]

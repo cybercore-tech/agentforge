@@ -23,13 +23,14 @@ impl TaskId {
         }
 
         if value.len() > 128 {
-            return Err(TaskIdError::TooLong { length: value.len() });
+            return Err(TaskIdError::TooLong {
+                length: value.len(),
+            });
         }
 
-        if let Some(character) = value
-            .chars()
-            .find(|character| !(character.is_ascii_alphanumeric() || matches!(character, '-' | '_')))
-        {
+        if let Some(character) = value.chars().find(|character| {
+            !(character.is_ascii_alphanumeric() || matches!(character, '-' | '_'))
+        }) {
             return Err(TaskIdError::InvalidCharacter { character });
         }
 
@@ -89,7 +90,10 @@ impl fmt::Display for TaskIdError {
                 write!(formatter, "task ID is too long: {length} bytes")
             }
             Self::InvalidCharacter { character } => {
-                write!(formatter, "task ID contains unsupported character: {character:?}")
+                write!(
+                    formatter,
+                    "task ID contains unsupported character: {character:?}"
+                )
             }
             Self::ZeroSequence => formatter.write_str("task sequence must be greater than zero"),
         }
@@ -165,17 +169,17 @@ impl TaskRecord {
         state: TaskState,
         revision: u64,
     ) -> Result<Self, TaskGraphError> {
-        task.validate().map_err(|error| TaskGraphError::InvalidTask {
-            task_id: task.task_id.clone(),
-            reason: error.to_string(),
-        })?;
-
-        let id = TaskId::parse(task.task_id.clone()).map_err(|error| {
-            TaskGraphError::InvalidTaskId {
+        task.validate()
+            .map_err(|error| TaskGraphError::InvalidTask {
                 task_id: task.task_id.clone(),
                 reason: error.to_string(),
-            }
-        })?;
+            })?;
+
+        let id =
+            TaskId::parse(task.task_id.clone()).map_err(|error| TaskGraphError::InvalidTaskId {
+                task_id: task.task_id.clone(),
+                reason: error.to_string(),
+            })?;
 
         Ok(Self {
             id,
@@ -348,10 +352,7 @@ impl TaskGraph {
                     });
                 }
 
-                dependents
-                    .entry(dependency)
-                    .or_default()
-                    .push(id.clone());
+                dependents.entry(dependency).or_default().push(id.clone());
             }
 
             dependency_counts.insert(id.clone(), seen_dependencies.len());
@@ -406,15 +407,19 @@ impl TaskGraph {
                 continue;
             }
 
-            let all_succeeded = record.task.dependency_task_ids.iter().all(|raw_dependency| {
-                let dependency =
-                    TaskId::parse(raw_dependency.clone()).expect("validated dependency ID");
-                self.tasks
-                    .get(&dependency)
-                    .is_some_and(|dependency_record| {
-                        dependency_record.state == TaskState::Succeeded
-                    })
-            });
+            let all_succeeded = record
+                .task
+                .dependency_task_ids
+                .iter()
+                .all(|raw_dependency| {
+                    let dependency =
+                        TaskId::parse(raw_dependency.clone()).expect("validated dependency ID");
+                    self.tasks
+                        .get(&dependency)
+                        .is_some_and(|dependency_record| {
+                            dependency_record.state == TaskState::Succeeded
+                        })
+                });
 
             if all_succeeded {
                 ready.push(id.clone());
@@ -470,12 +475,11 @@ impl TaskGraph {
             .get_mut(task_id)
             .expect("task existence checked before mutation");
 
-        record.revision = record
-            .revision
-            .checked_add(1)
-            .ok_or_else(|| TaskTransitionError::RevisionOverflow {
+        record.revision = record.revision.checked_add(1).ok_or_else(|| {
+            TaskTransitionError::RevisionOverflow {
                 task_id: task_id.clone(),
-            })?;
+            }
+        })?;
         record.state = next;
 
         Ok(())
@@ -491,16 +495,17 @@ impl Default for TaskGraph {
 fn transition_allowed(from: TaskState, to: TaskState) -> bool {
     matches!(
         (from, to),
-        (TaskState::Pending, TaskState::Running | TaskState::Blocked | TaskState::Cancelled)
+        (
+            TaskState::Pending,
+            TaskState::Running | TaskState::Blocked | TaskState::Cancelled
+        ) | (
+            TaskState::Running,
+            TaskState::Succeeded | TaskState::Failed | TaskState::Blocked | TaskState::Cancelled
+        ) | (TaskState::Failed, TaskState::Pending | TaskState::Cancelled)
             | (
-                TaskState::Running,
-                TaskState::Succeeded
-                    | TaskState::Failed
-                    | TaskState::Blocked
-                    | TaskState::Cancelled
+                TaskState::Blocked,
+                TaskState::Pending | TaskState::Cancelled
             )
-            | (TaskState::Failed, TaskState::Pending | TaskState::Cancelled)
-            | (TaskState::Blocked, TaskState::Pending | TaskState::Cancelled)
     )
 }
 
@@ -673,15 +678,25 @@ mod tests {
     use crate::agent::{AgentRole, AgentTask};
 
     fn task(id: &str, dependencies: &[&str]) -> AgentTask {
-        let mut task = AgentTask::new(id, "P0-M004", AgentRole::Implementer, format!("Goal for {id}"));
-        task.dependency_task_ids = dependencies.iter().map(|value| (*value).to_owned()).collect();
+        let mut task = AgentTask::new(
+            id,
+            "P0-M004",
+            AgentRole::Implementer,
+            format!("Goal for {id}"),
+        );
+        task.dependency_task_ids = dependencies
+            .iter()
+            .map(|value| (*value).to_owned())
+            .collect();
         task
     }
 
     #[test]
     fn deterministic_sequence_id_is_stable() {
         assert_eq!(
-            TaskId::for_sequence("P0-M004", 1).expect("valid task ID").as_str(),
+            TaskId::for_sequence("P0-M004", 1)
+                .expect("valid task ID")
+                .as_str(),
             "P0-M004-T0001"
         );
         assert_eq!(
@@ -795,8 +810,7 @@ mod tests {
 
     #[test]
     fn accepted_transition_increments_revision_once() {
-        let mut graph =
-            TaskGraph::from_tasks([task("P0-M004-T0001", &[])]).expect("valid graph");
+        let mut graph = TaskGraph::from_tasks([task("P0-M004-T0001", &[])]).expect("valid graph");
         let id = TaskId::parse("P0-M004-T0001").expect("valid ID");
 
         assert_eq!(graph.get(&id).expect("record").revision(), 0);
@@ -856,11 +870,7 @@ mod tests {
                 .records()
                 .map(|record| record.id().as_str())
                 .collect::<Vec<_>>(),
-            vec![
-                "P0-M004-T0001",
-                "P0-M004-T0002",
-                "P0-M004-T0003"
-            ]
+            vec!["P0-M004-T0001", "P0-M004-T0002", "P0-M004-T0003"]
         );
     }
 }
