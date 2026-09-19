@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/agentforge-core",
+    "crates/agentforge-state",
     "crates/agentforge-cli",
     "crates/agentforge-daemon",
     "tools/xtask",

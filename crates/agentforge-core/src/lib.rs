@@ -5,6 +5,9 @@
 /// Provider-neutral agent governance contracts.
 pub mod agent;
 
+/// Durable task identity, lifecycle, and dependency graph semantics.
+pub mod task_graph;
+
 /// Human-readable product name.
 pub const PRODUCT_NAME: &str = "AgentForge";
 
