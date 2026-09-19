@@ -1,6 +1,6 @@
 # Plan: P0-M004 — Task graph and durable state
 
-Status: Approved
+Status: Complete
 Milestone: P0-M004
 Created: 2026-09-19
 
@@ -323,35 +323,49 @@ Remote:
 
 ## Acceptance criteria
 
-- [ ] Deterministic task IDs are implemented and tested.
-- [ ] Task graph rejects duplicate IDs.
-- [ ] Task graph rejects missing dependencies.
-- [ ] Task graph rejects self dependencies.
-- [ ] Task graph rejects cycles.
-- [ ] Graph ordering is deterministic.
-- [ ] Readiness is derived from dependency completion.
-- [ ] Lifecycle transitions are explicit and validated.
-- [ ] Accepted lifecycle transitions increment task revision.
-- [ ] Core graph has no filesystem/storage dependency.
-- [ ] A storage abstraction separates domain and persistence.
-- [ ] Version-1 durable snapshot format is implemented.
-- [ ] Snapshot decoding is bounded and fail-closed.
-- [ ] Snapshot save/load round trip is exact.
-- [ ] Snapshot bytes are deterministic for the same graph.
-- [ ] Corruption/truncation tests exist.
-- [ ] File store writes project-local state under `.forge/state/` by default.
-- [ ] No external Rust dependency is introduced.
-- [ ] Exact implementation CI is green.
-- [ ] Exact closure CI is green.
-- [ ] Post-merge `main` CI is green.
+- [x] Deterministic task IDs are implemented and tested.
+- [x] Task graph rejects duplicate IDs.
+- [x] Task graph rejects missing dependencies.
+- [x] Task graph rejects self dependencies.
+- [x] Task graph rejects cycles.
+- [x] Graph ordering is deterministic.
+- [x] Readiness is derived from dependency completion.
+- [x] Lifecycle transitions are explicit and validated.
+- [x] Accepted lifecycle transitions increment task revision.
+- [x] Core graph has no filesystem/storage dependency.
+- [x] A storage abstraction separates domain and persistence.
+- [x] Version-1 durable snapshot format is implemented.
+- [x] Snapshot decoding is bounded and fail-closed.
+- [x] Snapshot save/load round trip is exact.
+- [x] Snapshot bytes are deterministic for the same graph.
+- [x] Corruption/truncation tests exist.
+- [x] File store writes project-local state under `.forge/state/` by default.
+- [x] No external Rust dependency is introduced.
+- [x] Exact implementation CI is green.
+- [x] Exact closure CI is green.
+- [x] Post-merge `main` CI is green.
 
 ## Completion record
 
-Implementation commit:
-Implementation CI:
-Closure commit:
-Closure CI:
-Post-merge main:
-Post-merge CI:
-Completed:
-Notes:
+Implementation commit: e64fe647206ed8a0a7be19e6246c4a9f73557b1f
+Implementation CI: 35473456133 — all four jobs green
+Closure commit: recorded by Git history immediately after this record
+Closure CI: required before merge
+Post-merge main: required after merge
+Post-merge CI: required after merge
+Completed: 2026-09-19
+Notes: P0-M004 completed the first durable AgentForge orchestration graph/state vertical slice.
+
+Evidence:
+
+- Approved plan checkpoint: `29e64a3bd17255c03a15c8d33c4b02e68417ecd1`.
+- Plan CI run `35473153452` — all four jobs green.
+- Initial implementation checkpoint: `d25ef376e4cf957c89f92d3b463b3e86ef32ef38`.
+- Implementation CI run `35473369262` found two independent categories: formatting/lint and compilation/type.
+- First repair `d607ecdb9a3affb4336ffa84a886ac220fbbe12c` added the StateFormatError conversion, removed one unused import, and applied reported rustfmt output.
+- CI run `35473425385` proved MSRV, repository policy, and CLI smoke green and exposed one remaining rustfmt-only import wrap.
+- Final formatting-only repair: `e64fe647206ed8a0a7be19e6246c4a9f73557b1f`.
+- Exact implementation CI run `35473456133` passed Repository policy, Stable code gate, MSRV 1.85.0, and CLI smoke.
+- No external Rust dependency was introduced.
+- Core task-graph semantics remain filesystem-independent.
+- The new state crate persists versioned deterministic bounded snapshots under the storage boundary.
