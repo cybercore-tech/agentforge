@@ -11,52 +11,38 @@ Phase 0 — reliable local orchestration foundation.
 
 ## Active milestone
 
-No implementation milestone is currently active.
-
-`.plans/ACTIVE` is intentionally absent.
+- `P0-M003` — Plan-first workflow enforcement.
+- Active plan: `.plans/P0-M003-plan-first-workflow-enforcement.plan.md`.
+- Plan status: Approved.
+- Implementation status: not started.
+- Base main commit: `ebe5d12608e233f87645b12e574981e173b145a7`.
 
 ## Recently completed milestones
 
 - `P0-M001` — Repository bootstrap.
 - `P0-M002` — Governance and agent contract.
 
-## P0-M002 completion evidence
-
-- Approved plan checkpoint: `35b5d48b3ca9c3fc24515716d66109d9711ff741`.
-- Implementation checkpoint: `9e3d39c608deea44659d06759bfdfbc71b90f2fd`.
-- Exact implementation head passed the full local gate.
-- No external dependency was introduced.
-
 ## Current capability
 
-AgentForge now has:
+AgentForge has local deterministic gates and a documented plan-first workflow, but implementation
+authority is not yet mechanically checked and the GitHub repository has no Actions workflow.
 
-- a compiling Rust workspace;
-- `agentforge-core`;
-- the `forge` CLI;
-- the `forged` daemon entry point;
-- repository automation through `xtask`;
-- plan-first project controls;
-- deterministic local gates;
-- permanent milestone and ADR registries;
-- canonical agent roles;
-- explicit capability grants;
-- human approval boundaries;
-- versioned provider-neutral `AgentTask` semantics;
-- versioned provider-neutral `AgentResult` semantics;
-- path ownership conflict validation;
-- explicit task/result identity binding.
+## P0-M003 architecture boundary
 
-Task scheduling, durable task state, worktree orchestration, external agent adapters, MCP integration,
-and deployment automation are intentionally not implemented yet.
+P0-M003 may enforce repository plan policy through `xtask`, hooks, and GitHub Actions.
 
-## Next planned milestone
+It does not add task scheduling, durable task state, worktree orchestration, model adapters, MCP
+integration, or deployment automation.
 
-`P0-M003` — Plan-first workflow enforcement.
+## Bootstrap validation rule
 
-No P0-M003 implementation may begin until its own plan is written, Approved, committed separately,
-and validated.
+Because P0-M003 creates the first GitHub Actions workflow, the plan-only checkpoint is validated by
+the existing local full gate.
 
-## Known blockers
+Once CI exists, exact-head remote CI is mandatory for the remaining P0-M003 checkpoints.
 
-None for continued Phase 0 development.
+## Next exact action
+
+Validate this exact Approved plan-only checkpoint with the local full gate.
+
+Do not begin implementation until that checkpoint is locally green.

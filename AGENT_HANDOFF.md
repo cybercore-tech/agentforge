@@ -2,44 +2,43 @@
 
 ## Repository state
 
-- Active milestone: none.
-- Active plan: none.
-- P0-M001 status: Complete.
-- P0-M002 status: Complete.
-- P0-M002 implementation checkpoint: `9e3d39c608deea44659d06759bfdfbc71b90f2fd`.
-- P0-M002 validation: exact implementation head passed the full local gate.
+- Active milestone: `P0-M003`.
+- Active plan: `.plans/P0-M003-plan-first-workflow-enforcement.plan.md`.
+- Plan status: Approved.
+- Implementation status: not started.
+- Base main commit: `ebe5d12608e233f87645b12e574981e173b145a7`.
 
 ## Resume checklist
 
 1. Read `PROJECT_SPEC.md`.
 2. Read `PROJECT_STATE.md`.
 3. Read `AGENTS.md`.
-4. Run `./scripts/project-status`.
-5. Confirm there is no active plan before starting new implementation.
-6. Never bypass repository hooks or gates.
-7. Classify failures before repair.
-8. Repair forward rather than destroying repository state.
+4. Read `.plans/ACTIVE`.
+5. Read the P0-M003 plan.
+6. Read `docs/CI.md`.
+7. Run `./scripts/project-status`.
+8. Validate the exact plan-only checkpoint with `./scripts/gate.sh full`.
+9. Classify any failure before editing.
+10. Do not begin implementation on a failed plan checkpoint.
 
-## Completed P0-M002 work
+## Current work
 
-P0-M002 established AgentForge's provider-neutral governance model:
+P0-M003 makes plan-first development mechanically enforceable and bootstraps the repository's first
+GitHub Actions workflow.
 
-- canonical Planner, Architect, Researcher, Implementer, Tester, Reviewer, SecurityReviewer,
-  Integrator, and ReleaseManager roles;
-- explicit capabilities separate from roles;
-- least-privilege semantics;
-- human approval boundaries;
-- versioned AgentTask and AgentResult contracts;
-- concurrent path ownership rules;
-- reviewer independence;
-- escalation semantics;
-- provider-neutral core Rust types and regression coverage.
+The implementation is expected to:
 
-## Next milestone
+- strengthen active-plan validation;
+- require an Approved plan already committed before implementation;
+- reject plan approval mixed with implementation;
+- preserve closure/no-active-plan validity;
+- strengthen pre-commit policy enforcement;
+- add independent policy/stable/MSRV/smoke CI jobs;
+- establish exact-head remote CI evidence.
 
-The next planned milestone is:
+## Bootstrap note
 
-`P0-M003 — Plan-first workflow enforcement`
+The P0-M003 plan checkpoint predates GitHub Actions and therefore uses the existing local full gate
+as its checkpoint authority.
 
-P0-M003 should make the plan-first process mechanically enforceable rather than relying only on
-documentation and convention.
+After CI is introduced, remote exact-head validation is mandatory.
