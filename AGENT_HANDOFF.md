@@ -2,43 +2,47 @@
 
 ## Repository state
 
-- Active milestone: `P0-M003`.
-- Active plan: `.plans/P0-M003-plan-first-workflow-enforcement.plan.md`.
-- Plan status: Approved.
-- Implementation status: not started.
-- Base main commit: `ebe5d12608e233f87645b12e574981e173b145a7`.
+- Active milestone: none.
+- Active plan: none.
+- P0-M001 status: Complete.
+- P0-M002 status: Complete.
+- P0-M003 status: Complete.
+- P0-M003 validated implementation head: `e095d3e8fddcd35d0ca1803b0a62cf0aae7781b0`.
+- P0-M003 implementation CI run: `35472661178` — all four jobs green.
 
 ## Resume checklist
 
 1. Read `PROJECT_SPEC.md`.
 2. Read `PROJECT_STATE.md`.
 3. Read `AGENTS.md`.
-4. Read `.plans/ACTIVE`.
-5. Read the P0-M003 plan.
-6. Read `docs/CI.md`.
-7. Run `./scripts/project-status`.
-8. Validate the exact plan-only checkpoint with `./scripts/gate.sh full`.
-9. Classify any failure before editing.
-10. Do not begin implementation on a failed plan checkpoint.
+4. Read `docs/CI.md`.
+5. Run `./scripts/project-status`.
+6. Confirm there is no active plan before starting new implementation.
+7. Confirm P0-M003 closure CI and post-merge main CI completed successfully.
+8. Never bypass repository hooks or gates.
+9. Classify failures before repair.
+10. Repair forward rather than destroying repository state.
 
-## Current work
+## Completed P0-M003 work
 
-P0-M003 makes plan-first development mechanically enforceable and bootstraps the repository's first
-GitHub Actions workflow.
+P0-M003 established:
 
-The implementation is expected to:
+- mechanical active-plan validation;
+- Approved-plan authority checks for implementation;
+- plan/implementation commit separation;
+- local policy enforcement through `scripts/gate.sh`;
+- GitHub Actions remote validation;
+- independent Repository policy, Stable code gate, MSRV, and CLI smoke jobs;
+- exact-head CI evidence;
+- documented target protection rules for `main`.
 
-- strengthen active-plan validation;
-- require an Approved plan already committed before implementation;
-- reject plan approval mixed with implementation;
-- preserve closure/no-active-plan validity;
-- strengthen pre-commit policy enforcement;
-- add independent policy/stable/MSRV/smoke CI jobs;
-- establish exact-head remote CI evidence.
+The first implementation run exposed a rustfmt-only failure. It was classified before repair and
+fixed with a formatting-only commit. The next exact-head run passed all four jobs.
 
-## Bootstrap note
+## Next milestone
 
-The P0-M003 plan checkpoint predates GitHub Actions and therefore uses the existing local full gate
-as its checkpoint authority.
+The next planned milestone is:
 
-After CI is introduced, remote exact-head validation is mandatory.
+`P0-M004 — Task graph and durable state`
+
+Do not start it until the P0-M003 closure and post-merge `main` checks are green.

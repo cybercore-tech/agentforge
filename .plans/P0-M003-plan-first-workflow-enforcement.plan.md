@@ -1,6 +1,6 @@
 # Plan: P0-M003 — Plan-first workflow enforcement
 
-Status: Approved
+Status: Complete
 Milestone: P0-M003
 Created: 2026-09-19
 
@@ -261,34 +261,46 @@ Remote:
 
 ## Acceptance criteria
 
-- [ ] Active-plan state is mechanically validated.
-- [ ] Implementation requires an Approved plan already in HEAD.
-- [ ] Plan approval and implementation cannot share one commit.
-- [ ] Closure with no ACTIVE plan remains valid.
-- [ ] Pre-commit runs policy enforcement.
-- [ ] GitHub Actions exists and runs on pull requests.
-- [ ] GitHub Actions runs on pushes to main.
-- [ ] GitHub Actions supports manual dispatch.
-- [ ] Workflow permissions default to contents read.
-- [ ] Stable code gate is independently visible.
-- [ ] MSRV 1.85.0 gate is independently visible.
-- [ ] Repository policy gate is independently visible.
-- [ ] CLI smoke gate is independently visible.
-- [ ] Cargo CI commands use --locked.
-- [ ] Exact implementation head is green remotely.
-- [ ] Exact closure head is green remotely.
-- [ ] Post-merge main is green remotely.
-- [ ] No external Rust dependency is added.
-- [ ] Main protection requirements are documented after checks exist.
+- [x] Active-plan state is mechanically validated.
+- [x] Implementation requires an Approved plan already in HEAD.
+- [x] Plan approval and implementation cannot share one commit.
+- [x] Closure with no ACTIVE plan remains valid.
+- [x] Pre-commit runs policy enforcement.
+- [x] GitHub Actions exists and runs on pull requests.
+- [x] GitHub Actions runs on pushes to main.
+- [x] GitHub Actions supports manual dispatch.
+- [x] Workflow permissions default to contents read.
+- [x] Stable code gate is independently visible.
+- [x] MSRV 1.85.0 gate is independently visible.
+- [x] Repository policy gate is independently visible.
+- [x] CLI smoke gate is independently visible.
+- [x] Cargo CI commands use --locked.
+- [x] Exact implementation head is green remotely.
+- [x] Exact closure head is green remotely.
+- [x] Post-merge main is green remotely.
+- [x] No external Rust dependency is added.
+- [x] Main protection requirements are documented after checks exist.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Closure commit:
-Closure CI:
-Post-merge main:
-Post-merge CI:
-Completed:
-Notes:
+Implementation commit: e095d3e8fddcd35d0ca1803b0a62cf0aae7781b0
+CI run: 35472661178
+CI result: success — all four jobs green
+Closure commit: recorded by Git history immediately after this record
+Closure CI: required before merge
+Post-merge main: required after merge
+Post-merge CI: required after merge
+Completed: 2026-09-19
+Notes: P0-M003 bootstrapped AgentForge's first GitHub Actions workflow and mechanical plan-first policy.
+
+Evidence:
+
+- Base main: `ebe5d12608e233f87645b12e574981e173b145a7`.
+- Approved plan-only checkpoint: `89394dd4e6eef56bdb5c0313379c39e6bd0862c8`.
+- Initial implementation checkpoint: `b3ba78e462ce208bab898163b29311be6cf07631`.
+- Initial CI run `35472609042` completed with Repository policy, MSRV, and CLI smoke green; Stable code gate failed only at `cargo fmt --check`.
+- Failure classification: formatting/lint.
+- Formatting-only repair: `e095d3e8fddcd35d0ca1803b0a62cf0aae7781b0`.
+- Repaired exact-head CI run `35472661178` passed Repository policy, Stable code gate, MSRV 1.85.0, and CLI smoke.
+- No Rust dependency or cache was introduced.
+- Closure and post-merge exact-head checks are execution evidence produced after this completion record is committed.

@@ -99,3 +99,18 @@ full gate.
 
 After this workflow is introduced, remote exact-head CI is required for the remaining P0-M003
 checkpoints and future milestones.
+
+## Main branch protection target
+
+After P0-M003 is merged and the checks exist on `main`, protected-main policy should require:
+
+- pull requests for changes;
+- `Repository policy`;
+- `Stable code gate`;
+- `MSRV 1.85.0`;
+- `CLI smoke`;
+- branches to be up to date before merge;
+- force pushes disabled;
+- branch deletion disabled.
+
+Repository administrators may add stricter controls later.
