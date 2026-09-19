@@ -11,34 +11,52 @@ Phase 0 — reliable local orchestration foundation.
 
 ## Active milestone
 
-- `P0-M002` — Governance and agent contract.
-- Active plan: `.plans/P0-M002-governance-agent-contract.plan.md`.
-- Plan status: Approved.
-- Implementation status: not started.
-- Base main commit: `1910967c9989d7f705f71be7039e6877493e3aa7`.
+No implementation milestone is currently active.
 
-## Recently completed milestone
+`.plans/ACTIVE` is intentionally absent.
+
+## Recently completed milestones
 
 - `P0-M001` — Repository bootstrap.
-- Status: Complete.
+- `P0-M002` — Governance and agent contract.
+
+## P0-M002 completion evidence
+
+- Approved plan checkpoint: `35b5d48b3ca9c3fc24515716d66109d9711ff741`.
+- Implementation checkpoint: `9e3d39c608deea44659d06759bfdfbc71b90f2fd`.
+- Exact implementation head passed the full local gate.
+- No external dependency was introduced.
 
 ## Current capability
 
-AgentForge has a compiling Rust workspace, core crate, CLI, daemon entry point, xtask validation,
-plan-first project controls, deterministic local gates, and permanent milestone/ADR registries.
+AgentForge now has:
 
-P0-M002 is defining the governance contract required before autonomous task execution exists.
+- a compiling Rust workspace;
+- `agentforge-core`;
+- the `forge` CLI;
+- the `forged` daemon entry point;
+- repository automation through `xtask`;
+- plan-first project controls;
+- deterministic local gates;
+- permanent milestone and ADR registries;
+- canonical agent roles;
+- explicit capability grants;
+- human approval boundaries;
+- versioned provider-neutral `AgentTask` semantics;
+- versioned provider-neutral `AgentResult` semantics;
+- path ownership conflict validation;
+- explicit task/result identity binding.
 
-## P0-M002 architecture boundary
+Task scheduling, durable task state, worktree orchestration, external agent adapters, MCP integration,
+and deployment automation are intentionally not implemented yet.
 
-P0-M002 defines roles, capabilities, human approval boundaries, task/result semantics, and
-concurrent ownership rules.
+## Next planned milestone
 
-It does not schedule tasks, spawn agents, create worktrees, access secrets, or contact external
-model providers.
+`P0-M003` — Plan-first workflow enforcement.
 
-## Next exact action
+No P0-M003 implementation may begin until its own plan is written, Approved, committed separately,
+and validated.
 
-Validate this exact Approved plan-only checkpoint with the full local gate.
+## Known blockers
 
-Do not begin Rust implementation until that exact checkpoint is green.
+None for continued Phase 0 development.

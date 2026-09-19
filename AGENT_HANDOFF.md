@@ -2,39 +2,44 @@
 
 ## Repository state
 
-- Active milestone: `P0-M002`.
-- Active plan: `.plans/P0-M002-governance-agent-contract.plan.md`.
-- Plan status: Approved.
-- Implementation status: not started.
-- Base main commit: `1910967c9989d7f705f71be7039e6877493e3aa7`.
+- Active milestone: none.
+- Active plan: none.
+- P0-M001 status: Complete.
+- P0-M002 status: Complete.
+- P0-M002 implementation checkpoint: `9e3d39c608deea44659d06759bfdfbc71b90f2fd`.
+- P0-M002 validation: exact implementation head passed the full local gate.
 
 ## Resume checklist
 
 1. Read `PROJECT_SPEC.md`.
 2. Read `PROJECT_STATE.md`.
 3. Read `AGENTS.md`.
-4. Read `.plans/ACTIVE`.
-5. Read the P0-M002 plan.
-6. Read the governance, roles, task-contract, and approval-boundary documents.
-7. Run `./scripts/project-status`.
-8. Require the exact plan-only checkpoint to pass `./scripts/gate.sh full`.
-9. Classify any failure before editing.
-10. Do not begin Rust implementation on a partially validated plan checkpoint.
+4. Run `./scripts/project-status`.
+5. Confirm there is no active plan before starting new implementation.
+6. Never bypass repository hooks or gates.
+7. Classify failures before repair.
+8. Repair forward rather than destroying repository state.
 
-## Current work
+## Completed P0-M002 work
 
-P0-M002 defines:
+P0-M002 established AgentForge's provider-neutral governance model:
 
-- canonical agent roles;
-- explicit capability grants;
+- canonical Planner, Architect, Researcher, Implementer, Tester, Reviewer, SecurityReviewer,
+  Integrator, and ReleaseManager roles;
+- explicit capabilities separate from roles;
+- least-privilege semantics;
 - human approval boundaries;
-- task/result contract semantics;
-- concurrent write ownership rules;
+- versioned AgentTask and AgentResult contracts;
+- concurrent path ownership rules;
 - reviewer independence;
-- escalation behavior.
+- escalation semantics;
+- provider-neutral core Rust types and regression coverage.
 
-## Next exact action
+## Next milestone
 
-Run the full gate on the plan-only checkpoint.
+The next planned milestone is:
 
-Only after it is green may P0-M002 add provider-neutral domain types to `agentforge-core`.
+`P0-M003 — Plan-first workflow enforcement`
+
+P0-M003 should make the plan-first process mechanically enforceable rather than relying only on
+documentation and convention.

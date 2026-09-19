@@ -1,6 +1,6 @@
 # Plan: P0-M002 — Governance and agent contract
 
-Status: Approved
+Status: Complete
 Milestone: P0-M002
 Created: 2026-09-19
 
@@ -451,28 +451,44 @@ unless a dedicated governance change explicitly supersedes them.
 
 ## Acceptance criteria
 
-- [ ] Canonical agent roles are documented.
-- [ ] Role responsibilities and prohibitions are explicit.
-- [ ] Capability vocabulary is documented.
-- [ ] Capabilities are independent from roles.
-- [ ] Least privilege is normative.
-- [ ] Human approval boundaries are explicit.
-- [ ] AgentTask semantic contract is documented.
-- [ ] AgentResult semantic contract is documented.
-- [ ] Concurrent write ownership rule is explicit.
-- [ ] Reviewer independence is explicit.
-- [ ] Provider neutrality is preserved.
-- [ ] Core Rust role/capability/task/result types exist.
-- [ ] Core types have regression tests.
-- [ ] No external dependency is added.
-- [ ] Exact implementation head passes full validation.
-- [ ] Closure removes `.plans/ACTIVE`.
-- [ ] Final main state is clean and green.
+- [x] Canonical agent roles are documented.
+- [x] Role responsibilities and prohibitions are explicit.
+- [x] Capability vocabulary is documented.
+- [x] Capabilities are independent from roles.
+- [x] Least privilege is normative.
+- [x] Human approval boundaries are explicit.
+- [x] AgentTask semantic contract is documented.
+- [x] AgentResult semantic contract is documented.
+- [x] Concurrent write ownership rule is explicit.
+- [x] Reviewer independence is explicit.
+- [x] Provider neutrality is preserved.
+- [x] Core Rust role/capability/task/result types exist.
+- [x] Core types have regression tests.
+- [x] No external dependency is added.
+- [x] Exact implementation head passes full validation.
+- [x] Closure removes `.plans/ACTIVE`.
+- [x] Final main state is clean and green.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
-Notes:
+Implementation commit: 9e3d39c608deea44659d06759bfdfbc71b90f2fd
+CI run: local full gate
+CI result: success
+Completed: 2026-09-19
+Notes: P0-M002 completed after exact implementation validation.
+
+Evidence:
+
+- Approved plan checkpoint: `35b5d48b3ca9c3fc24515716d66109d9711ff741`.
+- Implementation checkpoint: `9e3d39c608deea44659d06759bfdfbc71b90f2fd`.
+- Working tree was clean before closure.
+- `./scripts/gate.sh full` passed on the exact implementation head.
+- Agent role identities are implemented and tested.
+- Capability identities are implemented and tested.
+- Approval boundaries are implemented and tested.
+- Versioned `AgentTask` and `AgentResult` contracts are implemented.
+- Path ownership conflict validation is implemented.
+- Duplicate capability validation is implemented.
+- Result-to-task identity binding is implemented.
+- No external dependency was introduced.
+- No scheduler, durable-state engine, worktree manager, model adapter, MCP gateway, or serialization format was introduced.
