@@ -1,0 +1,21 @@
+[workspace]
+members = [
+    "crates/agentforge-core",
+    "crates/agentforge-cli",
+    "crates/agentforge-daemon",
+    "tools/xtask",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.0.1"
+edition = "2024"
+rust-version = "1.85"
+authors = ["AgentForge contributors"]
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+all = "warn"

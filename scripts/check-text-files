@@ -1,0 +1,32 @@
+#!/usr/bin/env python3
+from pathlib import Path
+import subprocess
+
+tracked = subprocess.run(
+    ["git", "ls-files"],
+    check=True,
+    stdout=subprocess.PIPE,
+    text=True,
+).stdout.splitlines()
+
+bad = []
+for raw in tracked:
+    path = Path(raw)
+    if not path.is_file():
+        continue
+    data = path.read_bytes()
+    try:
+        data.decode("utf-8")
+    except UnicodeDecodeError:
+        continue
+    if b"\r" in data:
+        bad.append(f"{raw}: contains CR/CRLF")
+    if data and not data.endswith(b"\n"):
+        bad.append(f"{raw}: missing trailing LF")
+    if data.endswith(b"\n\n"):
+        bad.append(f"{raw}: more than one trailing LF")
+
+if bad:
+    raise SystemExit("\n".join(bad))
+
+print(f"text policy: {len(tracked)} tracked paths checked")

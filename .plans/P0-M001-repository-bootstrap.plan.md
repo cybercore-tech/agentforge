@@ -1,6 +1,6 @@
 # Plan: P0-M001 — Repository bootstrap
 
-Status: Approved
+Status: Complete
 Milestone: P0-M001
 Created: 2026-09-19
 
@@ -132,24 +132,42 @@ This milestone creates the initial project documentation.
 
 ## Acceptance criteria
 
-- [ ] Repository initializes cleanly.
-- [ ] Permanent Phase 0 milestone IDs exist.
-- [ ] Project-control files exist.
-- [ ] ADR registry exists.
-- [ ] Rust workspace contains core, CLI, daemon, and xtask packages.
-- [ ] `forge version` works.
-- [ ] `forge doctor` works.
-- [ ] `forged --version` works.
-- [ ] `xtask validate` works.
-- [ ] Text policy passes.
-- [ ] Rust format/check/clippy/test pass.
-- [ ] No external dependency is introduced.
-- [ ] Plan and implementation are separate commits.
+- [x] Repository initializes cleanly.
+- [x] Permanent Phase 0 milestone IDs exist.
+- [x] Project-control files exist.
+- [x] ADR registry exists.
+- [x] Rust workspace contains core, CLI, daemon, and xtask packages.
+- [x] `forge version` works.
+- [x] `forge doctor` works.
+- [x] `forged --version` works.
+- [x] `xtask validate` works.
+- [x] Text policy passes.
+- [x] Rust format/check/clippy/test pass.
+- [x] No external dependency is introduced.
+- [x] Plan and implementation are separate commits.
 
 ## Completion record
 
-Implementation commit:
+Implementation commit: f25c83e242c6879b1bfffe9f221a67a48b9a5b40
 CI run: local bootstrap gate
-CI result:
-Completed:
-Notes:
+CI result: success
+Completed: 2026-09-19
+Notes: P0-M001 completed after exact implementation validation.
+
+Evidence:
+
+- Approved plan checkpoint: `b3288eda201911ecfd2eb0d39684931d82602fc0`.
+- Implementation commit: `f25c83e242c6879b1bfffe9f221a67a48b9a5b40`.
+- Working tree was clean before closure.
+- `./scripts/gate.sh full` passed.
+- Text-file policy passed.
+- `cargo fmt --all --check` passed.
+- Workspace check passed with `--locked`.
+- Workspace Clippy passed with warnings denied.
+- Workspace tests and doc tests passed.
+- `cargo run -p xtask --locked -- validate` passed.
+- `forge version` reported AgentForge 0.0.1.
+- `forge doctor` reported bootstrap status ok.
+- `forged --version` reported AgentForge daemon 0.0.1.
+- No external dependency was introduced.
+- Plan approval and implementation remained separate commits.
