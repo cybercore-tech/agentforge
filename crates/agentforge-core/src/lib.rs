@@ -1,6 +1,9 @@
 //! Core domain primitives for AgentForge.
 //!
-//! Phase 0 intentionally keeps this crate dependency-free.
+//! Phase 0 keeps the core model provider-neutral and dependency-light.
+
+/// Provider-neutral agent governance contracts.
+pub mod agent;
 
 /// Human-readable product name.
 pub const PRODUCT_NAME: &str = "AgentForge";

@@ -15,39 +15,46 @@ No implementation milestone is currently active.
 
 `.plans/ACTIVE` is intentionally absent.
 
-## Recently completed milestone
+## Recently completed milestones
 
 - `P0-M001` — Repository bootstrap.
-- Plan checkpoint: `b3288eda201911ecfd2eb0d39684931d82602fc0`.
-- Implementation commit: `f25c83e242c6879b1bfffe9f221a67a48b9a5b40`.
-- Validation: local full gate passed.
-- Result: core, CLI, daemon skeleton, xtask, project controls, ADR registry, milestone registry,
-  hooks, and deterministic bootstrap gates are established.
+- `P0-M002` — Governance and agent contract.
+
+## P0-M002 completion evidence
+
+- Approved plan checkpoint: `35b5d48b3ca9c3fc24515716d66109d9711ff741`.
+- Implementation checkpoint: `9e3d39c608deea44659d06759bfdfbc71b90f2fd`.
+- Exact implementation head passed the full local gate.
+- No external dependency was introduced.
 
 ## Current capability
 
 AgentForge now has:
 
-- a Rust 2024 workspace with MSRV 1.85;
+- a compiling Rust workspace;
 - `agentforge-core`;
 - the `forge` CLI;
 - the `forged` daemon entry point;
 - repository automation through `xtask`;
-- permanent milestone IDs;
-- plan-first project artifacts;
-- repository text policy;
-- local precommit/fast/full gates;
-- Git hook installation;
-- project status diagnostics.
+- plan-first project controls;
+- deterministic local gates;
+- permanent milestone and ADR registries;
+- canonical agent roles;
+- explicit capability grants;
+- human approval boundaries;
+- versioned provider-neutral `AgentTask` semantics;
+- versioned provider-neutral `AgentResult` semantics;
+- path ownership conflict validation;
+- explicit task/result identity binding.
 
-Agent orchestration, durable task state, worktree management, model adapters, and permissions are
-intentionally not implemented yet.
+Task scheduling, durable task state, worktree orchestration, external agent adapters, MCP integration,
+and deployment automation are intentionally not implemented yet.
 
 ## Next planned milestone
 
-`P0-M002` — Governance and agent contract.
+`P0-M003` — Plan-first workflow enforcement.
 
-No P0-M002 implementation may begin until its plan is written, Approved, committed separately,
+No P0-M003 implementation may begin until its own plan is written, Approved, committed separately,
 and validated.
 
 ## Known blockers
