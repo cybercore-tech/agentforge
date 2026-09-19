@@ -746,8 +746,8 @@ impl<'a> Reader<'a> {
 mod tests {
     use super::{
         CHECKSUM_BYTES, FileTaskStore, HEADER_BYTES, MAGIC, MAX_SNAPSHOT_BYTES, SNAPSHOT_VERSION,
-        StateError, StateFormatError, TaskStore, decode_snapshot, encode_record,
-        encode_snapshot, wrap_payload, write_count,
+        StateError, StateFormatError, TaskStore, decode_snapshot, encode_record, encode_snapshot,
+        wrap_payload, write_count,
     };
     use agentforge_core::agent::{AgentRole, AgentTask, ApprovalBoundary, Capability};
     use agentforge_core::task::{TaskGraph, TaskRecord, TaskState};
