@@ -4,6 +4,8 @@
 
 /// Provider-neutral agent governance contracts.
 pub mod agent;
+/// Deterministic task graph and lifecycle semantics.
+pub mod task;
 
 /// Human-readable product name.
 pub const PRODUCT_NAME: &str = "AgentForge";
