@@ -1,6 +1,6 @@
 # Plan: P0-M004 — Task graph and durable state
 
-Status: Approved
+Status: Complete
 Milestone: P0-M004
 Created: 2026-09-19
 
@@ -197,28 +197,50 @@ Persistence:
 
 ## Acceptance criteria
 
-- [ ] P0-M003 is complete.
-- [ ] Plan commit is separate from implementation.
-- [ ] Exact plan checkpoint passes full gate.
-- [ ] Deterministic task IDs exist.
-- [ ] Fixed identity vectors are tested.
-- [ ] Task lifecycle exists.
-- [ ] Invalid dependency graphs are rejected.
-- [ ] Cycles are rejected.
-- [ ] Readiness semantics are deterministic.
-- [ ] agentforge-core performs no persistence I/O.
-- [ ] agentforge-state exists separately.
-- [ ] Durable state is versioned.
-- [ ] Complete graph state survives save/load.
-- [ ] Malformed state fails safely.
-- [ ] Loaded state is revalidated.
-- [ ] Exact implementation head passes full validation.
-- [ ] Closure removes .plans/ACTIVE.
+- [x] P0-M003 is complete.
+- [x] Plan commit is separate from implementation.
+- [x] Exact plan checkpoint passes full gate.
+- [x] Deterministic task IDs exist.
+- [x] Fixed identity vectors are tested.
+- [x] Task lifecycle exists.
+- [x] Invalid dependency graphs are rejected.
+- [x] Cycles are rejected.
+- [x] Readiness semantics are deterministic.
+- [x] agentforge-core performs no persistence I/O.
+- [x] agentforge-state exists separately.
+- [x] Durable state is versioned.
+- [x] Complete graph state survives save/load.
+- [x] Malformed state fails safely.
+- [x] Loaded state is revalidated.
+- [x] Exact implementation head passes full validation.
+- [x] Closure removes .plans/ACTIVE.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
-Notes:
+Implementation commit: 266a67578c95bf7fd27652d4ce5701932fe1ca72
+Plan checkpoint: bfbcfade72dc27c6e6c6ec9e6f2766ea7077ebee
+CI run: local exact-head full gate
+CI result: success
+Completed: 2026-09-19
+Notes: P0-M004 completed after exact implementation validation.
+
+Evidence:
+
+- deterministic task IDs are implemented and tested;
+- fixed task-ID compatibility vectors prevent silent identity drift;
+- task lifecycle state is explicit;
+- dependency graph ordering is deterministic;
+- missing dependencies are rejected;
+- self dependencies are rejected;
+- dependency cycles are rejected;
+- readiness requires Completed prerequisites;
+- agentforge-core performs no persistence I/O;
+- agentforge-state owns durable state persistence;
+- durable snapshots are explicitly versioned;
+- snapshot encoding is deterministic;
+- loaded graphs are revalidated;
+- malformed and corrupt authoritative state fails explicitly;
+- temporary state is not authoritative;
+- publication uses write, flush, sync, and rename;
+- generation regression is rejected;
+- the exact implementation head passed ./scripts/gate.sh full.
