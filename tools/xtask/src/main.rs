@@ -27,9 +27,7 @@ fn main() -> ExitCode {
         Some("validate") => report("repository validation", validate_repository()),
         Some("validate-plan-policy") => report("plan policy", validate_plan_policy()),
         _ => {
-            eprintln!(
-                "usage: cargo run -p xtask -- <validate|validate-plan-policy>"
-            );
+            eprintln!("usage: cargo run -p xtask -- <validate|validate-plan-policy>");
             ExitCode::from(2)
         }
     }
@@ -125,12 +123,8 @@ fn validate_active_plan(errors: &mut Vec<String>) {
 }
 
 fn validate_plan_policy() -> Result<(), Vec<String>> {
-    let staged_paths = match git_lines(&[
-        "diff",
-        "--cached",
-        "--name-only",
-        "--diff-filter=ACMRTD",
-    ]) {
+    let staged_paths = match git_lines(&["diff", "--cached", "--name-only", "--diff-filter=ACMRTD"])
+    {
         Ok(paths) => paths,
         Err(error) => return Err(vec![error]),
     };
@@ -172,7 +166,10 @@ fn validate_head_commit_policy() -> Result<(), Vec<String>> {
     };
 
     if parts.len() == 1 {
-        if changed_paths.iter().any(|path| is_implementation_path(path)) {
+        if changed_paths
+            .iter()
+            .any(|path| is_implementation_path(path))
+        {
             return Err(vec![
                 "root implementation commit has no prior Approved plan checkpoint".to_owned(),
             ]);
@@ -189,7 +186,10 @@ fn validate_implementation_authority(
     authority_ref: &str,
     context: &str,
 ) -> Result<(), Vec<String>> {
-    if !changed_paths.iter().any(|path| is_implementation_path(path)) {
+    if !changed_paths
+        .iter()
+        .any(|path| is_implementation_path(path))
+    {
         return Ok(());
     }
 
@@ -281,11 +281,7 @@ fn git_output(args: &[&str]) -> Result<String, String> {
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!(
-            "git {} failed: {}",
-            args.join(" "),
-            stderr.trim()
-        ));
+        return Err(format!("git {} failed: {}", args.join(" "), stderr.trim()));
     }
 
     String::from_utf8(output.stdout)
