@@ -1,0 +1,15 @@
+[package]
+name = "agentforge-operator"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+agentforge-audit = { path = "../agentforge-audit" }
+agentforge-core = { path = "../agentforge-core" }
+agentforge-state = { path = "../agentforge-state" }
+
+[lints]
+workspace = true

@@ -22,3 +22,7 @@ interactive editor or a second source of truth.
 P2-M002 adds an optional line-oriented watch mode with bounded polling and `refresh`, `help`, and
 `quit` commands. It remains a read-only projection: it cannot create tasks, launch agents, change
 state, mutate Git, or approve work.
+
+P2-M003 adds a separate controlled operator service for task inspection, explicit actor-bound
+approvals, and audited lifecycle decisions. `forge run` consumes only verified task-linked approval
+events; the HUD remains an observation surface.

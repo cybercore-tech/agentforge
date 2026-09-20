@@ -7,6 +7,9 @@ use agentforge_intake::{
     IntakeError, TaskDraft, approval_from_name, build_task, capability_from_name, initialize, load,
     role_from_name,
 };
+use agentforge_operator::{
+    approve_task, approved_boundaries, inspect_tasks, parse_approval_boundary, transition_task,
+};
 use agentforge_orchestrator::execute_process_persisted;
 use agentforge_state::{FileTaskStore, TaskStore};
 use std::io::{self, Read, Write};
@@ -54,7 +57,7 @@ fn main() -> ExitCode {
 
 fn print_usage() {
     println!(
-        "usage: forge <version|doctor|status|init <root>|blueprint validate <root>|task create <root> <task-id> <milestone> <role> <goal> [options]|run <root> <task-id> <absolute-executable>|hud <root> [--watch [--interval-ms <milliseconds>]]>"
+        "usage: forge <version|doctor|status|init <root>|blueprint validate <root>|task create|inspect|approve|accept|cancel|retry ...|run <root> <task-id> <absolute-executable>|hud <root> [--watch [--interval-ms <milliseconds>]]>"
     );
 }
 
@@ -99,12 +102,120 @@ fn blueprint_command(arguments: Vec<String>) -> ExitCode {
 }
 
 fn task_command(arguments: Vec<String>) -> ExitCode {
-    if arguments.first().map(String::as_str) != Some("create") {
-        eprintln!("task requires: create <root> <task-id> <milestone> <role> <goal> [options]");
-        print_usage();
+    match arguments.first().map(String::as_str) {
+        Some("create") => task_create_command(arguments[1..].to_vec()),
+        Some("inspect") => task_inspect_command(&arguments[1..]),
+        Some("approve") => task_approve_command(&arguments[1..]),
+        Some("accept") => {
+            task_transition_command(&arguments[1..], agentforge_core::task::TaskState::Succeeded)
+        }
+        Some("cancel") => {
+            task_transition_command(&arguments[1..], agentforge_core::task::TaskState::Cancelled)
+        }
+        Some("retry") => {
+            task_transition_command(&arguments[1..], agentforge_core::task::TaskState::Pending)
+        }
+        _ => {
+            eprintln!("task requires: create, inspect, approve, accept, cancel, or retry");
+            print_usage();
+            ExitCode::from(2)
+        }
+    }
+}
+
+fn task_inspect_command(arguments: &[String]) -> ExitCode {
+    if !(arguments.len() == 1 || arguments.len() == 2) {
+        eprintln!("task inspect requires: <root> [<task-id>]");
         return ExitCode::from(2);
     }
-    task_create_command(arguments[1..].to_vec())
+    let task_id = match arguments.get(1).map(|value| TaskId::parse(value.clone())) {
+        Some(Ok(value)) => Some(value),
+        Some(Err(error)) => {
+            eprintln!("invalid task ID: {error}");
+            return ExitCode::from(2);
+        }
+        None => None,
+    };
+    match inspect_tasks(&arguments[0], task_id.as_ref()) {
+        Ok(tasks) => {
+            for task in tasks {
+                println!(
+                    "task={} state={} revision={} milestone={} ready={} goal={}",
+                    task.task_id, task.state, task.revision, task.milestone, task.ready, task.goal
+                );
+                println!("  dependencies: {}", task.dependencies.join(","));
+                println!("  approvals: {}", task.required_approvals.join(","));
+            }
+            ExitCode::SUCCESS
+        }
+        Err(error) => {
+            eprintln!("task inspect failed: {error}");
+            ExitCode::from(1)
+        }
+    }
+}
+
+fn task_approve_command(arguments: &[String]) -> ExitCode {
+    if arguments.len() != 5 || arguments[3] != "--actor" {
+        eprintln!("task approve requires: <root> <task-id> <approval-boundary> --actor <actor-id>");
+        return ExitCode::from(2);
+    }
+    let task_id = match TaskId::parse(arguments[1].clone()) {
+        Ok(value) => value,
+        Err(error) => {
+            eprintln!("invalid task ID: {error}");
+            return ExitCode::from(2);
+        }
+    };
+    let boundary = match parse_approval_boundary(&arguments[2]) {
+        Some(value) => value,
+        None => {
+            eprintln!("unknown approval boundary: {}", arguments[2]);
+            return ExitCode::from(2);
+        }
+    };
+    match approve_task(&arguments[0], &task_id, boundary, &arguments[4]) {
+        Ok(()) => {
+            println!("approved {} for {}", boundary.as_str(), task_id);
+            ExitCode::SUCCESS
+        }
+        Err(error) => {
+            eprintln!("task approval failed: {error}");
+            ExitCode::from(1)
+        }
+    }
+}
+
+fn task_transition_command(
+    arguments: &[String],
+    next: agentforge_core::task::TaskState,
+) -> ExitCode {
+    if arguments.len() != 4 || arguments[2] != "--actor" {
+        eprintln!("task action requires: <root> <task-id> --actor <actor-id>");
+        return ExitCode::from(2);
+    }
+    let task_id = match TaskId::parse(arguments[1].clone()) {
+        Ok(value) => value,
+        Err(error) => {
+            eprintln!("invalid task ID: {error}");
+            return ExitCode::from(2);
+        }
+    };
+    match transition_task(&arguments[0], &task_id, next, &arguments[3]) {
+        Ok(revision) => {
+            println!(
+                "task {} transitioned to {} at revision {}",
+                task_id,
+                next.as_str(),
+                revision
+            );
+            ExitCode::SUCCESS
+        }
+        Err(error) => {
+            eprintln!("task transition failed: {error}");
+            ExitCode::from(1)
+        }
+    }
 }
 
 fn task_create_command(arguments: Vec<String>) -> ExitCode {
@@ -300,13 +411,20 @@ fn run_command(arguments: Vec<String>) -> ExitCode {
             return ExitCode::from(2);
         }
     };
+    let approvals = match approved_boundaries(&root, &task_id) {
+        Ok(value) => value,
+        Err(error) => {
+            eprintln!("cannot verify approvals: {error}");
+            return ExitCode::from(1);
+        }
+    };
     match execute_process_persisted(
         &root,
         &task_store,
         &mut audit_store,
         &task_id,
         &adapter,
-        &[],
+        &approvals,
     ) {
         Ok(execution) => {
             println!(

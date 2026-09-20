@@ -29,3 +29,7 @@ redirected output remains plain text and no raw-terminal mode is required.
 
 Source failures are printed as bounded diagnostics for the affected frame. The loop remains
 read-only and may recover when a later frame becomes valid; it never creates missing durable state.
+
+Operator mutations are deliberately separate from the HUD. Use explicit `forge task inspect`,
+`approve`, `accept`, `cancel`, and `retry` commands when a human decision is required; each action
+is validated and recorded in the durable audit chain.
