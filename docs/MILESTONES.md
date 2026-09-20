@@ -34,4 +34,5 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 | ID | Status | Milestone | Acceptance signal |
 | --- | --- | --- | --- |
 | P1-M001 | complete | Multi-agent scheduling and serialized integration | Runnable batches are deterministic, disjoint work can run concurrently, and integration is serialized. |
-| P1-M002 | active | Single-task orchestration loop | One task runs through durable state, policy, worktree, adapter, gates, audit, and review handoff. |
+| P1-M002 | complete | Single-task orchestration loop | One task runs through durable state, policy, worktree, adapter, gates, audit, and review handoff. |
+| P1-M003 | planned | Project blueprint and task intake | Operators can author validated project guidance and explicit task contracts through durable files and CLI commands. |

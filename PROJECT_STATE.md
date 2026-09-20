@@ -7,11 +7,11 @@
 
 ## Current phase
 
-Phase 0 — reliable local orchestration foundation.
+Phase 1 — multi-agent scheduling and integration.
 
 ## Active milestone
 
-`P1-M002` — Single-task orchestration loop (approved plan; implementation not yet started).
+No implementation milestone is active. `P1-M003` is planned; its draft plan is not yet approved.
 
 ## Completed milestones
 
@@ -24,6 +24,8 @@ Phase 0 — reliable local orchestration foundation.
 - `P0-M007` — Gate engine.
 - `P0-M008` — CI monitor and failure classifier.
 - `P0-M009` — Event and audit log.
+- `P1-M001` — Multi-agent scheduling and serialized integration.
+- `P1-M002` — Single-task orchestration loop.
 
 ## P0-M005 completion evidence
 
@@ -83,11 +85,21 @@ audit events, and deployment orchestration remain intentionally unimplemented.
 
 ## Next planned milestone
 
-`P1-M002` — Single-task orchestration loop.
+`P1-M003` — Project blueprint and task intake.
 
 ## Known blockers
 
-P1-M001 is complete. P1-M002 implementation is authorized within the approved plan boundary.
+P1-M002 is complete. P1-M003 requires a separate plan-approval checkpoint before implementation.
+
+## P1-M002 completion evidence
+
+- Approved plan: `.plans/P1-M002-orchestration-loop.plan.md`.
+- Implementation head: `0dcd50d08b8fcec9c25a9ab13f3567e2f50209cd`.
+- Exact implementation CI: `35494859218` — all four jobs green.
+- The persisted single-task loop validates task state and policy, executes a bounded local process
+  through the adapter, records durable task/audit transitions, and exposes `forge run`.
+- Successful executions remain `Running` pending independent acceptance; failed-state persistence is
+  a known follow-up gap for the next implementation increment.
 
 ## P1-M001 completion evidence
 

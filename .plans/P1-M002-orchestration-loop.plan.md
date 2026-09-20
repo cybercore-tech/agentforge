@@ -1,6 +1,6 @@
 # Plan: P1-M002 — Single-task orchestration loop
 
-Status: Approved
+Status: Completed
 Milestone: P1-M002
 Created: 2026-09-19
 
@@ -51,3 +51,6 @@ No workflow, hook, dependency, persistence-format, or unrelated scheduler change
 
 Approve separately, implement an isolated end-to-end fixture, run full gate and exact CI, close,
 merge, and verify post-merge CI.
+
+Implementation commit: `0dcd50d08b8fcec9c25a9ab13f3567e2f50209cd`
+Implementation CI: `35494859218` — all four jobs green
