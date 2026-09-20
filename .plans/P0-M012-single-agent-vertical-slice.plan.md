@@ -1,6 +1,6 @@
 # Plan: P0-M012 — Single-agent vertical slice
 
-Status: Approved
+Status: Completed
 Milestone: P0-M012
 Created: 2026-09-19
 
@@ -38,3 +38,6 @@ Expected files: this plan, `.plans/ACTIVE`, project state/handoff/milestones, AD
 ## Acceptance
 
 Separate approval, full gate, exact CI, closure, merge, and post-merge verification are required.
+
+Implementation commit: `fcf3809c9f5c099833cb07862e626ca3f1764cff`
+Implementation CI: `35493160857` — all four jobs green
