@@ -43,7 +43,7 @@ identifies the next bounded need.
   and `2bd09e7`.
 - Exact implementation CI: `35518517068` — all matrix jobs green for the final daemon lifecycle
   repair, including Windows, macOS, and Linux.
-- Closure commit: recorded in the final closure checkpoint below.
+- Closure commit: `3849747`; exact closure CI `35518635838` is green across all matrix jobs.
 - The milestone adds Windows-native Git path argument conversion and path equivalence, bounded
   local agent profiles selectable by direct CLI or daemon execution, and cooperative bounded daemon
   start/status/stop/restart supervision with cross-platform teardown recovery.

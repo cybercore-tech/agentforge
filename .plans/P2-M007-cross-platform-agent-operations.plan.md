@@ -143,8 +143,8 @@ Implementation commits: `0153810`, `11c6b32`, `11ea7e7`, `4c33f2f`, `2144aa7`,
 `f963e17`, and `2bd09e7`.
 CI runs: `35506798008` (exact `4c33f2f`) and `35518517068` (exact `2bd09e7`), all matrix jobs
 green.
-Closure commit: pending after bounded daemon-test teardown repair.
-Closure CI: pending after bounded daemon-test teardown repair.
+Closure commit: `3849747`.
+Closure CI: `35518635838` (exact `3849747`, all matrix jobs green).
 Completed: 2026-09-20.
 Notes: Windows Git arguments now use native paths while comparison remains canonical and
 case-insensitive. Profiles are bounded, versioned, direct-argument configurations with cleared

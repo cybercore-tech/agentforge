@@ -7,8 +7,8 @@
 - P2-M007 implementation commits: `0153810`, `11c6b32`, `11ea7e7`, `4c33f2f`, `2144aa7`,
   `f963e17`, and `2bd09e7`; exact CI `35518517068` is green across MSRV, stable, policy,
   CLI smoke, Linux, macOS, and Windows.
-- P2-M007 closure is this checkpoint; no implementation work remains after the final exact-head
-  closure CI is recorded.
+- P2-M007 closure commit: `3849747`; exact closure CI `35518635838` is green across MSRV,
+  stable, policy, CLI smoke, Linux, macOS, and Windows. No implementation work remains.
 - P0-M001 status: Complete.
 - P0-M002 status: Complete.
 - P0-M003 status: Complete.
