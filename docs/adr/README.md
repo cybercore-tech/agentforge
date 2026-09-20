@@ -22,3 +22,4 @@ ADRs are permanent numbered records of consequential design decisions.
 | ADR-0014 | Accepted | Append-only event audit log with integrity chaining |
 | ADR-0015 | Accepted | Explicit least-privilege capability policy |
 | ADR-0016 | Accepted | Read-only deterministic doctor and status diagnostics |
+| ADR-0017 | Accepted | Explicit single-agent vertical slice |

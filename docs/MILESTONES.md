@@ -19,7 +19,7 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 | P0-M009 | complete | Event and audit log | Orchestration decisions and task transitions are durably recorded. |
 | P0-M010 | complete | Capability and permission policy | Agents receive explicit least-privilege capabilities. |
 | P0-M011 | complete | Doctor and status diagnostics | Operators can inspect environment, project, agents, worktrees, and blockers. |
-| P0-M012 | planned | Single-agent vertical slice | One approved task flows through worktree, agent, gates, review handoff, and audit evidence. |
+| P0-M012 | complete | Single-agent vertical slice | One approved task flows through worktree, agent, gates, review handoff, and audit evidence. |
 
 ## Future phase reservations
 

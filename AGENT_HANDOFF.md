@@ -2,7 +2,7 @@
 
 ## Repository state
 
-- Active milestone: none; P0-M011 closure is in progress.
+- Active milestone: none; P0-M012 closure is in progress.
 - Active plan: none.
 - P0-M001 status: Complete.
 - P0-M002 status: Complete.
@@ -33,8 +33,12 @@
 - Current closure branch: `feat/p0-m009-event-audit-log`.
 - P0-M009 plan: `.plans/P0-M009-event-audit-log.plan.md` — Completed.
 - P0-M010 plan: `.plans/P0-M010-capability-policy.plan.md` — Completed; merged and post-merge CI green.
-- P0-M011 plan: `.plans/P0-M011-doctor-status.plan.md` — Completed; closure and merge verification remain.
+- P0-M011 plan: `.plans/P0-M011-doctor-status.plan.md` — Completed; merged and post-merge CI green.
+- P0-M012 plan: `.plans/P0-M012-single-agent-vertical-slice.plan.md` — Completed; closure and merge verification remain.
+- P0-M012 implementation: `fcf3809c9f5c099833cb07862e626ca3f1764cff`; CI `35493160857` green.
 - P0-M011 implementation: `bd1aaf24800dde73f1dc707519f5d1ed710a6b0e`; CI `35492790507` green.
+- P0-M011 closure: `62911373015ed8e94d7e8883b955c078a175cf48`; CI `35492882542` green.
+- P0-M011 main merge: `f35aebea3f017c3dd015dc4bb24a70ab04f1c59a`; CI `35492920743` green.
 - P0-M010 implementation: `1ece087f25ccb6ce8fda96867e9f2502b91e4c86`; CI `35490199374` green.
 
 ## Resume checklist
@@ -45,7 +49,7 @@
 4. Read `docs/WORKTREE_ISOLATION.md`.
 5. Read ADR-0002 and ADR-0010.
 6. Run `./scripts/project-status`.
-7. Verify P0-M011 closure CI, merge, and post-merge main CI before starting P0-M012.
+7. Verify P0-M012 closure CI, merge, and post-merge main CI.
 8. Never bypass repository hooks or gates.
 9. Classify failures before repair.
 
