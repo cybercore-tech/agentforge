@@ -130,7 +130,7 @@ impl WorktreeManager {
         let actual = git_text(&supplied, ["rev-parse", "--show-toplevel"])?;
         let actual = fs::canonicalize(actual.trim())?;
 
-        if supplied != actual {
+        if !paths_equivalent_or_same(&supplied, &actual)? {
             return Err(WorktreeError::NotRepositoryRoot { supplied, actual });
         }
 
@@ -382,16 +382,21 @@ impl WorktreeManager {
     }
 
     fn ensure_target_beneath_managed_root(&self, path: &Path) -> Result<(), WorktreeError> {
-        if path == self.managed_root {
+        if paths_equivalent_or_same(path, &self.managed_root)? {
             let project = fs::canonicalize(&self.project_root)?;
             let managed = fs::canonicalize(&self.managed_root)?;
-            if managed.starts_with(&project) {
+            if path_is_within(&managed, &project)? {
                 return Ok(());
             }
             return Err(WorktreeError::PathEscape(path.to_path_buf()));
         }
 
-        if path.parent() != Some(self.managed_root.as_path()) {
+        let parent_matches = path
+            .parent()
+            .map(|parent| paths_equivalent_or_same(parent, &self.managed_root))
+            .transpose()?
+            .unwrap_or(false);
+        if !parent_matches {
             return Err(WorktreeError::PathEscape(path.to_path_buf()));
         }
 
@@ -498,17 +503,42 @@ fn path_is_within(path: &Path, root: &Path) -> Result<bool, WorktreeError> {
     }
     let canonical_path = fs::canonicalize(path)?;
     let canonical_root = fs::canonicalize(root)?;
-    Ok(canonical_path.starts_with(canonical_root))
+    let path_key = path_comparison_key(&canonical_path);
+    let root_key = path_comparison_key(&canonical_root);
+    Ok(path_key == root_key || path_key.starts_with(&path_prefix(&root_key)))
 }
 
 fn paths_equivalent_or_same(left: &Path, right: &Path) -> Result<bool, WorktreeError> {
-    if left == right {
-        return Ok(true);
-    }
     if left.exists() && right.exists() {
-        return Ok(fs::canonicalize(left)? == fs::canonicalize(right)?);
+        let left = fs::canonicalize(left)?;
+        let right = fs::canonicalize(right)?;
+        return Ok(path_comparison_key(&left) == path_comparison_key(&right));
     }
-    Ok(false)
+    Ok(path_comparison_key(left) == path_comparison_key(right))
+}
+
+fn path_prefix(root: &str) -> String {
+    if root.ends_with('/') || root.ends_with('\\') {
+        root.to_owned()
+    } else {
+        format!("{root}/")
+    }
+}
+
+#[cfg(windows)]
+fn path_comparison_key(path: &Path) -> String {
+    let mut value = path.to_string_lossy().replace('\\', "/");
+    if let Some(unc) = value.strip_prefix("//?/UNC/") {
+        value = format!("//{unc}");
+    } else if let Some(device) = value.strip_prefix("//?/") {
+        value = device.to_owned();
+    }
+    value.trim_end_matches('/').to_ascii_lowercase()
+}
+
+#[cfg(not(windows))]
+fn path_comparison_key(path: &Path) -> String {
+    path.to_string_lossy().into_owned()
 }
 
 fn git_text<I, S>(cwd: &Path, args: I) -> Result<String, WorktreeError>
