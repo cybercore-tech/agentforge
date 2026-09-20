@@ -1,6 +1,6 @@
 # Plan: P2-M010 — Guided project intake surface
 
-Status: Draft
+Status: Approved
 Milestone: P2-M010
 Created: 2026-09-20
 
