@@ -7,7 +7,7 @@ It treats models as replaceable workers—not as the source of truth. The durabl
 the repository: plans, task contracts, permissions, isolated worktrees, quality-gate evidence,
 CI observations, audit records, and human decisions. 🧭
 
-> **Status:** `0.0.1-alpha` · P2-M012 interactive foreground sessions complete · pre-release,
+> **Status:** `0.0.1-alpha` · P2-M013 PTY foreground sessions complete · pre-release,
 > incomplete, and not release-ready
 
 [![CI](https://github.com/darkstardevx/agentforge/actions/workflows/ci.yml/badge.svg)](https://github.com/darkstardevx/agentforge/actions/workflows/ci.yml)
@@ -358,7 +358,7 @@ Clippy, tests, and documentation tests. Do not bypass hooks or validation with `
 
 Completed foundations include durable task state, worktree isolation, adapters, gates, CI
 classification, audit history, scheduling primitives, orchestration, project intake, release
-readiness, and the operator experience milestones through P2-M012. The optional loopback daemon,
+readiness, and the operator experience milestones through P2-M013. The optional loopback daemon,
 guided intake, cooked interactive foreground sessions, and PTY-backed foreground sessions are
 covered by the supported Linux, macOS, and Windows CI matrix, but remain pre-release capabilities.
 
