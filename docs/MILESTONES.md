@@ -37,7 +37,7 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 | P2-M002 | complete | Interactive operator HUD | Operators can run a bounded live HUD, refresh it, inspect recoverable source failures, and exit without mutation. |
 | P2-M003 | complete | Controlled operator actions | Operators can inspect tasks, record explicit approvals, and apply audited lifecycle decisions without mutating through the HUD. |
 | P2-M004 | complete | Release readiness | The project has explicit licensing/versioning, reproducible tagged artifacts, and cross-platform CI coverage. |
-| P2-M005 | active | Local daemon and dogfooding | Operators can run one approved task through a bounded local daemon with durable failure evidence and a real end-to-end workflow. |
+| P2-M005 | complete | Local daemon and dogfooding | Operators can run one approved task through a bounded local daemon with durable failure evidence and a real end-to-end workflow. |
 
 ## Phase 1 — multi-agent scheduling and integration
 

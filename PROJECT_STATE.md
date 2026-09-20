@@ -11,7 +11,8 @@ Phase 2 — operator experience.
 
 ## Active milestone
 
-`P2-M005` — Local daemon and dogfooding (approved plan; implementation begins after checkpoint CI).
+None. P2-M005 is complete; the next increment is intentionally unplanned until real operator use
+identifies the next bounded need.
 
 ## Completed milestones
 
@@ -31,6 +32,7 @@ Phase 2 — operator experience.
 - `P2-M002` — Interactive operator HUD.
 - `P2-M003` — Controlled operator actions.
 - `P2-M004` — Release readiness.
+- `P2-M005` — Local daemon and dogfooding.
 
 ## P2-M004 completion evidence
 
@@ -43,10 +45,16 @@ Phase 2 — operator experience.
 - Closure commit: `fca7b057bb7422e3bc9ab3e94621bbe797a08aa1`.
 - Closure/mainline CI: `35499689853` — all jobs green for that exact closure SHA.
 
-## P2-M005 activation
+## P2-M005 completion evidence
 
 - Approved plan: `.plans/P2-M005-daemon-dogfooding.plan.md`.
-- Activation checkpoint and exact-head CI evidence will be recorded before implementation.
+- Implementation commits: `98841d7860a93dbdb10294d9fcf48710b36683d4`,
+  `ba713c74433abfaddf1db847a0f25f6f83201af7`, and
+  `65409dc5c629d31cf691bd7a3c426793f5943821`.
+- Exact implementation CI: `35503881437` and `35504237571` — all jobs green for the exact heads.
+- Local full gate: `CARGO_TARGET_DIR=/tmp/agentforge-cargo-target ./scripts/gate.sh full` — passed.
+- The bounded loopback `forged` service now supports durable status/run/stop operation, and the
+  temporary-repository dogfooding path proves intake through explicit acceptance and safe cleanup.
 
 ## P0-M005 completion evidence
 
@@ -99,8 +107,9 @@ AgentForge now has:
 - Rust 1.85.0 compatibility without external Rust dependencies.
 
 AgentForge can now invoke an explicitly configured local coding-agent executable in a verified task
-worktree through a provider-neutral interface. Execution evidence is bounded and remains separate
-from task acceptance. It can also run direct, explicit local gates with cleared child environments,
+worktree through a provider-neutral interface, either directly or through the optional bounded
+loopback `forged` service. Execution evidence is bounded and remains separate from task acceptance.
+It can also run direct, explicit local gates with cleared child environments,
 bounded raw evidence, deadlines, and ordered batch reports. Scheduling, CI failure automation,
 audit events, and deployment orchestration remain intentionally unimplemented. Operators can now
 read a deterministic, bounded HUD snapshot of intake, task, audit, and managed worktree state.
@@ -121,12 +130,12 @@ Windows.
 
 ## Next planned milestone
 
-P2-M005 is active within its approved local daemon and dogfooding file boundary.
+None. Future work should be scoped from observed operator usage and approved before implementation.
 
 ## Known blockers
 
-P2-M005 addresses the `forged` placeholder and failed-state persistence gap. Artifact signing and
-provenance attestations remain future work.
+Artifact signing and provenance attestations remain future work; they are outside the completed
+daemon milestone.
 
 ## P2-M002 completion evidence
 

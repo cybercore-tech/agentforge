@@ -1,6 +1,6 @@
 # Plan: P2-M005 — Local daemon and dogfooding
 
-Status: Approved
+Status: Completed
 Milestone: P2-M005
 Created: 2026-09-20
 
@@ -170,23 +170,28 @@ connects those existing contracts without changing their authority boundaries.
 
 ## Acceptance criteria
 
-- [ ] `forged serve` provides a bounded, loopback-only, versioned local service with deterministic
+- [x] `forged serve` provides a bounded, loopback-only, versioned local service with deterministic
       status/run/stop lifecycle behavior.
-- [ ] Duplicate, stale, malformed, and active daemon instances are handled fail-closed without
+- [x] Duplicate, stale, malformed, and active daemon instances are handled fail-closed without
       forced process or worktree cleanup.
-- [ ] Daemon-backed execution preserves all existing policy, approval, worktree, gate, audit, and
+- [x] Daemon-backed execution preserves all existing policy, approval, worktree, gate, audit, and
       independent-acceptance boundaries and serializes state mutation.
-- [ ] Adapter failures, timeouts, and interrupted requests persist task state and audit evidence
+- [x] Adapter failures, timeouts, and interrupted requests persist task state and audit evidence
       before returning failure.
-- [ ] `forge daemon status|run|stop` works while existing direct `forge run` remains compatible.
-- [ ] A real temporary-repository dogfooding test completes intake through explicit acceptance.
-- [ ] Documentation describes operation, recovery, limits, and security boundaries.
-- [ ] Full local gate and exact-head CI pass for implementation and closure commits.
+- [x] `forge daemon status|run|stop` works while existing direct `forge run` remains compatible.
+- [x] A real temporary-repository dogfooding test completes intake through explicit acceptance.
+- [x] Documentation describes operation, recovery, limits, and security boundaries.
+- [x] Full local gate and exact-head CI pass for implementation and closure commits.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
-Notes:
+Implementation commits: `98841d7860a93dbdb10294d9fcf48710b36683d4`,
+`ba713c74433abfaddf1db847a0f25f6f83201af7`, `65409dc5c629d31cf691bd7a3c426793f5943821`.
+Implementation CI: `35503881437` and `35504237571` — all jobs green for the exact heads after
+the daemon runtime and dogfooding coverage changes.
+Local gate: `CARGO_TARGET_DIR=/tmp/agentforge-cargo-target ./scripts/gate.sh full` — passed.
+Completed: 2026-09-20.
+Notes: The dogfooding test covers intake, managed worktree creation, daemon-backed execution, HUD
+inspection, explicit acceptance, cooperative stop, and worktree retirement. Windows portable CI
+intentionally excludes the worktree crate because Git for Windows rejects verbatim temporary paths;
+the worktree-backed dogfooding test runs on the Unix matrix.
