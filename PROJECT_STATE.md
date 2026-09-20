@@ -11,7 +11,7 @@ Phase 2 — operator experience.
 
 ## Active milestone
 
-None. P2-M005 is complete; the next increment is intentionally unplanned until real operator use
+None. P2-M006 is complete; the next increment is intentionally unplanned until real operator use
 identifies the next bounded need.
 
 ## Completed milestones
@@ -33,6 +33,7 @@ identifies the next bounded need.
 - `P2-M003` — Controlled operator actions.
 - `P2-M004` — Release readiness.
 - `P2-M005` — Local daemon and dogfooding.
+- `P2-M006` — Real-agent dogfooding and operator workflow.
 
 ## P2-M004 completion evidence
 
@@ -57,6 +58,19 @@ identifies the next bounded need.
 - Local full gate: `CARGO_TARGET_DIR=/tmp/agentforge-cargo-target ./scripts/gate.sh full` — passed.
 - The bounded loopback `forged` service now supports durable status/run/stop operation, and the
   temporary-repository dogfooding path proves intake through explicit acceptance and safe cleanup.
+
+## P2-M006 completion evidence
+
+- Approved plan: `.plans/P2-M006-real-agent-dogfooding.plan.md`.
+- Implementation commits: `1fd2d705d685e503d96e8f91b78d2edee777d219`,
+  `541d317fbd4e6038a3bcdb36fcc507fe037250ca`, and
+  `542d80a1cbf654a9b19bb01b8166c4880cf9b5f1`.
+- Exact implementation CI: `35505389584` — all stable, MSRV, policy, CLI smoke, Ubuntu, macOS,
+  and Windows jobs green for the exact implementation head.
+- Local full gate: `CARGO_TARGET_DIR=/tmp/agentforge-cargo-target ./scripts/gate.sh full` — passed.
+- The CLI now exposes deterministic managed worktree create/inspect/list/retire commands; daemon
+  dogfooding runs a real configured executable fixture with durable state and bounded recovery
+  evidence for restart, disconnect, stale metadata, timeout, and cooperative stop.
 
 ## P0-M005 completion evidence
 
@@ -136,8 +150,8 @@ None. Future work should be scoped from observed operator usage and approved bef
 
 ## Known blockers
 
-Artifact signing and provenance attestations remain future work; they are outside the completed
-daemon milestone.
+Artifact signing and provenance attestations remain future work. Windows Git verbatim temporary-path
+support for worktree-backed dogfooding also remains separately scoped.
 
 ## P2-M002 completion evidence
 

@@ -1,6 +1,6 @@
 # Plan: P2-M006 — Real-agent dogfooding and operator workflow
 
-Status: Approved
+Status: Completed
 Milestone: P2-M006
 Created: 2026-09-20
 
@@ -160,23 +160,30 @@ so an operator must assemble part of the approved workflow outside the CLI.
 
 ## Acceptance criteria
 
-- [ ] Operators can prepare, inspect, list, and safely retire a managed worktree through explicit
+- [x] Operators can prepare, inspect, list, and safely retire a managed worktree through explicit
       CLI commands with deterministic bounded output.
-- [ ] A deterministic configured executable performs a real task-worktree mutation through the
+- [x] A deterministic configured executable performs a real task-worktree mutation through the
       daemon while existing policy, approval, gate, audit, and acceptance boundaries remain active.
-- [ ] A temporary-repository dogfooding test covers intake through explicit acceptance using the
+- [x] A temporary-repository dogfooding test covers intake through explicit acceptance using the
       real executable fixture rather than the `forge` binary as a stand-in.
-- [ ] Restart, disconnect, timeout, stale metadata, and cooperative stop behavior preserve durable
+- [x] Restart, disconnect, timeout, stale metadata, and cooperative stop behavior preserve durable
       task/audit evidence and fail closed when recovery is ambiguous.
-- [ ] Existing direct execution, daemon lifecycle commands, state formats, and cross-platform CI
+- [x] Existing direct execution, daemon lifecycle commands, state formats, and cross-platform CI
       behavior remain compatible.
-- [ ] Documentation provides a complete first-use workflow and recovery guidance.
-- [ ] Full local gate and exact-head CI pass for implementation and closure checkpoints.
+- [x] Documentation provides a complete first-use workflow and recovery guidance.
+- [x] Full local gate and exact-head CI pass for implementation and closure checkpoints.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
-Notes:
+Implementation commits: `1fd2d705d685e503d96e8f91b78d2edee777d219`,
+`541d317fbd4e6038a3bcdb36fcc507fe037250ca`, and
+`542d80a1cbf654a9b19bb01b8166c4880cf9b5f1`.
+CI run: `35505389584`.
+CI result: all stable, MSRV, policy, CLI smoke, Ubuntu, macOS, and Windows jobs green for the
+exact implementation head `542d80a1cbf654a9b19bb01b8166c4880cf9b5f1`.
+Completed: 2026-09-20.
+Notes: Full local gate passed. The workflow now exposes deterministic `forge worktree` lifecycle
+commands, runs a real configured executable fixture through the daemon, and covers restart,
+disconnect, stale metadata, timeout, and cooperative-stop recovery evidence. Unix worktree-backed
+dogfooding remains the supported path; the known Windows Git verbatim temporary-path limitation
+and artifact signing remain separately scoped.

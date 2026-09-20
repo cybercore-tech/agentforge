@@ -7,7 +7,7 @@ It treats models as replaceable workers—not as the source of truth. The durabl
 the repository: plans, task contracts, permissions, isolated worktrees, quality-gate evidence,
 CI observations, audit records, and human decisions. 🧭
 
-> **Status:** `0.0.1` · P2-M005 local daemon and dogfooding complete · experimental and
+> **Status:** `0.0.1` · P2-M006 real-agent dogfooding and operator workflow complete · experimental and
 > under active development
 
 [![CI](https://github.com/darkstardevx/agentforge/actions/workflows/ci.yml/badge.svg)](https://github.com/darkstardevx/agentforge/actions/workflows/ci.yml)
@@ -280,7 +280,7 @@ Clippy, tests, and documentation tests. Do not bypass hooks or validation with `
 
 Completed foundations include durable task state, worktree isolation, adapters, gates, CI
 classification, audit history, scheduling primitives, orchestration, project intake, release
-readiness, and the operator experience milestones through P2-M005. The optional loopback daemon
+readiness, and the operator experience milestones through P2-M006. The optional loopback daemon
 and its real temporary-project dogfooding flow are complete.
 
 The next increment is intentionally not pre-approved. Future work should be driven by real operator
