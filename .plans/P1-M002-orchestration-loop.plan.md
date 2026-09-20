@@ -1,6 +1,6 @@
 # Plan: P1-M002 — Single-task orchestration loop
 
-Status: Draft
+Status: Approved
 Milestone: P1-M002
 Created: 2026-09-19
 

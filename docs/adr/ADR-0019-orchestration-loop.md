@@ -1,6 +1,6 @@
 # ADR-0019: Explicit durable single-task orchestration loop
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-19
 - Decision owners: AgentForge project
 

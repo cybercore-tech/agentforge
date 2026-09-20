@@ -2,7 +2,8 @@
 
 ## Repository state
 
-- Active milestone: none; P1-M002 is in Draft planning.
+- Active milestone: P1-M002 — Single-task orchestration loop.
+- Active plan: `.plans/P1-M002-orchestration-loop.plan.md` — Approved.
 - Active plan: none.
 - Active plan: none.
 - P0-M001 status: Complete.
@@ -37,7 +38,7 @@
 - P0-M011 plan: `.plans/P0-M011-doctor-status.plan.md` — Completed; merged and post-merge CI green.
 - P0-M012 plan: `.plans/P0-M012-single-agent-vertical-slice.plan.md` — Completed; merged and post-merge CI green.
 - P1-M001 plan: `.plans/P1-M001-scheduling-integration.plan.md` — Completed; merged and post-merge CI green.
-- P1-M002 plan: `.plans/P1-M002-orchestration-loop.plan.md` — Draft; no implementation authority yet.
+- P1-M002 plan: `.plans/P1-M002-orchestration-loop.plan.md` — Approved; implementation may begin within the declared boundary.
 - P1-M001 implementation: `f71e4b15af3e5eb09c172ea11d3464d946415847`; CI `35493600837` green.
 - P0-M012 implementation: `fcf3809c9f5c099833cb07862e626ca3f1764cff`; CI `35493160857` green.
 - P0-M011 implementation: `bd1aaf24800dde73f1dc707519f5d1ed710a6b0e`; CI `35492790507` green.
@@ -53,7 +54,7 @@
 4. Read `docs/WORKTREE_ISOLATION.md`.
 5. Read ADR-0002 and ADR-0010.
 6. Run `./scripts/project-status`.
-7. Review P1-M002 plan and ADR-0019; obtain separate approval and green CI before implementation.
+7. Implement P1-M002 only within the approved plan boundary and record exact CI evidence.
 8. Never bypass repository hooks or gates.
 9. Classify failures before repair.
 

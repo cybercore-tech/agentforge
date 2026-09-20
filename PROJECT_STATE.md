@@ -11,7 +11,7 @@ Phase 0 — reliable local orchestration foundation.
 
 ## Active milestone
 
-No implementation milestone is active. P1-M002 is in Draft planning.
+`P1-M002` — Single-task orchestration loop (approved plan; implementation not yet started).
 
 ## Completed milestones
 
@@ -87,7 +87,7 @@ audit events, and deployment orchestration remain intentionally unimplemented.
 
 ## Known blockers
 
-P1-M001 is complete. P1-M002 awaits plan review and approval.
+P1-M001 is complete. P1-M002 implementation is authorized within the approved plan boundary.
 
 ## P1-M001 completion evidence
 
