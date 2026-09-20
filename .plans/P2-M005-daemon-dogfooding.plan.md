@@ -118,7 +118,7 @@ connects those existing contracts without changing their authority boundaries.
 - `PROJECT_STATE.md`, `AGENT_HANDOFF.md`, `docs/MILESTONES.md`
 - `crates/agentforge-daemon/Cargo.toml`, `crates/agentforge-daemon/src/main.rs`,
   `crates/agentforge-daemon/src/lib.rs`, and daemon tests
-- `crates/agentforge-cli/src/main.rs` and daemon CLI integration tests
+- `crates/agentforge-cli/Cargo.toml`, `crates/agentforge-cli/src/main.rs`, and daemon CLI integration tests
 - `crates/agentforge-orchestrator/src/lib.rs` and persisted execution tests
 - `docs/DAEMON.md`, `docs/ORCHESTRATION.md`, and `README.md`
 - `Cargo.lock` only if an existing workspace manifest edit requires lockfile regeneration; no new

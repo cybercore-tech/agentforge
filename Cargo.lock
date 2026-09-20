@@ -25,6 +25,7 @@ dependencies = [
  "agentforge-adapter",
  "agentforge-audit",
  "agentforge-core",
+ "agentforge-daemon",
  "agentforge-hud",
  "agentforge-intake",
  "agentforge-operator",
@@ -40,7 +41,12 @@ version = "0.0.1"
 name = "agentforge-daemon"
 version = "0.0.1"
 dependencies = [
+ "agentforge-adapter",
+ "agentforge-audit",
  "agentforge-core",
+ "agentforge-operator",
+ "agentforge-orchestrator",
+ "agentforge-state",
 ]
 
 [[package]]
