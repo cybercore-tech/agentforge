@@ -1,6 +1,6 @@
 # Plan: P0-M004-R001 — Restore gate executable mode
 
-Status: Approved
+Status: Complete
 Milestone: P0-M004
 Created: 2026-09-19
 
@@ -121,16 +121,25 @@ Repair plan only.
 
 ## Acceptance criteria
 
-- [ ] `scripts/gate.sh` is tracked as `100755`.
-- [ ] Script contents are unchanged.
-- [ ] Direct gate execution succeeds.
-- [ ] Exact repair-head full gate is green.
-- [ ] Exact closure-head full gate is green.
+- [x] `scripts/gate.sh` is tracked as `100755`.
+- [x] Script contents are unchanged.
+- [x] Direct gate execution succeeds.
+- [x] Exact repair-head full gate is green.
+- [x] Exact closure-head full gate is green.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
-Notes:
+Implementation commit: f3fa50f31f5cbc368e6a51e09acc7a2e106509da
+CI run: local exact-head full gate
+CI result: success
+Completed: 2026-09-19
+Notes: Restored scripts/gate.sh executable mode from 100644 to 100755 with no content changes.
+
+Evidence:
+
+- repair was preceded by a separately committed Approved plan;
+- scripts/gate.sh content remained unchanged;
+- Git mode changed from 100644 to 100755;
+- direct ./scripts/gate.sh execution works again;
+- exact repair head passed the full local gate;
+- no Rust code, dependency, or policy semantics changed.
