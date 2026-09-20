@@ -177,27 +177,48 @@ impl AuditRecord {
 }
 
 /// In-memory append-only audit log.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct AuditLog {
     records: Vec<AuditRecord>,
+    next_sequence: u64,
+    previous_digest: [u8; DIGEST_SIZE],
+}
+impl Default for AuditLog {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 impl AuditLog {
     /// Creates an empty log.
     #[must_use]
     pub fn new() -> Self {
-        Self::default()
+        Self::with_origin(1, [0; DIGEST_SIZE])
+    }
+    /// Creates an empty attempt log positioned after an existing verified tail.
+    #[must_use]
+    pub fn with_origin(next_sequence: u64, previous_digest: [u8; DIGEST_SIZE]) -> Self {
+        Self {
+            records: Vec::new(),
+            next_sequence,
+            previous_digest,
+        }
+    }
+    /// Returns the next sequence number accepted by this log.
+    #[must_use]
+    pub const fn next_sequence(&self) -> u64 {
+        self.next_sequence
     }
     /// Appends and validates one event.
     pub fn append(&mut self, event: AuditEvent) -> Result<&AuditRecord, AuditError> {
         validate_event(&event)?;
-        let expected = self.records.last().map_or(1, |r| r.event.sequence + 1);
-        if event.sequence != expected {
+        if event.sequence != self.next_sequence {
             return Err(AuditError::Sequence {
-                expected,
+                expected: self.next_sequence,
                 actual: event.sequence,
             });
         }
-        let previous = self.records.last().map_or([0; DIGEST_SIZE], |r| r.digest);
+        let previous = self.previous_digest;
+        let sequence = event.sequence;
         let body = encode_event(&event)?;
         let mut input = body.clone();
         input.extend_from_slice(&previous);
@@ -207,6 +228,8 @@ impl AuditLog {
             previous_digest: previous,
             digest,
         });
+        self.next_sequence = sequence.saturating_add(1);
+        self.previous_digest = digest;
         Ok(self.records.last().expect("record was just pushed"))
     }
     /// Returns records in sequence order.
@@ -283,6 +306,16 @@ impl FileAuditStore {
     #[must_use]
     pub fn of_kind(&self, kind: AuditEventKind) -> Vec<&AuditRecord> {
         self.log.of_kind(kind)
+    }
+    /// Creates an in-memory attempt log positioned after the verified file tail.
+    #[must_use]
+    pub fn new_attempt_log(&self) -> AuditLog {
+        self.log
+            .records
+            .last()
+            .map_or_else(AuditLog::new, |record| {
+                AuditLog::with_origin(record.event.sequence.saturating_add(1), record.digest)
+            })
     }
 }
 impl AuditStore for FileAuditStore {
@@ -582,10 +615,9 @@ impl AuditLog {
         previous: [u8; DIGEST_SIZE],
         current: [u8; DIGEST_SIZE],
     ) -> Result<(), AuditError> {
-        let expected = self.records.last().map_or(1, |r| r.event.sequence + 1);
-        if event.sequence != expected {
+        if event.sequence != self.next_sequence {
             return Err(AuditError::Sequence {
-                expected,
+                expected: self.next_sequence,
                 actual: event.sequence,
             });
         }
@@ -594,6 +626,14 @@ impl AuditLog {
             previous_digest: previous,
             digest: current,
         });
+        self.next_sequence = self
+            .records
+            .last()
+            .expect("record was just pushed")
+            .event
+            .sequence
+            .saturating_add(1);
+        self.previous_digest = current;
         Ok(())
     }
 }

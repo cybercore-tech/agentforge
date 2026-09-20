@@ -125,17 +125,13 @@ pub fn execute_process_persisted<A: AgentAdapter>(
         .load()
         .map_err(|e| SliceError::Preflight(e.to_string()))?
         .ok_or_else(|| SliceError::Preflight("task state snapshot is missing".into()))?;
-    let sequence_start = audit_store
-        .records()
-        .last()
-        .map_or(1, |record| record.event().sequence().saturating_add(1));
     match execute_process_attempt(
         root,
         &mut graph,
         task_id,
         adapter,
         approvals,
-        sequence_start,
+        audit_store.new_attempt_log(),
     ) {
         Ok(execution) => {
             persist_execution(task_store, audit_store, &graph, &execution.audit)?;
@@ -178,7 +174,8 @@ pub fn execute_process_once<A: AgentAdapter>(
     adapter: &A,
     approvals: &[agentforge_core::agent::ApprovalBoundary],
 ) -> Result<ProcessExecution, SliceError> {
-    execute_process_attempt(root, graph, task_id, adapter, approvals, 1).map_err(|(error, _)| error)
+    execute_process_attempt(root, graph, task_id, adapter, approvals, AuditLog::new())
+        .map_err(|(error, _)| error)
 }
 
 fn execute_process_attempt<A: AgentAdapter>(
@@ -187,10 +184,9 @@ fn execute_process_attempt<A: AgentAdapter>(
     task_id: &TaskId,
     adapter: &A,
     approvals: &[agentforge_core::agent::ApprovalBoundary],
-    sequence_start: u64,
+    mut audit: AuditLog,
 ) -> Result<ProcessExecution, (SliceError, AuditLog)> {
     let root = root.as_ref().to_path_buf();
-    let mut audit = AuditLog::new();
     let task = graph
         .records()
         .find(|record| record.id() == task_id)
@@ -208,7 +204,6 @@ fn execute_process_attempt<A: AgentAdapter>(
         .map_err(|error| (SliceError::Preflight(error.to_string()), audit.clone()))?;
     append_event(
         &mut audit,
-        sequence_start,
         "task-running",
         AuditEventKind::TaskTransition,
         &task,
@@ -218,7 +213,6 @@ fn execute_process_attempt<A: AgentAdapter>(
     .map_err(|error| (error, audit.clone()))?;
     append_event(
         &mut audit,
-        sequence_start.saturating_add(1),
         "agent-started",
         AuditEventKind::AgentStarted,
         &task,
@@ -237,7 +231,6 @@ fn execute_process_attempt<A: AgentAdapter>(
         Ok(report) => {
             append_event(
                 &mut audit,
-                sequence_start.saturating_add(2),
                 "agent-finished",
                 AuditEventKind::AgentFinished,
                 &task,
@@ -251,7 +244,6 @@ fn execute_process_attempt<A: AgentAdapter>(
             let _ = graph.transition(task_id, TaskState::Failed);
             append_event(
                 &mut audit,
-                sequence_start.saturating_add(2),
                 "agent-failed",
                 AuditEventKind::FailureClassified,
                 &task,
@@ -266,14 +258,13 @@ fn execute_process_attempt<A: AgentAdapter>(
 
 fn append_event(
     log: &mut AuditLog,
-    sequence: u64,
     id: &str,
     kind: AuditEventKind,
     task: &AgentTask,
     key: &str,
     value: &str,
 ) -> Result<(), SliceError> {
-    let event = AuditEvent::new(sequence, id, kind, "orchestrator", 1)
+    let event = AuditEvent::new(log.next_sequence(), id, kind, "orchestrator", 1)
         .with_task_id(task.task_id.clone())
         .with_field(key, value);
     log.append(event)

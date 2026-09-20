@@ -48,6 +48,23 @@ fn memory_log_is_deterministic_and_queryable() {
 }
 
 #[test]
+fn attempt_log_continues_sequence_and_integrity_tail() {
+    let mut history = AuditLog::new();
+    history
+        .append(event(1, AuditEventKind::TaskCreated))
+        .unwrap();
+    let tail = *history.records()[0].digest();
+
+    let mut attempt = AuditLog::with_origin(2, tail);
+    attempt
+        .append(event(2, AuditEventKind::AgentStarted))
+        .unwrap();
+
+    assert_eq!(attempt.records()[0].event().sequence(), 2);
+    assert_eq!(*attempt.records()[0].previous_digest(), tail);
+}
+
+#[test]
 fn file_round_trip_preserves_chain_and_fields() {
     let path = path();
     let mut store = FileAuditStore::open(&path).unwrap();

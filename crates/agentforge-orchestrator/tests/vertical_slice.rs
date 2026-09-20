@@ -2,8 +2,8 @@
 use agentforge_adapter::{
     AdapterError, AdapterRequest, AgentAdapter, ProcessAdapter, ProcessAdapterConfig,
 };
-use agentforge_audit::AuditStore;
 use agentforge_audit::FileAuditStore;
+use agentforge_audit::{AuditEvent, AuditEventKind, AuditStore};
 use agentforge_core::agent::{AgentRole, AgentTask, Capability};
 use agentforge_core::task::{TaskGraph, TaskId, TaskState};
 use agentforge_orchestrator::{
@@ -102,6 +102,25 @@ fn real_process_adapter_updates_state_and_audit_in_isolated_repo() {
     let adapter = ProcessAdapter::new(ProcessAdapterConfig::new("true", "/usr/bin/true")).unwrap();
     let audit_path = root.join("audit.log");
     let mut audit_store = FileAuditStore::open(&audit_path).unwrap();
+    audit_store
+        .append(
+            AuditEvent::new(1, "prior-task", AuditEventKind::TaskCreated, "operator", 1)
+                .with_task_id("P1-M002-T0000"),
+        )
+        .unwrap();
+    audit_store
+        .append(
+            AuditEvent::new(
+                2,
+                "prior-transition",
+                AuditEventKind::TaskTransition,
+                "operator",
+                2,
+            )
+            .with_task_id("P1-M002-T0000"),
+        )
+        .unwrap();
+    let prior_tail = *audit_store.records().last().unwrap().digest();
     let execution = execute_process_persisted(
         &root,
         &task_store,
@@ -117,9 +136,71 @@ fn real_process_adapter_updates_state_and_audit_in_isolated_repo() {
         TaskState::Running
     );
     assert_eq!(execution.audit.records().len(), 3);
-    assert_eq!(audit_store.records().len(), 3);
+    assert_eq!(execution.audit.records()[0].event().sequence(), 3);
+    assert_eq!(*execution.audit.records()[0].previous_digest(), prior_tail);
+    assert_eq!(audit_store.records().len(), 5);
+    assert_eq!(audit_store.records()[2].event().sequence(), 3);
     assert_eq!(execution.report.task_id().as_str(), task.task_id);
     let _ = manager.retire(&task_id);
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn persisted_preflight_failure_preserves_existing_audit() {
+    let root = unique_temp_repo();
+    git(&root, &["init", "-q"]);
+    git(
+        &root,
+        &["config", "user.email", "agentforge@example.invalid"],
+    );
+    git(&root, &["config", "user.name", "AgentForge Test"]);
+    std::fs::write(root.join("README.md"), "fixture\n").unwrap();
+    git(&root, &["add", "README.md"]);
+    git(&root, &["commit", "-qm", "fixture"]);
+    let mut task = AgentTask::new(
+        "P2-M009-T0001",
+        "P2-M009",
+        AgentRole::Implementer,
+        "preflight failure fixture",
+    );
+    task.allowed_paths = vec!["README.md".into()];
+    let task_id = TaskId::parse(task.task_id.clone()).unwrap();
+    let graph = TaskGraph::from_tasks([task]).unwrap();
+    let task_store = FileTaskStore::from_path(root.join("tasks.snapshot"));
+    task_store.save(&graph).unwrap();
+    let mut audit_store = FileAuditStore::open(root.join("audit.log")).unwrap();
+    audit_store
+        .append(AuditEvent::new(
+            1,
+            "prior-task",
+            AuditEventKind::TaskCreated,
+            "operator",
+            1,
+        ))
+        .unwrap();
+
+    let error = execute_process_persisted(
+        &root,
+        &task_store,
+        &mut audit_store,
+        &task_id,
+        &FailingAdapter,
+        &[],
+    )
+    .unwrap_err();
+
+    assert!(matches!(error, SliceError::Preflight(_)));
+    assert_eq!(audit_store.records().len(), 1);
+    assert_eq!(
+        task_store
+            .load()
+            .unwrap()
+            .unwrap()
+            .get(&task_id)
+            .unwrap()
+            .state(),
+        TaskState::Pending
+    );
     std::fs::remove_dir_all(root).unwrap();
 }
 
