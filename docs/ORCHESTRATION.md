@@ -33,6 +33,12 @@ invalid input, duplicate task IDs, or a source edit detected after preview fail 
 silently granting authority or executing work. The command is an operator mutation surface, not a
 HUD mode; durable `.forge/` files remain the source of truth.
 
+P2-M011 adds an optional `--input-file <path>` to that command for reviewed session replay. The
+file is read directly as bounded UTF-8 data and is routed through the exact stdin prompt engine;
+confirmation remains mandatory and the session file is never persisted as project state. This
+supports disposable-project dogfooding and repeatable operator handoff without introducing a
+second parser or authority source.
+
 The first operator projection is `forge hud <root>`. It reads the validated intake, durable task
 snapshot, verified audit log, and managed worktree state without creating files or changing Git.
 Missing or corrupt sources fail closed; the HUD is a bounded plain-text snapshot rather than an

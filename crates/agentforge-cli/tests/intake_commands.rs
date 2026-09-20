@@ -51,6 +51,18 @@ fn forge_with_input(
     child.wait_with_output().expect("forge output")
 }
 
+fn forge_with_input_file(
+    root: &std::path::Path,
+    arguments: &[&str],
+    input: &str,
+) -> std::process::Output {
+    let input_path = root.join("guided-session.txt");
+    fs::write(&input_path, input).expect("input file");
+    let mut command_arguments = arguments.to_vec();
+    command_arguments.extend(["--input-file", input_path.to_str().expect("input path")]);
+    forge(root, &command_arguments)
+}
+
 #[test]
 fn intake_commands_create_and_validate_a_task_snapshot() {
     let root = temporary_root();
@@ -168,5 +180,82 @@ fn guided_intake_rejects_unknown_capability_before_writing() {
     assert!(!result.status.success(), "{result:?}");
     assert!(!root.join(".forge/blueprint.conf").exists());
     assert!(!root.join(".forge/guidelines.md").exists());
+    fs::remove_dir_all(root).expect("cleanup");
+}
+
+#[test]
+fn guided_intake_replays_a_named_input_file() {
+    let root = temporary_root();
+    let input = "Replay Project\nReplay the workflow.\nP2-M011\nsrc\n.env\nread_repository\n\nfull\n- Replayable guidance.\n.\ny\n";
+    let result = forge_with_input_file(&root, &["intake", root.to_str().expect("root")], input);
+    assert!(result.status.success(), "{result:?}");
+    let bundle = agentforge_intake::load(&root).expect("guided bundle");
+    assert_eq!(bundle.blueprint.name, "Replay Project");
+    assert!(bundle.guidelines.body.contains("Replayable guidance"));
+    fs::remove_dir_all(root).expect("cleanup");
+}
+
+#[test]
+fn guided_input_file_task_handoff_is_visible_to_inspect_and_hud() {
+    let root = temporary_root();
+    let input = "Replay Project\nReplay the task handoff.\nP2-M011\nsrc\n.env\nread_repository\n\nfull\n- Keep the handoff inspectable.\n.\nP2-M011-T0001\nP2-M011\nimplementer\nExercise the handoff.\n\n\n\n\n\n\n\n\n\ny\n";
+    let result = forge_with_input_file(
+        &root,
+        &["intake", root.to_str().expect("root"), "--task"],
+        input,
+    );
+    assert!(result.status.success(), "{result:?}");
+    let inspected = forge(
+        &root,
+        &[
+            "task",
+            "inspect",
+            root.to_str().expect("root"),
+            "P2-M011-T0001",
+        ],
+    );
+    assert!(inspected.status.success(), "{inspected:?}");
+    assert!(String::from_utf8_lossy(&inspected.stdout).contains("P2-M011-T0001"));
+    agentforge_audit::FileAuditStore::open(root.join(".forge/audit.log")).expect("audit log");
+    let git = Command::new("git")
+        .args(["init", "--quiet"])
+        .current_dir(&root)
+        .status()
+        .expect("git init");
+    assert!(git.success(), "{git:?}");
+    let hud = forge(&root, &["hud", root.to_str().expect("root")]);
+    assert!(hud.status.success(), "{hud:?}");
+    assert!(String::from_utf8_lossy(&hud.stdout).contains("pending: 1"));
+    fs::remove_dir_all(root).expect("cleanup");
+}
+
+#[test]
+fn guided_intake_rejects_invalid_or_oversized_input_files_before_mutation() {
+    let root = temporary_root();
+    let missing = forge(
+        &root,
+        &[
+            "intake",
+            root.to_str().expect("root"),
+            "--input-file",
+            root.join("missing.txt").to_str().expect("missing path"),
+        ],
+    );
+    assert!(!missing.status.success(), "{missing:?}");
+    assert!(!root.join(".forge").exists());
+
+    let oversized_path = root.join("oversized.txt");
+    fs::write(&oversized_path, vec![b'x'; 512 * 1024 + 1]).expect("oversized input");
+    let oversized = forge(
+        &root,
+        &[
+            "intake",
+            root.to_str().expect("root"),
+            "--input-file",
+            oversized_path.to_str().expect("oversized path"),
+        ],
+    );
+    assert!(!oversized.status.success(), "{oversized:?}");
+    assert!(!root.join(".forge").exists());
     fs::remove_dir_all(root).expect("cleanup");
 }

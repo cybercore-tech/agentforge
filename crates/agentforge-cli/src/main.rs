@@ -20,7 +20,7 @@ use agentforge_operator::{
 use agentforge_orchestrator::execute_process_persisted;
 use agentforge_state::{FileTaskStore, TaskStore};
 use agentforge_worktree::{GitOperation, WorktreeManager, WorktreeSpec};
-use std::io::{self, Read, Write};
+use std::io::{self, Cursor, Read, Write};
 use std::net::SocketAddr;
 use std::path::Path;
 use std::process::ExitCode;
@@ -70,7 +70,7 @@ fn main() -> ExitCode {
 
 fn print_usage() {
     println!(
-        "usage: forge <version|doctor|status|init <root>|intake <root> [--task]|blueprint validate <root>|task create|inspect|approve|accept|cancel|retry ...|agent list|validate|inspect <root> [<profile>]|run <root> <task-id> <absolute-executable>|run <root> <task-id> --profile <profile>|daemon start|restart|status|run|stop ...|worktree create|inspect|list|retire ...|hud <root> [--watch [--interval-ms <milliseconds>]]>"
+        "usage: forge <version|doctor|status|init <root>|intake <root> [--task] [--input-file <path>]|blueprint validate <root>|task create|inspect|approve|accept|cancel|retry ...|agent list|validate|inspect <root> [<profile>]|run <root> <task-id> <absolute-executable>|run <root> <task-id> --profile <profile>|daemon start|restart|status|run|stop ...|worktree create|inspect|list|retire ...|hud <root> [--watch [--interval-ms <milliseconds>]]>"
     );
 }
 
@@ -412,20 +412,41 @@ fn init_command(arguments: Vec<String>) -> ExitCode {
 
 const MAX_GUIDED_LINE_BYTES: usize = 4096;
 const MAX_GUIDED_LIST_ITEMS: usize = 128;
+const MAX_GUIDED_INPUT_FILE_BYTES: u64 = 512 * 1024;
 
 fn intake_command(arguments: Vec<String>) -> ExitCode {
-    if arguments.len() != 1 && arguments.len() != 2 {
-        eprintln!("intake requires: <root> [--task]");
-        print_usage();
-        return ExitCode::from(2);
-    }
-    let with_task = arguments.get(1).map(String::as_str) == Some("--task");
-    if arguments.len() == 2 && !with_task {
-        eprintln!("intake accepts only --task after <root>");
+    if arguments.is_empty() {
+        eprintln!("intake requires: <root> [--task] [--input-file <path>]");
         print_usage();
         return ExitCode::from(2);
     }
     let root = std::path::PathBuf::from(&arguments[0]);
+    let mut with_task = false;
+    let mut input_file = None;
+    let mut index = 1;
+    while index < arguments.len() {
+        match arguments[index].as_str() {
+            "--task" if !with_task => with_task = true,
+            "--input-file" if input_file.is_none() => {
+                let Some(value) = arguments.get(index + 1) else {
+                    eprintln!("--input-file requires a path");
+                    return ExitCode::from(2);
+                };
+                if value.is_empty() || value.starts_with('-') {
+                    eprintln!("--input-file requires a non-empty path");
+                    return ExitCode::from(2);
+                }
+                input_file = Some(std::path::PathBuf::from(value));
+                index += 1;
+            }
+            option => {
+                eprintln!("unknown intake option: {option}");
+                print_usage();
+                return ExitCode::from(2);
+            }
+        }
+        index += 1;
+    }
     let expected_sources = match snapshot(&root) {
         Ok(value) => value,
         Err(error) => {
@@ -470,7 +491,16 @@ fn intake_command(arguments: Vec<String>) -> ExitCode {
     };
 
     let stdin = io::stdin();
-    let mut reader = stdin.lock();
+    let mut reader: Box<dyn Read> = match input_file.as_deref() {
+        Some(path) => match read_guided_input_file(path) {
+            Ok(bytes) => Box::new(Cursor::new(bytes)),
+            Err(error) => {
+                eprintln!("intake input file failed: {error}");
+                return ExitCode::from(1);
+            }
+        },
+        None => Box::new(stdin.lock()),
+    };
     let blueprint = match guided_blueprint(&mut reader, &bundle.blueprint) {
         Ok(Some(value)) => value,
         Ok(None) => return intake_cancelled(),
@@ -932,6 +962,26 @@ fn intake_cancelled() -> ExitCode {
 fn guided_input_error(error: String) -> ExitCode {
     eprintln!("intake input failed: {error}");
     ExitCode::from(1)
+}
+
+fn read_guided_input_file(path: &Path) -> Result<Vec<u8>, String> {
+    let metadata = std::fs::metadata(path).map_err(|error| error.to_string())?;
+    if !metadata.is_file() {
+        return Err("input path is not a regular file".to_owned());
+    }
+    if metadata.len() > MAX_GUIDED_INPUT_FILE_BYTES {
+        return Err(format!(
+            "input file exceeds {MAX_GUIDED_INPUT_FILE_BYTES} bytes"
+        ));
+    }
+    let bytes = std::fs::read(path).map_err(|error| error.to_string())?;
+    if bytes.len() as u64 > MAX_GUIDED_INPUT_FILE_BYTES {
+        return Err(format!(
+            "input file exceeds {MAX_GUIDED_INPUT_FILE_BYTES} bytes"
+        ));
+    }
+    std::str::from_utf8(&bytes).map_err(|_| "input file must be valid UTF-8".to_owned())?;
+    Ok(bytes)
 }
 
 fn blueprint_command(arguments: Vec<String>) -> ExitCode {

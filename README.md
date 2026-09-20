@@ -115,6 +115,16 @@ confirmation. Add `--task` to collect and persist an explicit task draft in the 
 declining confirmation, invalid input, or a concurrent source edit leaves durable state untouched;
 use `-` to clear a repeated list and finish the guideline body with a line containing only `.`.
 
+For a reviewed, repeatable session, provide the answers as a bounded UTF-8 file:
+
+```bash
+forge intake /path/to/project --input-file /path/to/session.txt
+forge intake /path/to/project --task --input-file /path/to/task-session.txt
+```
+
+The file is used only as input and is never copied into `.forge`; preview and confirmation still
+apply.
+
 Create an explicit task contract:
 
 ```bash

@@ -105,3 +105,14 @@ documents and task state unchanged. Before commit, AgentForge compares the files
 preview with their original bytes and fails closed if another process edited them. Writes use
 same-directory temporary files and rename, and existing explicit commands remain available for
 automation that does not need prompts.
+
+For a reviewed, repeatable session, pass a direct UTF-8 input file:
+
+```text
+forge intake /path/to/project --input-file /path/to/session.txt
+forge intake /path/to/project --task --input-file /path/to/task-session.txt
+```
+
+The file is bounded to 512 KiB, must be a regular valid-UTF-8 file, and is never copied into the
+project. It feeds the same prompts as stdin, including the final confirmation, so replay cannot
+skip the preview or grant additional authority.
