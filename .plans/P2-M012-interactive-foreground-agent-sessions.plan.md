@@ -1,6 +1,6 @@
 # Plan: P2-M012 — Interactive foreground agent sessions
 
-Status: Approved
+Status: Complete
 Milestone: P2-M012
 Created: 2026-09-20
 
@@ -172,18 +172,20 @@ Record the exact implementation and closure CI evidence in the normal milestone 
 
 ## Acceptance criteria
 
-- [ ] An explicit direct `forge run --interactive` mode provides live cooked terminal interaction.
-- [ ] Existing captured and daemon execution behavior remains compatible and bounded.
-- [ ] Preflight, capability, approval, worktree, audit, timeout, and acceptance boundaries are
+- [x] An explicit direct `forge run --interactive` mode provides live cooked terminal interaction.
+- [x] Existing captured and daemon execution behavior remains compatible and bounded.
+- [x] Preflight, capability, approval, worktree, audit, timeout, and acceptance boundaries are
       unchanged.
-- [ ] EOF, child failure, timeout, output limit, and cleanup behavior are tested on supported hosts.
-- [ ] Documentation clearly distinguishes interactive foreground runs from detached daemon runs.
-- [ ] Local gate, exact implementation CI, closure commit, and exact closure CI are recorded.
+- [x] EOF, child failure, timeout, output limit, and cleanup behavior are tested on supported hosts.
+- [x] Documentation clearly distinguishes interactive foreground runs from detached daemon runs.
+- [x] Local gate, exact implementation CI, closure commit, and exact closure CI are recorded.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
-Notes:
+Implementation commit: `4fa5c0d2c00887b5de70e6bcf43ed752e8202936`.
+CI run: `35530232141`.
+CI result: Green across repository policy, stable, MSRV, CLI smoke, Ubuntu, macOS, and Windows.
+Completed: 2026-09-20.
+Notes: Added opt-in direct `forge run --interactive` cooked line forwarding with live stdout/stderr
+teeing and bounded evidence. Captured and daemon modes remain unchanged; raw PTY/full-screen
+interaction and daemon attachment remain future work.
