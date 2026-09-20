@@ -39,5 +39,9 @@ forge run /path/to/project P2-M007-T0001 --profile local-agent
 forge daemon run /path/to/project P2-M007-T0001 --profile local-agent
 ```
 
+For a direct foreground session where the operator must answer line-oriented agent questions, add
+`--interactive` to `forge run`. The profile's literal executable, arguments, explicit environment,
+timeouts, and evidence bounds remain in force; `forge daemon run` does not attach a terminal.
+
 The normal task preflight still applies: the task must exist, its managed worktree must be clean
 and verified, and required approvals and capabilities must already be present.

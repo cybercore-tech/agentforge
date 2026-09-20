@@ -165,12 +165,18 @@ The current CLI entry points are:
 ```bash
 forge run <project-root> <task-id> <absolute-executable>
 forge run <project-root> <task-id> --profile <profile-id>
+forge run <project-root> <task-id> <absolute-executable> --interactive
+forge run <project-root> <task-id> --profile <profile-id> --interactive
 ```
 
 The run path performs policy, task-state, worktree, adapter, gate, audit, and handoff checks around
 the configured local executable. The executable is passed directly as a process argument; shell
 interpolation is not used. A successful process remains in the appropriate review/acceptance flow
 until an independent operator decision is recorded.
+
+Use `--interactive` for a foreground, cooked line-oriented session when the agent may ask questions
+during the build. Output is shown live and bounded evidence is retained. This does not change the
+approval or acceptance boundaries, and it does not apply to detached `forge daemon run` sessions.
 
 Define and inspect a project-local profile in `.forge/agents/<profile-id>.conf`, then
 validate it before use:

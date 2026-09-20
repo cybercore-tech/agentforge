@@ -9,6 +9,20 @@ The direct operator entry point is `forge run <root> <task-id> <absolute-executa
 `.forge/state/tasks.snapshot`, writes `.forge/audit.log`, requires a pre-created managed worktree,
 and leaves successful tasks in `Running` until independently accepted.
 
+P2-M012 adds an opt-in foreground interaction mode:
+
+```text
+forge run <root> <task-id> <absolute-executable> --interactive
+forge run <root> <task-id> --profile <profile-id> --interactive
+```
+
+Interactive runs keep the current terminal attached through a cooked, line-oriented bridge. The
+initial task prompt is delivered automatically, subsequent operator input is forwarded live, and
+child output is displayed as it arrives while bounded copies remain execution evidence. The same
+preflight, capability, approval, worktree, timeout, audit, and acceptance boundaries apply. This
+mode is direct-foreground only; `forge daemon run` remains detached and captured, and full-screen
+or raw-mode PTY behavior is intentionally outside this milestone.
+
 P2-M005 adds the optional `forged` local daemon. Start it with `forged serve --root <root>` and
 use `forge daemon status|run|stop` for the same bounded process path through a loopback-only,
 versioned protocol. The daemon serializes one mutating execution at a time and records failures,

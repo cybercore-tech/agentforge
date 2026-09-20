@@ -70,7 +70,7 @@ fn main() -> ExitCode {
 
 fn print_usage() {
     println!(
-        "usage: forge <version|doctor|status|init <root>|intake <root> [--task] [--input-file <path>]|blueprint validate <root>|task create|inspect|approve|accept|cancel|retry ...|agent list|validate|inspect <root> [<profile>]|run <root> <task-id> <absolute-executable>|run <root> <task-id> --profile <profile>|daemon start|restart|status|run|stop ...|worktree create|inspect|list|retire ...|hud <root> [--watch [--interval-ms <milliseconds>]]>"
+        "usage: forge <version|doctor|status|init <root>|intake <root> [--task] [--input-file <path>]|blueprint validate <root>|task create|inspect|approve|accept|cancel|retry ...|agent list|validate|inspect <root> [<profile>]|run <root> <task-id> <absolute-executable> [--interactive]|run <root> <task-id> --profile <profile> [--interactive]|daemon start|restart|status|run|stop ...|worktree create|inspect|list|retire ...|hud <root> [--watch [--interval-ms <milliseconds>]]>"
     );
 }
 
@@ -1279,15 +1279,30 @@ fn print_intake_error(error: &IntakeError) {
 }
 
 fn run_command(arguments: Vec<String>) -> ExitCode {
-    if arguments.len() != 3
-        && !(arguments.len() == 4 && arguments.get(2).map(String::as_str) == Some("--profile"))
+    let interactive_count = arguments
+        .iter()
+        .filter(|argument| argument.as_str() == "--interactive")
+        .count();
+    if interactive_count > 1 {
+        eprintln!("run accepts --interactive at most once");
+        print_usage();
+        return ExitCode::from(2);
+    }
+    let interactive = interactive_count == 1;
+    let mut command_arguments = arguments;
+    if interactive {
+        command_arguments.retain(|argument| argument != "--interactive");
+    }
+    if command_arguments.len() != 3
+        && !(command_arguments.len() == 4
+            && command_arguments.get(2).map(String::as_str) == Some("--profile"))
     {
         eprintln!("run requires: <root> <task-id> <absolute-executable> or --profile <profile>");
         print_usage();
         return ExitCode::from(2);
     }
-    let root = std::path::PathBuf::from(&arguments[0]);
-    let task_id = match TaskId::parse(arguments[1].clone()) {
+    let root = std::path::PathBuf::from(&command_arguments[0]);
+    let task_id = match TaskId::parse(command_arguments[1].clone()) {
         Ok(value) => value,
         Err(error) => {
             eprintln!("invalid task ID: {error}");
@@ -1307,8 +1322,8 @@ fn run_command(arguments: Vec<String>) -> ExitCode {
             return ExitCode::from(1);
         }
     };
-    let config = if arguments.len() == 4 {
-        match AgentProfileStore::new(&root).load(&arguments[3]) {
+    let mut config = if command_arguments.len() == 4 {
+        match AgentProfileStore::new(&root).load(&command_arguments[3]) {
             Ok(profile) => profile.adapter_config(),
             Err(error) => {
                 eprintln!("cannot load agent profile: {error}");
@@ -1316,7 +1331,10 @@ fn run_command(arguments: Vec<String>) -> ExitCode {
             }
         }
     } else {
-        ProcessAdapterConfig::new("cli-process", arguments[2].clone())
+        ProcessAdapterConfig::new("cli-process", command_arguments[2].clone())
+    };
+    if interactive {
+        config = config.with_interactive();
     };
     let adapter = match ProcessAdapter::new(config) {
         Ok(value) => value,

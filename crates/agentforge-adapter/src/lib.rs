@@ -53,6 +53,7 @@ pub struct ProcessAdapterConfig {
     environment: BTreeMap<String, String>,
     timeout: Duration,
     max_output_bytes: usize,
+    interactive: bool,
 }
 
 /// Project-local directory containing versioned agent profiles.
@@ -388,6 +389,7 @@ impl ProcessAdapterConfig {
             environment: BTreeMap::new(),
             timeout: Duration::from_secs(60),
             max_output_bytes: 1024 * 1024,
+            interactive: false,
         }
     }
 
@@ -416,6 +418,13 @@ impl ProcessAdapterConfig {
     #[must_use]
     pub fn with_max_output_bytes(mut self, max_output_bytes: usize) -> Self {
         self.max_output_bytes = max_output_bytes;
+        self
+    }
+
+    /// Enables cooked, line-oriented terminal interaction for this direct foreground adapter.
+    #[must_use]
+    pub fn with_interactive(mut self) -> Self {
+        self.interactive = true;
         self
     }
 
@@ -479,7 +488,11 @@ impl AgentAdapter for ProcessAdapter {
     fn execute(&self, request: AdapterRequest<'_>) -> Result<ExecutionReport, AdapterError> {
         let status = preflight(request)?;
         let prompt = render_task_prompt(request.task);
-        execute_process(&self.config, request.task, status, prompt)
+        if self.config.interactive {
+            execute_interactive_process(&self.config, request.task, status, prompt)
+        } else {
+            execute_process(&self.config, request.task, status, prompt)
+        }
     }
 }
 
@@ -846,6 +859,97 @@ fn execute_process(
     })
 }
 
+fn execute_interactive_process(
+    config: &ProcessAdapterConfig,
+    task: &AgentTask,
+    status: WorktreeStatus,
+    prompt: Vec<u8>,
+) -> Result<ExecutionReport, AdapterError> {
+    let mut child = Command::new(&config.executable)
+        .current_dir(status.path())
+        .args(&config.arguments)
+        .env_clear()
+        .envs(&config.environment)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+    let child_stdin = child
+        .stdin
+        .take()
+        .ok_or(AdapterError::InvalidConfiguration(
+            "child stdin was not piped",
+        ))?;
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or(AdapterError::InvalidConfiguration(
+            "child stdout was not piped",
+        ))?;
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or(AdapterError::InvalidConfiguration(
+            "child stderr was not piped",
+        ))?;
+    let capture = Arc::new(Mutex::new(Capture::default()));
+    let output_limited = Arc::new(AtomicBool::new(false));
+    let stdout_thread = drain_interactive(
+        stdout,
+        Arc::clone(&capture),
+        Arc::clone(&output_limited),
+        config.max_output_bytes,
+        Stream::Stdout,
+    );
+    let stderr_thread = drain_interactive(
+        stderr,
+        Arc::clone(&capture),
+        Arc::clone(&output_limited),
+        config.max_output_bytes,
+        Stream::Stderr,
+    );
+    let input_thread = thread::spawn(move || {
+        let mut child_stdin = child_stdin;
+        child_stdin.write_all(&prompt)?;
+        child_stdin.flush()?;
+        let stdin = io::stdin();
+        let mut stdin = stdin.lock();
+        let mut buffer = [0_u8; 4096];
+        loop {
+            let length = stdin.read(&mut buffer)?;
+            if length == 0 {
+                return Ok::<(), io::Error>(());
+            }
+            child_stdin.write_all(&buffer[..length])?;
+            child_stdin.flush()?;
+        }
+    });
+    let (termination, exit_code) = wait_for_child(&mut child, config.timeout, &output_limited)?;
+    if input_thread.is_finished() {
+        input_thread
+            .join()
+            .map_err(|_| AdapterError::WorkerThreadPanicked)??;
+    }
+    stdout_thread
+        .join()
+        .map_err(|_| AdapterError::WorkerThreadPanicked)??;
+    stderr_thread
+        .join()
+        .map_err(|_| AdapterError::WorkerThreadPanicked)??;
+    let capture = capture.lock().map_err(|_| AdapterError::CapturePoisoned)?;
+    Ok(ExecutionReport {
+        task_id: TaskId::parse(task.task_id.clone()).map_err(AdapterError::InvalidTaskId)?,
+        adapter_id: config.adapter_id.clone(),
+        worktree_path: status.path().to_path_buf(),
+        worktree_head: status.head().to_owned(),
+        termination,
+        exit_code,
+        stdout: capture.stdout.clone(),
+        stderr: capture.stderr.clone(),
+        output_truncated: output_limited.load(Ordering::Acquire),
+    })
+}
+
 fn wait_for_child(
     child: &mut Child,
     timeout: Duration,
@@ -898,6 +1002,41 @@ fn drain<R: Read + Send + 'static>(
             if length == 0 {
                 return Ok(());
             }
+            let mut capture = capture.lock().map_err(|_| AdapterError::CapturePoisoned)?;
+            let used = capture.stdout.len() + capture.stderr.len();
+            let remaining = limit.saturating_sub(used);
+            let accepted = length.min(remaining);
+            match stream {
+                Stream::Stdout => capture.stdout.extend_from_slice(&buffer[..accepted]),
+                Stream::Stderr => capture.stderr.extend_from_slice(&buffer[..accepted]),
+            }
+            if accepted < length {
+                output_limited.store(true, Ordering::Release);
+            }
+        }
+    })
+}
+
+fn drain_interactive<R: Read + Send + 'static>(
+    mut reader: R,
+    capture: Arc<Mutex<Capture>>,
+    output_limited: Arc<AtomicBool>,
+    limit: usize,
+    stream: Stream,
+) -> thread::JoinHandle<Result<(), AdapterError>> {
+    thread::spawn(move || {
+        let mut buffer = [0_u8; 8192];
+        let mut terminal: Box<dyn Write + Send> = match stream {
+            Stream::Stdout => Box::new(io::stdout()),
+            Stream::Stderr => Box::new(io::stderr()),
+        };
+        loop {
+            let length = reader.read(&mut buffer)?;
+            if length == 0 {
+                return Ok(());
+            }
+            terminal.write_all(&buffer[..length])?;
+            terminal.flush()?;
             let mut capture = capture.lock().map_err(|_| AdapterError::CapturePoisoned)?;
             let used = capture.stdout.len() + capture.stderr.len();
             let remaining = limit.saturating_sub(used);
