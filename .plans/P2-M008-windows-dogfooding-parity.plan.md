@@ -63,6 +63,7 @@ from the same worktree-backed workflow operators use, not only compilation and C
 - `.github/workflows/ci.yml`, `docs/CI.md`, `docs/WORKTREE_ISOLATION.md`, `docs/DAEMON.md`
 - `crates/agentforge-worktree/tests/worktree_manager.rs`
 - `crates/agentforge-cli/tests/daemon_commands.rs`
+- `crates/agentforge-cli/src/bin/agentforge-cli-fixture.rs`
 - `crates/agentforge-worktree/src/lib.rs` only if a narrowly evidenced production path repair is
   required; no unrelated implementation changes
 - `Cargo.lock` only if an existing workspace change requires regeneration; no new dependencies
