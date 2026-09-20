@@ -40,7 +40,8 @@ None. P2-M004 is complete; no plan is active.
 - Exact implementation CI: `35499518052` — all existing and Linux/macOS/Windows matrix jobs green.
 - Manual release packaging validation: `35499534918` — all four target archives built successfully;
   publishing was skipped as expected for a manual run.
-- Closure and post-merge evidence will be recorded after the documentation closure commit.
+- Closure commit: `fca7b057bb7422e3bc9ab3e94621bbe797a08aa1`.
+- Closure/mainline CI: `35499689853` — all jobs green for that exact closure SHA.
 
 ## P0-M005 completion evidence
 

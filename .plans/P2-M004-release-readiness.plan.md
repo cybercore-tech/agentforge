@@ -96,4 +96,5 @@ Notes: Added MIT licensing, workspace release metadata, Keep a Changelog/SemVer 
 manual artifact packaging for four targets, checksum generation, and cross-platform CI. Manual
 release validation `35499534918` built all four target archives and correctly skipped publishing.
 The `macos-13` runner was replaced with supported `macos-14` after hosted-runner availability
-evidence. Closure and post-merge evidence will be recorded by the separate documentation commit.
+evidence. Closure commit `fca7b057bb7422e3bc9ab3e94621bbe797a08aa1` passed local validation and
+exact-head CI run `35499689853` with all jobs green.

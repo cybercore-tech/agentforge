@@ -53,6 +53,8 @@
 - P2-M004 implementation: `ccad549`; CI `35499518052` green, including Linux/macOS/Windows matrix.
 - P2-M004 release packaging validation: `35499534918` green for all four target archives; manual
   publishing correctly skipped.
+- P2-M004 closure: `fca7b057bb7422e3bc9ab3e94621bbe797a08aa1`; CI `35499689853` green for the
+  exact closure SHA.
 - P0-M012 implementation: `fcf3809c9f5c099833cb07862e626ca3f1764cff`; CI `35493160857` green.
 - P0-M011 implementation: `bd1aaf24800dde73f1dc707519f5d1ed710a6b0e`; CI `35492790507` green.
 - P0-M011 closure: `62911373015ed8e94d7e8883b955c078a175cf48`; CI `35492882542` green.
