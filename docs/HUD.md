@@ -1,0 +1,15 @@
+# Operator HUD
+
+`forge hud <root>` is a read-only, deterministic snapshot of durable project artifacts. It reports
+the validated project name, mission, and guideline version; task lifecycle counts; verified audit
+record counts and bounded recent activity; and verified managed worktree health.
+
+The command reads `.forge/blueprint.conf`, `.forge/guidelines.md`,
+`.forge/state/tasks.snapshot`, `.forge/audit.log`, and Git worktree metadata through existing
+crate boundaries. It never creates `.forge` files, changes task state, launches an agent, or
+mutates Git. Missing or corrupt sources fail closed with a source-labelled diagnostic. A missing
+task snapshot is reported as unavailable rather than replaced with an empty graph.
+
+Output is plain text with stable section and task-ID ordering. Recent audit activity is capped and
+the complete report is bounded, so the snapshot can support a future interactive HUD without
+becoming a second source of truth.

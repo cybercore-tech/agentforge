@@ -13,3 +13,8 @@ Project intake precedes execution. `forge init <root>` creates non-overwriting b
 guideline templates; `forge blueprint validate <root>` validates them read-only; and
 `forge task create ...` creates an explicit task contract in the durable snapshot. Guideline prose
 never grants authority, and task creation does not execute work.
+
+The first operator projection is `forge hud <root>`. It reads the validated intake, durable task
+snapshot, verified audit log, and managed worktree state without creating files or changing Git.
+Missing or corrupt sources fail closed; the HUD is a bounded plain-text snapshot rather than an
+interactive editor or a second source of truth.

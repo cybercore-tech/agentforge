@@ -36,6 +36,7 @@ fn main() -> ExitCode {
         Some("blueprint") => blueprint_command(args.collect()),
         Some("task") => task_command(args.collect()),
         Some("run") => run_command(args.collect()),
+        Some("hud") => hud_command(args.collect()),
         Some(other) => {
             eprintln!("unknown command: {other}");
             print_usage();
@@ -50,7 +51,7 @@ fn main() -> ExitCode {
 
 fn print_usage() {
     println!(
-        "usage: forge <version|doctor|status|init <root>|blueprint validate <root>|task create <root> <task-id> <milestone> <role> <goal> [options]|run <root> <task-id> <absolute-executable>>"
+        "usage: forge <version|doctor|status|init <root>|blueprint validate <root>|task create <root> <task-id> <milestone> <role> <goal> [options]|run <root> <task-id> <absolute-executable>|hud <root>>"
     );
 }
 
@@ -314,6 +315,24 @@ fn run_command(arguments: Vec<String>) -> ExitCode {
         }
         Err(error) => {
             eprintln!("task run failed: {error}");
+            ExitCode::from(1)
+        }
+    }
+}
+
+fn hud_command(arguments: Vec<String>) -> ExitCode {
+    if arguments.len() != 1 {
+        eprintln!("hud requires: <root>");
+        print_usage();
+        return ExitCode::from(2);
+    }
+    match agentforge_hud::collect(&arguments[0]) {
+        Ok(snapshot) => {
+            print!("{}", agentforge_hud::render(&snapshot));
+            ExitCode::SUCCESS
+        }
+        Err(error) => {
+            eprintln!("cannot render HUD: {error}");
             ExitCode::from(1)
         }
     }

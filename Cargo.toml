@@ -9,6 +9,7 @@ members = [
     "crates/agentforge-audit",
     "crates/agentforge-policy",
     "crates/agentforge-intake",
+    "crates/agentforge-hud",
     "crates/agentforge-orchestrator",
     "crates/agentforge-scheduler",
     "crates/agentforge-cli",

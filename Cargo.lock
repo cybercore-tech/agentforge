@@ -25,6 +25,7 @@ dependencies = [
  "agentforge-adapter",
  "agentforge-audit",
  "agentforge-core",
+ "agentforge-hud",
  "agentforge-intake",
  "agentforge-orchestrator",
  "agentforge-state",
@@ -44,6 +45,17 @@ dependencies = [
 [[package]]
 name = "agentforge-gate"
 version = "0.0.1"
+
+[[package]]
+name = "agentforge-hud"
+version = "0.0.1"
+dependencies = [
+ "agentforge-audit",
+ "agentforge-core",
+ "agentforge-intake",
+ "agentforge-state",
+ "agentforge-worktree",
+]
 
 [[package]]
 name = "agentforge-intake"
