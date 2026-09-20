@@ -18,3 +18,7 @@ The first operator projection is `forge hud <root>`. It reads the validated inta
 snapshot, verified audit log, and managed worktree state without creating files or changing Git.
 Missing or corrupt sources fail closed; the HUD is a bounded plain-text snapshot rather than an
 interactive editor or a second source of truth.
+
+P2-M002 adds an optional line-oriented watch mode with bounded polling and `refresh`, `help`, and
+`quit` commands. It remains a read-only projection: it cannot create tasks, launch agents, change
+state, mutate Git, or approve work.

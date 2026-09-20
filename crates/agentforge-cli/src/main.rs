@@ -9,8 +9,11 @@ use agentforge_intake::{
 };
 use agentforge_orchestrator::execute_process_persisted;
 use agentforge_state::{FileTaskStore, TaskStore};
+use std::io::{self, Read, Write};
 use std::path::Path;
 use std::process::ExitCode;
+use std::sync::mpsc::{self, RecvTimeoutError};
+use std::time::Duration;
 
 fn main() -> ExitCode {
     let mut args = std::env::args().skip(1);
@@ -51,7 +54,7 @@ fn main() -> ExitCode {
 
 fn print_usage() {
     println!(
-        "usage: forge <version|doctor|status|init <root>|blueprint validate <root>|task create <root> <task-id> <milestone> <role> <goal> [options]|run <root> <task-id> <absolute-executable>|hud <root>>"
+        "usage: forge <version|doctor|status|init <root>|blueprint validate <root>|task create <root> <task-id> <milestone> <role> <goal> [options]|run <root> <task-id> <absolute-executable>|hud <root> [--watch [--interval-ms <milliseconds>]]>"
     );
 }
 
@@ -321,12 +324,44 @@ fn run_command(arguments: Vec<String>) -> ExitCode {
 }
 
 fn hud_command(arguments: Vec<String>) -> ExitCode {
-    if arguments.len() != 1 {
-        eprintln!("hud requires: <root>");
+    if arguments.is_empty() {
+        eprintln!("hud requires: <root> [--watch [--interval-ms <milliseconds>]]");
         print_usage();
         return ExitCode::from(2);
     }
-    match agentforge_hud::collect(&arguments[0]) {
+    let root = std::path::PathBuf::from(&arguments[0]);
+    if arguments.len() == 1 {
+        return render_one_shot_hud(&root);
+    }
+    if arguments.get(1).map(String::as_str) != Some("--watch") {
+        eprintln!("hud accepts only --watch after <root>");
+        print_usage();
+        return ExitCode::from(2);
+    }
+    let mut config = agentforge_hud::WatchConfig::default();
+    let mut index = 2;
+    while index < arguments.len() {
+        if arguments.get(index).map(String::as_str) != Some("--interval-ms")
+            || index + 1 >= arguments.len()
+        {
+            eprintln!("--interval-ms requires a numeric value");
+            return ExitCode::from(2);
+        }
+        let value = match arguments[index + 1].parse::<u64>() {
+            Ok(value) => value,
+            Err(_) => {
+                eprintln!("--interval-ms requires a numeric value");
+                return ExitCode::from(2);
+            }
+        };
+        config = agentforge_hud::WatchConfig::new(value);
+        index += 2;
+    }
+    run_hud_watch(&root, config)
+}
+
+fn render_one_shot_hud(root: &Path) -> ExitCode {
+    match agentforge_hud::collect(root) {
         Ok(snapshot) => {
             print!("{}", agentforge_hud::render(&snapshot));
             ExitCode::SUCCESS
@@ -335,6 +370,83 @@ fn hud_command(arguments: Vec<String>) -> ExitCode {
             eprintln!("cannot render HUD: {error}");
             ExitCode::from(1)
         }
+    }
+}
+
+fn run_hud_watch(root: &Path, config: agentforge_hud::WatchConfig) -> ExitCode {
+    if !root.is_dir() {
+        eprintln!("HUD root is not a directory: {}", root.display());
+        return ExitCode::from(1);
+    }
+    let (sender, receiver) = mpsc::channel();
+    std::thread::spawn(move || read_watch_commands(sender));
+    let interval = Duration::from_millis(config.interval_ms());
+
+    loop {
+        match agentforge_hud::collect(root) {
+            Ok(snapshot) => print!("{}", agentforge_hud::render(&snapshot)),
+            Err(error) => println!("HUD diagnostic: {error}"),
+        }
+        let _ = io::stdout().flush();
+        match receiver.recv_timeout(interval) {
+            Ok(agentforge_hud::WatchCommand::Refresh) => continue,
+            Ok(agentforge_hud::WatchCommand::Help) => {
+                println!("{}", agentforge_hud::watch_help());
+            }
+            Ok(agentforge_hud::WatchCommand::Quit) | Err(RecvTimeoutError::Disconnected) => {
+                return ExitCode::SUCCESS;
+            }
+            Ok(agentforge_hud::WatchCommand::Ignore) => {}
+            Ok(agentforge_hud::WatchCommand::Invalid(input)) => {
+                println!("HUD diagnostic: unknown watch command: {input}");
+            }
+            Err(RecvTimeoutError::Timeout) => {}
+        }
+    }
+}
+
+fn read_watch_commands(sender: mpsc::Sender<agentforge_hud::WatchCommand>) {
+    let stdin = io::stdin();
+    let mut input = stdin.lock();
+    loop {
+        let Some(line) = read_bounded_line(&mut input) else {
+            return;
+        };
+        if sender
+            .send(agentforge_hud::parse_watch_command(&line))
+            .is_err()
+        {
+            return;
+        }
+    }
+}
+
+fn read_bounded_line(reader: &mut impl Read) -> Option<String> {
+    let mut line = String::new();
+    let mut overflow = false;
+    let mut bytes = 0;
+    let mut buffer = [0_u8; 1];
+    loop {
+        match reader.read(&mut buffer) {
+            Ok(0) => {
+                if line.is_empty() && !overflow {
+                    return None;
+                }
+                break;
+            }
+            Ok(_) if buffer[0] == b'\n' => break,
+            Ok(_) if bytes < agentforge_hud::MAX_WATCH_INPUT_BYTES => {
+                line.push(buffer[0] as char);
+                bytes += 1;
+            }
+            Ok(_) => overflow = true,
+            Err(_) => return None,
+        }
+    }
+    if overflow {
+        Some("<oversized input>".to_owned())
+    } else {
+        Some(line.trim_end_matches('\r').to_owned())
     }
 }
 

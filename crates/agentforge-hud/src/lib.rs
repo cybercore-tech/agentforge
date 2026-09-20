@@ -11,6 +11,14 @@ use std::path::{Path, PathBuf};
 const AUDIT_RELATIVE_PATH: &str = ".forge/audit.log";
 const MAX_RECENT_EVENTS: usize = 8;
 const MAX_RENDERED_BYTES: usize = 16 * 1024;
+/// Default watch refresh interval in milliseconds.
+pub const DEFAULT_WATCH_INTERVAL_MS: u64 = 1_000;
+/// Minimum accepted watch refresh interval in milliseconds.
+pub const MIN_WATCH_INTERVAL_MS: u64 = 50;
+/// Maximum accepted watch refresh interval in milliseconds.
+pub const MAX_WATCH_INTERVAL_MS: u64 = 60_000;
+/// Maximum accepted cooked-mode input line length.
+pub const MAX_WATCH_INPUT_BYTES: usize = 256;
 
 /// A bounded source diagnostic.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -35,6 +43,75 @@ impl HudDiagnostic {
 pub enum HudError {
     /// One required source could not be read or verified.
     Source(HudDiagnostic),
+}
+
+/// Bounded configuration for the live HUD watch loop.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct WatchConfig {
+    interval_ms: u64,
+}
+
+impl WatchConfig {
+    /// Creates a configuration, clamping the interval to the documented bounds.
+    #[must_use]
+    pub const fn new(interval_ms: u64) -> Self {
+        let interval_ms = if interval_ms < MIN_WATCH_INTERVAL_MS {
+            MIN_WATCH_INTERVAL_MS
+        } else if interval_ms > MAX_WATCH_INTERVAL_MS {
+            MAX_WATCH_INTERVAL_MS
+        } else {
+            interval_ms
+        };
+        Self { interval_ms }
+    }
+
+    /// Returns the effective refresh interval in milliseconds.
+    #[must_use]
+    pub const fn interval_ms(self) -> u64 {
+        self.interval_ms
+    }
+}
+
+impl Default for WatchConfig {
+    fn default() -> Self {
+        Self::new(DEFAULT_WATCH_INTERVAL_MS)
+    }
+}
+
+/// One bounded command accepted by the cooked-mode watch loop.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum WatchCommand {
+    /// Refresh immediately.
+    Refresh,
+    /// Print command help.
+    Help,
+    /// Exit successfully.
+    Quit,
+    /// Ignore an empty line.
+    Ignore,
+    /// Report one bounded invalid input line.
+    Invalid(String),
+}
+
+/// Parses one cooked-mode command without shell interpretation.
+#[must_use]
+pub fn parse_watch_command(input: &str) -> WatchCommand {
+    let command = input.trim();
+    if command.is_empty() {
+        return WatchCommand::Ignore;
+    }
+    match command.to_ascii_lowercase().as_str() {
+        "r" | "refresh" => WatchCommand::Refresh,
+        "h" | "help" => WatchCommand::Help,
+        "q" | "quit" => WatchCommand::Quit,
+        _ => WatchCommand::Invalid(bound_input(command)),
+    }
+}
+
+/// Returns the stable watch-mode command help text.
+#[must_use]
+pub const fn watch_help() -> &'static str {
+    "watch commands: r/refresh refresh, h/help help, q/quit exit"
 }
 
 impl std::fmt::Display for HudError {
@@ -283,6 +360,17 @@ fn intake_message(error: &IntakeError) -> String {
     error.to_string()
 }
 
+fn bound_input(input: &str) -> String {
+    let mut bounded = input
+        .chars()
+        .take(MAX_WATCH_INPUT_BYTES)
+        .collect::<String>();
+    if input.chars().count() > MAX_WATCH_INPUT_BYTES {
+        bounded.push('…');
+    }
+    bounded
+}
+
 #[allow(dead_code)]
 fn _state_message(error: &StateError) -> String {
     error.to_string()
@@ -295,7 +383,10 @@ fn _worktree_message(error: &WorktreeError) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{AuditSummary, HudSnapshot, ProjectSummary, TaskSummary, WorktreeSummary, render};
+    use super::{
+        AuditSummary, HudSnapshot, ProjectSummary, TaskSummary, WatchCommand, WatchConfig,
+        WorktreeSummary, parse_watch_command, render,
+    };
     use std::path::PathBuf;
 
     fn snapshot() -> HudSnapshot {
@@ -338,5 +429,25 @@ mod tests {
         let mut value = snapshot();
         value.project.mission = "x".repeat(32 * 1024);
         assert!(render(&value).len() <= 16 * 1024 + "\n[truncated]\n".len());
+    }
+
+    #[test]
+    fn watch_commands_and_intervals_are_bounded() {
+        assert_eq!(parse_watch_command(" R "), WatchCommand::Refresh);
+        assert_eq!(parse_watch_command("help"), WatchCommand::Help);
+        assert_eq!(parse_watch_command("q"), WatchCommand::Quit);
+        assert_eq!(parse_watch_command(""), WatchCommand::Ignore);
+        assert!(matches!(
+            parse_watch_command("unknown"),
+            WatchCommand::Invalid(_)
+        ));
+        assert_eq!(
+            WatchConfig::new(0).interval_ms(),
+            super::MIN_WATCH_INTERVAL_MS
+        );
+        assert_eq!(
+            WatchConfig::new(u64::MAX).interval_ms(),
+            super::MAX_WATCH_INTERVAL_MS
+        );
     }
 }

@@ -2,8 +2,9 @@
 
 use agentforge_audit::FileAuditStore;
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static SEQUENCE: AtomicU64 = AtomicU64::new(0);
@@ -91,5 +92,55 @@ fn hud_fails_closed_when_a_required_source_is_missing() {
     let output = forge(&root, &["hud", root.to_str().expect("root")]);
     assert_eq!(output.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&output.stderr).contains("intake source unavailable"));
+    fs::remove_dir_all(root).expect("cleanup");
+}
+
+#[test]
+fn hud_watch_accepts_help_and_quit_without_mutation() {
+    let root = temporary_root();
+    let before = fs::read_dir(&root).expect("root entries").count();
+    let mut child = Command::new(env!("CARGO_BIN_EXE_forge"))
+        .args([
+            "hud",
+            root.to_str().expect("root"),
+            "--watch",
+            "--interval-ms",
+            "50",
+        ])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .current_dir(&root)
+        .spawn()
+        .expect("forge watch");
+    child
+        .stdin
+        .take()
+        .expect("watch stdin")
+        .write_all(b"help\nq\n")
+        .expect("watch commands");
+    let output = child.wait_with_output().expect("watch output");
+    assert!(output.status.success(), "{output:?}");
+    let stdout = String::from_utf8(output.stdout).expect("UTF-8 watch output");
+    assert!(stdout.contains("HUD diagnostic:"));
+    assert!(stdout.contains("watch commands: r/refresh refresh, h/help help, q/quit exit"));
+    assert_eq!(fs::read_dir(&root).expect("root entries").count(), before);
+    fs::remove_dir_all(root).expect("cleanup");
+}
+
+#[test]
+fn hud_watch_rejects_non_numeric_interval() {
+    let root = temporary_root();
+    let output = forge(
+        &root,
+        &[
+            "hud",
+            root.to_str().expect("root"),
+            "--watch",
+            "--interval-ms",
+            "nope",
+        ],
+    );
+    assert_eq!(output.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("numeric value"));
     fs::remove_dir_all(root).expect("cleanup");
 }

@@ -13,3 +13,19 @@ task snapshot is reported as unavailable rather than replaced with an empty grap
 Output is plain text with stable section and task-ID ordering. Recent audit activity is capped and
 the complete report is bounded, so the snapshot can support a future interactive HUD without
 becoming a second source of truth.
+
+## Watch mode
+
+For a live read-only view, run:
+
+```text
+forge hud <root> --watch [--interval-ms <milliseconds>]
+```
+
+The default interval is one second; values are bounded to 50–60,000 milliseconds. Each frame is a
+fresh source projection. Enter `r` or `refresh` to refresh immediately, `h` or `help` for the
+command summary, and `q` or `quit` to exit. Input is ordinary line-oriented terminal input, so
+redirected output remains plain text and no raw-terminal mode is required.
+
+Source failures are printed as bounded diagnostics for the affected frame. The loop remains
+read-only and may recover when a later frame becomes valid; it never creates missing durable state.
