@@ -16,3 +16,4 @@ ADRs are permanent numbered records of consequential design decisions.
 | ADR-0008 | Accepted | Versioned structured task and result contracts |
 | ADR-0009 | Accepted | Versioned task-state snapshots behind a storage boundary |
 | ADR-0010 | Accepted | Deterministic managed worktree lifecycle |
+| ADR-0011 | Proposed | Provider-neutral agent adapter execution boundary |

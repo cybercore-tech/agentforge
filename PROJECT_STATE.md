@@ -15,6 +15,10 @@ No implementation milestone is currently active.
 
 `.plans/ACTIVE` is intentionally absent.
 
+P0-M006 planning is in progress on `feat/p0-m006-agent-adapter-interface`.
+Draft plan: `.plans/P0-M006-agent-adapter-interface.plan.md`.
+Human approval and a validated Approved plan checkpoint are required before implementation.
+
 ## Completed milestones
 
 - `P0-M001` — Repository bootstrap.
@@ -34,7 +38,12 @@ No implementation milestone is currently active.
 - Validated implementation head: `e302cdae8a6610be04ec244bcefa2eab7c768864`.
 - Exact implementation CI: `35481590769` — all four jobs green.
 
-Closure CI and post-merge `main` CI remain required before P0-M006 begins.
+- Closure commit: `259f4c06844898c7cd99aeb29b38f23f5688de3a`.
+- Closure CI: `35481797256` — all four jobs green.
+- Merge commit: `069c058f7d39ab39a3267f5893d20b963d4f5397`.
+- Post-merge main CI: `35481855409` — all four jobs green for that exact merge commit.
+
+P0-M005 closure and integration checks are complete.
 
 ## Current capability
 
@@ -61,8 +70,8 @@ and deployment orchestration remain intentionally unimplemented.
 
 `P0-M006` — Agent adapter interface.
 
-P0-M006 must not begin until P0-M005 closure CI and post-merge `main` CI are green.
+Review the P0-M006 Draft plan and proposed ADR-0011, then approve the plan checkpoint before coding.
 
 ## Known blockers
 
-None beyond completing the P0-M005 closure/merge validation sequence.
+No technical blocker. P0-M006 implementation awaits plan approval and validation.
