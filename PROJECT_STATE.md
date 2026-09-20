@@ -11,9 +11,10 @@ Phase 0 — reliable local orchestration foundation.
 
 ## Active milestone
 
-No implementation milestone is currently active.
+`P0-M007` — Gate engine.
 
-`.plans/ACTIVE` is intentionally absent.
+Active plan: `.plans/P0-M007-gate-engine.plan.md`.
+Plan status: Approved. Implementation awaits local and remote validation of this exact checkpoint.
 
 ## Completed milestones
 

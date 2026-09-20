@@ -1,6 +1,6 @@
 # ADR-0012: Explicit gate definitions and structured process evidence
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-19
 - Decision owners: AgentForge project
 

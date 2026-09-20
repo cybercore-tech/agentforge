@@ -1,6 +1,6 @@
 # Plan: P0-M007 — Gate engine
 
-Status: Draft
+Status: Approved
 Milestone: P0-M007
 Created: 2026-09-19
 

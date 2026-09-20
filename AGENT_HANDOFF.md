@@ -18,7 +18,7 @@
 - P0-M006 closure: `bfad41192a4376e1f36d7f2791ddba1e0dabeb2b`; CI `35483034282` green.
 - P0-M006 main merge: `023a74969826f1de1bfb80c49e0dda125942336b`; CI `35483102850` green.
 - Current planning branch: `feat/p0-m007-gate-engine`.
-- P0-M007 plan: `.plans/P0-M007-gate-engine.plan.md` — Draft.
+- P0-M007 plan: `.plans/P0-M007-gate-engine.plan.md` — Approved.
 
 ## Resume checklist
 
@@ -28,8 +28,8 @@
 4. Read `docs/WORKTREE_ISOLATION.md`.
 5. Read ADR-0002 and ADR-0010.
 6. Run `./scripts/project-status`.
-7. Read the P0-M007 Draft plan and proposed ADR-0012.
-8. Require plan approval and green CI for the committed Approved plan before implementation.
+7. Read the Approved P0-M007 plan and ADR-0012.
+8. Require green CI for the committed plan before implementation.
 9. Never bypass repository hooks or gates.
 10. Classify failures before repair.
 
