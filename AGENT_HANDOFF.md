@@ -2,8 +2,8 @@
 
 ## Repository state
 
-- Active milestone: P0-M008 — CI monitor and failure classifier.
-- Active plan: `.plans/P0-M008-ci-monitor-failure-classifier.plan.md` — Approved.
+- Active milestone: none; P0-M008 closure CI is pending before merge.
+- Active plan: none.
 - P0-M001 status: Complete.
 - P0-M002 status: Complete.
 - P0-M003 status: Complete.
@@ -21,9 +21,11 @@
 - P0-M007 implementation CI: `35483980498` — all four jobs green.
 - P0-M007 closure: `02242b2f3fe7eb82239e2dca43b1bd85aa239a86`; CI `35484071505` green.
 - P0-M007 main merge: `741cf58caa6fca38c4693c4359816f4721a2b126`; CI `35484138853` green.
-- Current implementation branch: `feat/p0-m008-ci-monitor-classifier`.
-- P0-M008 plan: `.plans/P0-M008-ci-monitor-failure-classifier.plan.md` — Approved;
-  implementation awaits exact plan-checkpoint CI.
+- P0-M008 implementation head: `6c2a057750e38fe1ec8c19c3618773283900b367`.
+- P0-M008 implementation CI: `35485116791` — all four jobs green.
+- Current closure branch: `feat/p0-m008-ci-monitor-classifier`.
+- P0-M008 plan: `.plans/P0-M008-ci-monitor-failure-classifier.plan.md` — Completed;
+  closure CI remains required.
 
 ## Resume checklist
 
@@ -33,10 +35,9 @@
 4. Read `docs/WORKTREE_ISOLATION.md`.
 5. Read ADR-0002 and ADR-0010.
 6. Run `./scripts/project-status`.
-7. Read the Approved P0-M008 plan and ADR-0013.
-8. Require green CI for the committed plan before implementation.
-9. Never bypass repository hooks or gates.
-10. Classify failures before repair.
+7. Verify CI for the P0-M008 closure commit, then merge and verify the resulting main commit.
+8. Never bypass repository hooks or gates.
+9. Classify failures before repair.
 
 ## Completed P0-M005 work
 
@@ -66,3 +67,7 @@ configuration, cleared child environments, bounded concurrent raw output capture
 output-limit termination, ordered batch reports, and duplicate-name rejection. Its implementation,
 closure, and post-merge CI are green. P0-M008 will add exact-SHA CI observation and conservative
 failure classification before later audit and policy milestones.
+
+P0-M008 added a standard-library-only exact-SHA CI observer with bounded direct-command execution,
+strict versioned protocol decoding, stale/ambiguous evidence rejection, and conservative taxonomy
+classification. Its implementation CI is green; closure, merge, and post-merge evidence remain.

@@ -11,10 +11,7 @@ Phase 0 — reliable local orchestration foundation.
 
 ## Active milestone
 
-`P0-M008` — CI monitor and failure classifier.
-
-Active plan: `.plans/P0-M008-ci-monitor-failure-classifier.plan.md`.
-Plan status: Approved. Implementation awaits local and remote validation of this exact checkpoint.
+No implementation milestone is active. P0-M008 closure CI is pending before merge.
 
 ## Completed milestones
 
@@ -25,6 +22,7 @@ Plan status: Approved. Implementation awaits local and remote validation of this
 - `P0-M005` — Worktree isolation manager.
 - `P0-M006` — Agent adapter interface.
 - `P0-M007` — Gate engine.
+- `P0-M008` — CI monitor and failure classifier.
 
 ## P0-M005 completion evidence
 
@@ -84,11 +82,18 @@ audit events, and deployment orchestration remain intentionally unimplemented.
 
 ## Next planned milestone
 
-`P0-M008` — CI monitor and failure classifier.
+`P0-M009` — Event and audit log.
 
 ## Known blockers
 
-No technical blocker. P0-M008 implementation awaits plan-checkpoint validation.
+No technical blocker. P0-M008 closure CI is pending before merge.
+
+## P0-M008 completion evidence
+
+- Approved plan checkpoint: `b203df0403ba6e4272770336e77f138a9c4731ee`.
+- Plan CI: `35484652048` — all four jobs green.
+- Validated implementation head: `6c2a057750e38fe1ec8c19c3618773283900b367`.
+- Exact implementation CI: `35485116791` — all four jobs green.
 
 ## P0-M007 completion evidence
 

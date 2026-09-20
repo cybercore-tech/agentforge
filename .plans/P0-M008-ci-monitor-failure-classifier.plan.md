@@ -1,6 +1,6 @@
 # Plan: P0-M008 — CI monitor and failure classifier
 
-Status: Approved
+Status: Completed
 Milestone: P0-M008
 Created: 2026-09-19
 
@@ -171,19 +171,29 @@ exact approved-plan, implementation, closure, and post-merge commit SHAs.
 
 ## Acceptance criteria
 
-- [ ] Approved plan is committed and green before implementation.
-- [ ] Exact-SHA, read-only CI run/job observation is implemented and tested.
-- [ ] Malformed, ambiguous, stale, and nonterminal evidence is safely rejected or represented.
-- [ ] Every failure-taxonomy category and the unknown fallback are deterministically tested.
-- [ ] No shell, provider SDK, ambient credential inheritance, automatic retry, or repair authority is introduced.
+- [x] Approved plan is committed and green before implementation.
+- [x] Exact-SHA, read-only CI run/job observation is implemented and tested.
+- [x] Malformed, ambiguous, stale, and nonterminal evidence is safely rejected or represented.
+- [x] Every failure-taxonomy category and the unknown fallback are deterministically tested.
+- [x] No shell, provider SDK, ambient credential inheritance, automatic retry, or repair authority is introduced.
 - [ ] Exact implementation, closure, and post-merge CI are green.
 
 ## Completion record
 
-Implementation commit: pending
-Implementation CI: pending
+Implementation commit: 6c2a057750e38fe1ec8c19c3618773283900b367
+Implementation CI: 35485116791 — all four jobs green
 Closure commit: pending
 Closure CI: pending
 Post-merge main: pending
 Post-merge CI: pending
 Completed: pending
+
+Evidence:
+
+- Draft plan checkpoint: `b034a6ef5fdd7d9e41ec4a6991e2f90ce404973f`;
+  CI run `35484523793` was green.
+- Approved plan checkpoint: `b203df0403ba6e4272770336e77f138a9c4731ee`;
+  CI run `35484652048` was green.
+- The full local gate and focused CI-monitor tests passed for the implementation.
+- Exact implementation CI run `35485116791` passed Repository policy, Stable code gate,
+  MSRV 1.85.0, and CLI smoke for `6c2a057750e38fe1ec8c19c3618773283900b367`.
