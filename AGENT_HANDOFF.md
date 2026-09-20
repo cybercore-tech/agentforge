@@ -2,14 +2,12 @@
 
 ## Repository state
 
-- Active milestone: none.
-- Active plan: none.
-- P0-M001 status: Complete.
-- P0-M002 status: Complete.
-- P0-M003 status: Complete.
-- P0-M004 status: Complete.
-- P0-M004 validated implementation head: `e64fe647206ed8a0a7be19e6246c4a9f73557b1f`.
-- P0-M004 implementation CI: `35473456133` — all four jobs green.
+- Active milestone: `P0-M005`.
+- Active plan: `.plans/P0-M005-worktree-isolation-manager.plan.md`.
+- Plan status: Approved.
+- Implementation status: not started.
+- Base main commit: `93f88b1af2f129c63b95bb0d9f7ca72677c847af`.
+- P0-M004 post-repair main CI: `35477705487` — success.
 
 ## Resume checklist
 
@@ -17,40 +15,28 @@
 2. Read `PROJECT_STATE.md`.
 3. Read `AGENTS.md`.
 4. Read `docs/TASK_STATE.md`.
-5. Read ADR-0009.
-6. Run `./scripts/project-status`.
-7. Confirm P0-M004 closure CI and post-merge main CI completed successfully.
-8. Confirm there is no active plan before starting P0-M005.
-9. Never bypass repository hooks or gates.
+5. Read `docs/WORKTREE_ISOLATION.md`.
+6. Read ADR-0002 and ADR-0010.
+7. Run `./scripts/project-status`.
+8. Confirm `.plans/ACTIVE` points to the Approved P0-M005 plan.
+9. Never bypass hooks or gates.
 10. Classify failures before repair.
+11. Never use destructive Git cleanup as routine recovery.
 
-## Completed P0-M004 work
+## P0-M005 objective
 
-P0-M004 established the durable task-state foundation:
+Establish a safe task-owned Git worktree lifecycle:
 
-- deterministic `TaskId` values;
-- BTreeMap-backed deterministic `TaskGraph`;
-- dependency validation and cycle rejection;
-- derived readiness;
-- explicit lifecycle transition validation;
-- per-task revisions;
-- `agentforge-state` persistence boundary;
-- dependency-free version-1 binary snapshot codec;
-- bounded fail-closed decoding;
-- payload checksum validation;
-- project-local file store;
-- round-trip, determinism, corruption, truncation, size-bound, restored-domain, and replacement tests.
+- deterministic task branch;
+- deterministic managed path;
+- exact base commit;
+- ownership verification;
+- porcelain inspection;
+- dirty-state detection;
+- non-destructive retirement;
+- preserved task branch.
 
-Two implementation CI repair cycles were preserved in history:
+## Next exact action
 
-- run `35473369262`: formatting/lint + compilation/type;
-- run `35473425385`: final formatting/lint only;
-- run `35473456133`: 4/4 green.
-
-## Next milestone
-
-The next planned milestone is:
-
-`P0-M005 — Worktree isolation manager`
-
-Do not start it until the P0-M004 closure and post-merge `main` checks are green.
+Commit this plan-only checkpoint and require the exact plan head to pass local and remote gates
+before implementation begins.
