@@ -1,0 +1,13 @@
+[package]
+name = "agentforge-scheduler"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+agentforge-core = { path = "../agentforge-core" }
+
+[lints]
+workspace = true
