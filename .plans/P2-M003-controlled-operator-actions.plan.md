@@ -1,6 +1,6 @@
 # Plan: P2-M003 — Controlled operator actions
 
-Status: Approved
+Status: Completed
 Milestone: P2-M003
 Created: 2026-09-20
 
@@ -185,18 +185,21 @@ explicit operator mutation.
 
 ## Acceptance criteria
 
-- [ ] Operators can inspect one or all tasks through a bounded deterministic command.
-- [ ] Required approvals can be recorded only with explicit actor/boundary/task validation.
-- [ ] Accept/cancel/retry actions use core transitions and append durable evidence atomically.
-- [ ] `forge run` consumes only verified task-linked approval evidence.
-- [ ] HUD and watch mode remain read-only and backward-compatible.
-- [ ] Tests prove authorization, failure atomicity, bounded output, and CLI behavior.
-- [ ] Exact implementation, closure, and mainline CI evidence is recorded.
+- [x] Operators can inspect one or all tasks through a bounded deterministic command.
+- [x] Required approvals can be recorded only with explicit actor/boundary/task validation.
+- [x] Accept/cancel/retry actions use core transitions and append durable evidence atomically.
+- [x] `forge run` consumes only verified task-linked approval evidence.
+- [x] HUD and watch mode remain read-only and backward-compatible.
+- [x] Tests prove authorization, failure atomicity, bounded output, and CLI behavior.
+- [x] Exact implementation, closure, and mainline CI evidence is recorded.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
-Notes:
+Implementation commit: `381afc6d0342ad12b36ce9574dd6ffb1a1c34a93`
+CI run: `35498108446`
+CI result: all four jobs green for the exact implementation SHA
+Completed: 2026-09-20
+Notes: Added the standard-library-only operator service and explicit `forge task` inspect,
+approval, accept, cancel, and retry commands. Approval evidence is verified and task-linked before
+`forge run`; HUD and watch mode remain read-only. Closure and post-merge evidence will be recorded
+by the separate documentation closure commit.

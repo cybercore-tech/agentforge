@@ -11,7 +11,7 @@ Phase 2 — operator experience.
 
 ## Active milestone
 
-`P2-M003` — Controlled operator actions (approved plan; implementation may begin after checkpoint CI).
+None. P2-M003 is complete; no plan is active.
 
 ## Completed milestones
 
@@ -29,7 +29,7 @@ Phase 2 — operator experience.
 - `P1-M003` — Project blueprint and task intake.
 - `P2-M001` — Read-only operator HUD.
 - `P2-M002` — Interactive operator HUD.
-- `P2-M003` — Controlled operator actions (active).
+- `P2-M003` — Controlled operator actions.
 
 ## P0-M005 completion evidence
 
@@ -87,15 +87,26 @@ from task acceptance. It can also run direct, explicit local gates with cleared 
 bounded raw evidence, deadlines, and ordered batch reports. Scheduling, CI failure automation,
 audit events, and deployment orchestration remain intentionally unimplemented. Operators can now
 read a deterministic, bounded HUD snapshot of intake, task, audit, and managed worktree state.
+Operators can also inspect tasks, record explicit required approvals, and apply audited accept,
+cancel, and retry transitions through `forge task`. `forge run` consumes only verified, task-linked
+approval evidence; HUD and watch mode remain read-only.
+
+## P2-M003 completion evidence
+
+- Approved plan: `.plans/P2-M003-controlled-operator-actions.plan.md`.
+- Implementation head: `381afc6d0342ad12b36ce9574dd6ffb1a1c34a93`.
+- Exact implementation CI: `35498108446` — all four jobs green.
+- Closure and post-merge evidence are recorded after the documentation closure commit.
 
 ## Next planned milestone
 
-P2-M003 is active within its approved file boundary.
+No next milestone is approved. The next increment should be planned explicitly from operator usage
+feedback and the remaining orchestration gaps.
 
 ## Known blockers
 
-P2-M002 is complete. P2-M003 adds explicit audited operator actions; HUD-embedded mutation,
-editing, and uncontrolled automation remain out of scope.
+P2-M003 is complete. HUD-embedded mutation, editing, and uncontrolled automation remain out of
+scope. No known implementation blocker remains for the controlled operator-action boundary.
 
 ## P2-M002 completion evidence
 
