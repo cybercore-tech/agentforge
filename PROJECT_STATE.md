@@ -11,7 +11,7 @@ Phase 0 — reliable local orchestration foundation.
 
 ## Active milestone
 
-`P0-M010` — Capability and permission policy (approved plan; implementation not yet started).
+No implementation milestone is active. P0-M010 closure is in progress.
 
 ## Completed milestones
 
@@ -87,7 +87,14 @@ audit events, and deployment orchestration remain intentionally unimplemented.
 
 ## Known blockers
 
-Implementation is authorized by the approved P0-M010 plan; implementation changes must remain within its declared boundary.
+P0-M010 implementation is complete; closure evidence and merge verification remain.
+
+## P0-M010 completion evidence
+
+- Approved plan checkpoint: `e7cf33adccfc46eceb0b5c54d09a2682eeccc1bd`.
+- Plan CI: `35490065662` — all four jobs green.
+- Validated implementation head: `1ece087f25ccb6ce8fda96867e9f2502b91e4c86`.
+- Exact implementation CI: `35490199374` — all four jobs green.
 
 ## P0-M009 completion evidence
 

@@ -1,6 +1,6 @@
 # Plan: P0-M010 — Capability and permission policy
 
-Status: Approved
+Status: Completed
 Milestone: P0-M010
 Created: 2026-09-19
 
@@ -67,8 +67,8 @@ SHA CI for approved-plan, implementation, closure, and post-merge commits.
 
 ## Completion record
 
-Implementation commit: pending
-Implementation CI: pending
+Implementation commit: `1ece087f25ccb6ce8fda96867e9f2502b91e4c86`
+Implementation CI: `35490199374` — all four jobs green
 Closure commit: pending
 Closure CI: pending
 Post-merge main: pending
