@@ -15,6 +15,11 @@ versioned protocol. The daemon serializes one mutating execution at a time and r
 timeouts, and interruption evidence before returning an error. It never accepts tasks or performs
 forced worktree cleanup.
 
+P2-M006 adds explicit operator preparation for that path through `forge worktree create|inspect|list|retire`.
+These commands delegate to the managed worktree authority, preserve task branches, and refuse dirty,
+ambiguous, or unrelated worktrees. A configured executable is still passed directly to the daemon;
+the operator remains responsible for approval, inspection, acceptance, and final retirement.
+
 Project intake precedes execution. `forge init <root>` creates non-overwriting blueprint and
 guideline templates; `forge blueprint validate <root>` validates them read-only; and
 `forge task create ...` creates an explicit task contract in the durable snapshot. Guideline prose

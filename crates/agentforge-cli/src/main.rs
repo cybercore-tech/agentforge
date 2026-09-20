@@ -15,6 +15,7 @@ use agentforge_operator::{
 };
 use agentforge_orchestrator::execute_process_persisted;
 use agentforge_state::{FileTaskStore, TaskStore};
+use agentforge_worktree::{GitOperation, WorktreeManager, WorktreeSpec};
 use std::io::{self, Read, Write};
 use std::path::Path;
 use std::process::ExitCode;
@@ -46,6 +47,7 @@ fn main() -> ExitCode {
         Some("task") => task_command(args.collect()),
         Some("run") => run_command(args.collect()),
         Some("daemon") => daemon_command(args.collect()),
+        Some("worktree") => worktree_command(args.collect()),
         Some("hud") => hud_command(args.collect()),
         Some(other) => {
             eprintln!("unknown command: {other}");
@@ -61,8 +63,130 @@ fn main() -> ExitCode {
 
 fn print_usage() {
     println!(
-        "usage: forge <version|doctor|status|init <root>|blueprint validate <root>|task create|inspect|approve|accept|cancel|retry ...|run <root> <task-id> <absolute-executable>|daemon status|run|stop ...|hud <root> [--watch [--interval-ms <milliseconds>]]>"
+        "usage: forge <version|doctor|status|init <root>|blueprint validate <root>|task create|inspect|approve|accept|cancel|retry ...|run <root> <task-id> <absolute-executable>|daemon status|run|stop ...|worktree create|inspect|list|retire ...|hud <root> [--watch [--interval-ms <milliseconds>]]>"
     );
+}
+
+fn worktree_command(arguments: Vec<String>) -> ExitCode {
+    match arguments.first().map(String::as_str) {
+        Some("create") if arguments.len() == 4 => {
+            let task_id = match parse_worktree_task_id(&arguments[2]) {
+                Ok(value) => value,
+                Err(code) => return code,
+            };
+            let manager = match WorktreeManager::new(&arguments[1]) {
+                Ok(value) => value,
+                Err(error) => return worktree_error("create", error),
+            };
+            match manager.create(&WorktreeSpec::new(task_id.clone(), &arguments[3])) {
+                Ok(status) => {
+                    print_worktree_status("created", &status);
+                    ExitCode::SUCCESS
+                }
+                Err(error) => worktree_error("create", error),
+            }
+        }
+        Some("inspect") if arguments.len() == 3 => {
+            let task_id = match parse_worktree_task_id(&arguments[2]) {
+                Ok(value) => value,
+                Err(code) => return code,
+            };
+            let manager = match WorktreeManager::new(&arguments[1]) {
+                Ok(value) => value,
+                Err(error) => return worktree_error("inspect", error),
+            };
+            match manager.inspect(&task_id) {
+                Ok(Some(status)) => {
+                    print_worktree_status("inspected", &status);
+                    ExitCode::SUCCESS
+                }
+                Ok(None) => {
+                    eprintln!("worktree inspect failed: task is not managed: {task_id}");
+                    ExitCode::from(1)
+                }
+                Err(error) => worktree_error("inspect", error),
+            }
+        }
+        Some("list") if arguments.len() == 2 => {
+            let manager = match WorktreeManager::new(&arguments[1]) {
+                Ok(value) => value,
+                Err(error) => return worktree_error("list", error),
+            };
+            match manager.list() {
+                Ok(statuses) => {
+                    for status in &statuses {
+                        print_worktree_status("managed", status);
+                    }
+                    if statuses.is_empty() {
+                        println!("no managed worktrees");
+                    }
+                    ExitCode::SUCCESS
+                }
+                Err(error) => worktree_error("list", error),
+            }
+        }
+        Some("retire") if arguments.len() == 3 => {
+            let task_id = match parse_worktree_task_id(&arguments[2]) {
+                Ok(value) => value,
+                Err(code) => return code,
+            };
+            let manager = match WorktreeManager::new(&arguments[1]) {
+                Ok(value) => value,
+                Err(error) => return worktree_error("retire", error),
+            };
+            let branch = WorktreeManager::branch_for(&task_id);
+            match manager.retire(&task_id) {
+                Ok(()) => {
+                    println!(
+                        "retired worktree task={task_id} branch={branch} branch-preserved=true"
+                    );
+                    ExitCode::SUCCESS
+                }
+                Err(error) => worktree_error("retire", error),
+            }
+        }
+        _ => {
+            eprintln!(
+                "worktree requires: create <root> <task-id> <base-ref>, inspect <root> <task-id>, list <root>, or retire <root> <task-id>"
+            );
+            print_usage();
+            ExitCode::from(2)
+        }
+    }
+}
+
+fn parse_worktree_task_id(value: &str) -> Result<TaskId, ExitCode> {
+    TaskId::parse(value.to_owned()).map_err(|error| {
+        eprintln!("invalid task ID: {error}");
+        ExitCode::from(2)
+    })
+}
+
+fn print_worktree_status(label: &str, status: &agentforge_worktree::WorktreeStatus) {
+    println!(
+        "{label} worktree task={} branch={} path={} head={} dirty={} operation={}",
+        status.task_id(),
+        status.branch(),
+        status.path().display(),
+        status.head(),
+        status.is_dirty(),
+        operation_label(status.operation())
+    );
+}
+
+fn operation_label(operation: Option<GitOperation>) -> &'static str {
+    match operation {
+        None => "none",
+        Some(GitOperation::Merge) => "merge",
+        Some(GitOperation::Rebase) => "rebase",
+        Some(GitOperation::CherryPick) => "cherry-pick",
+        Some(GitOperation::Revert) => "revert",
+    }
+}
+
+fn worktree_error(operation: &str, error: agentforge_worktree::WorktreeError) -> ExitCode {
+    eprintln!("worktree {operation} failed: {error}");
+    ExitCode::from(1)
 }
 
 fn daemon_command(arguments: Vec<String>) -> ExitCode {

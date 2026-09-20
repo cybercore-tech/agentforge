@@ -255,13 +255,13 @@ impl Server {
             }) {
                 Ok(request) => request,
                 Err(error) => {
-                    write_response(&mut stream, &Response::Error(error.to_string()))?;
+                    let _ = write_response(&mut stream, &Response::Error(error.to_string()));
                     continue;
                 }
             };
             let stop = matches!(request, Request::Stop);
             let response = self.handle(request);
-            write_response(&mut stream, &response)?;
+            let _ = write_response(&mut stream, &response);
             if stop {
                 return Ok(());
             }

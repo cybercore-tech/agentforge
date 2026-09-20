@@ -1,8 +1,6 @@
 #![allow(missing_docs)]
 
-use agentforge_core::task::TaskId;
 use agentforge_daemon::{DEFAULT_BIND, DaemonError, serve, status};
-use agentforge_worktree::{WorktreeManager, WorktreeSpec};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -53,17 +51,26 @@ fn daemon_status_and_stop_are_operator_commands() {
             "implementer",
             "exercise daemon",
             "--allowed",
-            "README.md",
+            "agentforge-fixture-output.txt",
+            "--capability",
+            "write_owned_paths",
             "--capability",
             "run_local_commands",
         ],
     );
     assert!(created.status.success(), "{created:?}");
-    let task_id = TaskId::parse("P2-M005-T0001").expect("task ID");
-    let manager = WorktreeManager::new(&root).expect("worktree manager");
-    manager
-        .create(&WorktreeSpec::new(task_id.clone(), "HEAD"))
-        .expect("task worktree");
+    let prepared = forge(
+        &root,
+        &[
+            "worktree",
+            "create",
+            root.to_str().expect("root"),
+            "P2-M005-T0001",
+            "HEAD",
+        ],
+    );
+    assert!(prepared.status.success(), "{prepared:?}");
+    let executable = agent_fixture(&root);
 
     let run_output = forge(
         &root,
@@ -72,11 +79,18 @@ fn daemon_status_and_stop_are_operator_commands() {
             "run",
             root.to_str().expect("root"),
             "P2-M005-T0001",
-            env!("CARGO_BIN_EXE_forge"),
+            executable.to_str().expect("fixture path"),
         ],
     );
     assert!(run_output.status.success(), "{run_output:?}");
     assert!(String::from_utf8_lossy(&run_output.stdout).contains("task=P2-M005-T0001"));
+    assert_eq!(
+        fs::read_to_string(
+            root.join(".forge/worktrees/P2-M005-T0001/agentforge-fixture-output.txt")
+        )
+        .expect("fixture output"),
+        "fixture executed\n"
+    );
     let hud_output = forge(&root, &["hud", root.to_str().expect("root")]);
     assert!(hud_output.status.success(), "{hud_output:?}");
     assert!(String::from_utf8_lossy(&hud_output.stdout).contains("P2-M005-T0001"));
@@ -92,6 +106,8 @@ fn daemon_status_and_stop_are_operator_commands() {
         ],
     );
     assert!(accepted.status.success(), "{accepted:?}");
+    fs::remove_file(root.join(".forge/worktrees/P2-M005-T0001/agentforge-fixture-output.txt"))
+        .expect("remove fixture output before retirement");
 
     let status_output = forge(&root, &["daemon", "status", root.to_str().expect("root")]);
     assert!(status_output.status.success(), "{status_output:?}");
@@ -99,7 +115,16 @@ fn daemon_status_and_stop_are_operator_commands() {
     let stop_output = forge(&root, &["daemon", "stop", root.to_str().expect("root")]);
     assert!(stop_output.status.success(), "{stop_output:?}");
     assert!(server.join().expect("server thread").is_ok());
-    manager.retire(&task_id).expect("retire task worktree");
+    let retired = forge(
+        &root,
+        &[
+            "worktree",
+            "retire",
+            root.to_str().expect("root"),
+            "P2-M005-T0001",
+        ],
+    );
+    assert!(retired.status.success(), "{retired:?}");
     fs::remove_dir_all(root).expect("cleanup");
 }
 
@@ -128,6 +153,25 @@ fn temporary_repo() -> PathBuf {
     git(&root, &["add", "README.md"]);
     git(&root, &["commit", "-qm", "fixture"]);
     root
+}
+
+fn agent_fixture(root: &Path) -> PathBuf {
+    let executable = root.join("agentforge-fixture.sh");
+    fs::write(
+        &executable,
+        "#!/bin/sh\nprintf 'fixture executed\\n' > agentforge-fixture-output.txt\nprintf 'fixture executed\\n'\n",
+    )
+    .expect("fixture script");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut permissions = fs::metadata(&executable)
+            .expect("fixture metadata")
+            .permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&executable, permissions).expect("fixture permissions");
+    }
+    executable
 }
 
 fn git(root: &Path, arguments: &[&str]) {

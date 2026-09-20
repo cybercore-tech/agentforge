@@ -46,6 +46,7 @@ The current repository provides:
 - Explicit task inspection, approval, accept, cancel, and retry commands. 🧑‍💻
 - A persisted `forge run` path that consumes only verified, task-linked approval evidence.
 - An optional loopback-only `forged` runtime with bounded `forge daemon` lifecycle commands. ⚙️
+- Explicit `forge worktree` commands for safe task worktree preparation and retirement. 🌳
 
 The repository also contains reusable Rust crates for scheduling, policy, orchestration, intake,
 state, worktrees, gates, audit, HUD, and operator actions. The `forged` binary now provides an
@@ -150,6 +151,15 @@ until an independent operator decision is recorded.
 Worktree creation and retirement are implemented as provider-neutral crate APIs and are deliberately
 conservative: dirty or ambiguous worktrees are not force-removed, reset, or cleaned. See
 [`docs/WORKTREE_ISOLATION.md`](docs/WORKTREE_ISOLATION.md) for the ownership rules.
+
+The CLI exposes the same safe lifecycle for operators:
+
+```bash
+forge worktree create /path/to/project P2-M006-T0001 HEAD
+forge worktree inspect /path/to/project P2-M006-T0001
+forge worktree list /path/to/project
+forge worktree retire /path/to/project P2-M006-T0001
+```
 
 ## Operator HUD 👀
 

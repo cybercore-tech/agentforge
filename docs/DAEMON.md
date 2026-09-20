@@ -24,6 +24,20 @@ forged serve --root /path/to/project --bind 127.0.0.1:0
 
 Port `0` lets the operating system choose an available local port.
 
+## Prepare a task
+
+Worktrees are explicit operator actions. Create and inspect the deterministic task worktree before
+starting a run:
+
+```bash
+forge worktree create /path/to/project P2-M006-T0001 HEAD
+forge worktree inspect /path/to/project P2-M006-T0001
+forge worktree list /path/to/project
+```
+
+The manager verifies the repository root, exact base commit, task branch, and managed path. It will
+not adopt an unrelated worktree or silently repair an unsafe state.
+
 ## Operate
 
 ```bash
@@ -40,6 +54,12 @@ accepts it:
 forge task accept /path/to/project P2-M005-T0001 --actor operator
 ```
 
+After an accepted task is no longer needed, retire its clean managed worktree explicitly:
+
+```bash
+forge worktree retire /path/to/project P2-M005-T0001
+```
+
 Stopping is cooperative. The daemon does not force-kill an active child, remove worktrees, delete
 task branches, or accept tasks.
 
@@ -52,6 +72,10 @@ paths fail closed.
 If a daemon crashes, its endpoint and lock metadata are intentionally not adopted automatically.
 Inspect the project and confirm no daemon process owns it before removing stale metadata manually.
 This preserves evidence and avoids accidentally starting two runtimes for one project.
+
+A client disconnect does not stop the daemon. The request is bounded and the daemon remains
+available for status or a later cooperative stop; any execution already started retains its durable
+task and audit evidence.
 
 Adapter failures, timeouts, and interrupted requests persist the task transition and audit evidence
 before the error is returned whenever the persistence boundary remains available. A successful run
