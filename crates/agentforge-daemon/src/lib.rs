@@ -59,6 +59,8 @@ pub enum DaemonError {
     Execution(String),
     /// A spawned daemon did not become ready within the bounded startup window.
     StartTimeout(PathBuf),
+    /// A cooperative stop did not clear the daemon endpoint within the bounded window.
+    StopTimeout(PathBuf),
 }
 
 impl fmt::Display for DaemonError {
@@ -79,6 +81,11 @@ impl fmt::Display for DaemonError {
             Self::StartTimeout(root) => write!(
                 formatter,
                 "daemon did not become ready within the startup timeout for {}",
+                root.display()
+            ),
+            Self::StopTimeout(root) => write!(
+                formatter,
+                "daemon did not stop within the shutdown timeout for {}",
                 root.display()
             ),
         }
@@ -238,9 +245,30 @@ pub fn run_profile(
 
 /// Requests a cooperative daemon stop.
 pub fn stop(root: impl AsRef<Path>) -> Result<(), DaemonError> {
-    match send_request(root.as_ref(), Request::Stop)? {
-        Response::Stop => Ok(()),
-        _ => Err(DaemonError::Protocol("unexpected stop response".into())),
+    let root = root.as_ref();
+    match send_request(root, Request::Stop) {
+        Ok(Response::Stop) => wait_until_stopped(root),
+        // A stop response can be lost while the daemon is already tearing down
+        // its listener. Continue observing the endpoint instead of racing a
+        // restart against cooperative cleanup.
+        Err(DaemonError::StaleInstance(_)) => wait_until_stopped(root),
+        Ok(_) => Err(DaemonError::Protocol("unexpected stop response".into())),
+        Err(error) => Err(error),
+    }
+}
+
+fn wait_until_stopped(root: &Path) -> Result<(), DaemonError> {
+    let deadline = Instant::now() + START_TIMEOUT;
+    loop {
+        match status(root) {
+            Err(DaemonError::NotRunning) => return Ok(()),
+            Ok(_) | Err(DaemonError::StaleInstance(_)) => {}
+            Err(error) => return Err(error),
+        }
+        if Instant::now() >= deadline {
+            return Err(DaemonError::StopTimeout(root.to_path_buf()));
+        }
+        thread::sleep(Duration::from_millis(25));
     }
 }
 
@@ -263,24 +291,40 @@ fn read_endpoint(root: &Path) -> Result<Endpoint, DaemonError> {
 
 fn send_request(root: &Path, request: Request) -> Result<Response, DaemonError> {
     let endpoint = read_endpoint(root)?;
-    let mut stream =
-        TcpStream::connect_timeout(&endpoint.address, CONNECT_TIMEOUT).map_err(|error| {
-            if error.kind() == io::ErrorKind::ConnectionRefused
-                || error.kind() == io::ErrorKind::TimedOut
-                || error.kind() == io::ErrorKind::NotFound
-            {
-                DaemonError::StaleInstance(daemon_paths(root).0)
-            } else {
-                DaemonError::Io(error)
-            }
-        })?;
-    stream.set_read_timeout(Some(CONNECT_TIMEOUT))?;
-    stream.set_write_timeout(Some(CONNECT_TIMEOUT))?;
+    let mut stream = TcpStream::connect_timeout(&endpoint.address, CONNECT_TIMEOUT)
+        .map_err(|error| map_transport_error(root, error))?;
+    stream
+        .set_read_timeout(Some(CONNECT_TIMEOUT))
+        .map_err(|error| map_transport_error(root, error))?;
+    stream
+        .set_write_timeout(Some(CONNECT_TIMEOUT))
+        .map_err(|error| map_transport_error(root, error))?;
     let frame = request.encode();
-    stream.write_all(frame.as_bytes())?;
-    stream.flush()?;
-    let response = read_frame(&mut stream)?;
+    stream
+        .write_all(frame.as_bytes())
+        .map_err(|error| map_transport_error(root, error))?;
+    stream
+        .flush()
+        .map_err(|error| map_transport_error(root, error))?;
+    let response = read_frame(&mut stream).map_err(|error| map_transport_error(root, error))?;
     parse_response(&response).map_err(DaemonError::Protocol)
+}
+
+fn map_transport_error(root: &Path, error: io::Error) -> DaemonError {
+    if matches!(
+        error.kind(),
+        io::ErrorKind::ConnectionRefused
+            | io::ErrorKind::ConnectionReset
+            | io::ErrorKind::ConnectionAborted
+            | io::ErrorKind::BrokenPipe
+            | io::ErrorKind::NotConnected
+            | io::ErrorKind::TimedOut
+            | io::ErrorKind::NotFound
+    ) {
+        DaemonError::StaleInstance(daemon_paths(root).0)
+    } else {
+        DaemonError::Io(error)
+    }
 }
 
 struct Server {
