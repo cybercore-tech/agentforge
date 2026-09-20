@@ -48,6 +48,9 @@ identifies the next bounded need.
 - Implementation commit: `c9809205cf5f5851b00d957332a35f732392ab66`.
 - Exact implementation CI: `35545010733` — all seven jobs green across repository policy, stable,
   MSRV, CLI smoke, Ubuntu, macOS, and Windows.
+- Closure commit: `5c086b1c011edc8ebfab8da646d3a6808b239e7e`.
+- Exact closure CI: `35545183120` — all seven jobs green across repository policy, stable, MSRV, CLI
+  smoke, Ubuntu, macOS, and Windows.
 - The direct `forge run` path now offers explicit `--interactive --pty` sessions backed by a native
   PTY, raw keyboard input, resize forwarding, bounded live evidence, fail-closed non-TTY checks,
   and cooperative child cleanup. Captured, cooked-interactive, and detached daemon behavior remain

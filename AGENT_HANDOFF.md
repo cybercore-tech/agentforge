@@ -7,6 +7,9 @@
 - P2-M013 implementation commit: `c9809205cf5f5851b00d957332a35f732392ab66`; exact CI
   `35545010733` is green across repository policy, stable, MSRV, CLI smoke, Linux, macOS, and
   Windows.
+- P2-M013 closure commit: `5c086b1c011edc8ebfab8da646d3a6808b239e7e`; exact closure CI
+  `35545183120` is green across repository policy, stable, MSRV, CLI smoke, Linux, macOS, and
+  Windows.
 - P2-M013 plan: `.plans/P2-M013-pty-foreground-agent-sessions.plan.md` — completed with explicit
   PTY-backed foreground sessions, raw terminal restoration, resize forwarding, bounded evidence,
   and fail-closed non-TTY behavior.
