@@ -24,3 +24,5 @@ ADRs are permanent numbered records of consequential design decisions.
 | ADR-0016 | Accepted | Read-only deterministic doctor and status diagnostics |
 | ADR-0017 | Accepted | Explicit single-agent vertical slice |
 | ADR-0018 | Accepted | Deterministic multi-agent scheduling and serialized integration |
+| ADR-0019 | Accepted | Explicit durable single-task orchestration loop |
+| ADR-0020 | Accepted | Durable project blueprint and task intake |

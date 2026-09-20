@@ -7,11 +7,11 @@
 
 ## Current phase
 
-Phase 0 — reliable local orchestration foundation.
+Phase 1 — multi-agent scheduling and integration.
 
 ## Active milestone
 
-No implementation milestone is active. P1-M001 closure is in progress.
+No implementation milestone is active. P1-M003 is complete; no subsequent plan is approved.
 
 ## Completed milestones
 
@@ -24,6 +24,9 @@ No implementation milestone is active. P1-M001 closure is in progress.
 - `P0-M007` — Gate engine.
 - `P0-M008` — CI monitor and failure classifier.
 - `P0-M009` — Event and audit log.
+- `P1-M001` — Multi-agent scheduling and serialized integration.
+- `P1-M002` — Single-task orchestration loop.
+- `P1-M003` — Project blueprint and task intake.
 
 ## P0-M005 completion evidence
 
@@ -83,11 +86,30 @@ audit events, and deployment orchestration remain intentionally unimplemented.
 
 ## Next planned milestone
 
-`P0-M010` — Capability and permission policy.
+No next milestone is approved. P2 TUI/HUD operator experience remains the next reserved product area.
 
 ## Known blockers
 
-P1-M001 implementation is complete; closure and merge verification remain.
+P1-M003 is complete. A future plan is required before implementing the TUI/HUD or additional
+orchestration gaps.
+
+## P1-M003 completion evidence
+
+- Approved plan: `.plans/P1-M003-project-intake.plan.md`.
+- Implementation head: `987b971a05ae7ef74b4e9da8cb486b9f0b597260`.
+- Exact implementation CI: `35495846139` — all four jobs green.
+- The intake path now provides non-overwriting initialization, bounded versioned blueprint and
+  guideline validation, explicit task creation, durable snapshot writes, and CLI integration tests.
+
+## P1-M002 completion evidence
+
+- Approved plan: `.plans/P1-M002-orchestration-loop.plan.md`.
+- Implementation head: `0dcd50d08b8fcec9c25a9ab13f3567e2f50209cd`.
+- Exact implementation CI: `35494859218` — all four jobs green.
+- The persisted single-task loop validates task state and policy, executes a bounded local process
+  through the adapter, records durable task/audit transitions, and exposes `forge run`.
+- Successful executions remain `Running` pending independent acceptance; failed-state persistence is
+  a known follow-up gap for the next implementation increment.
 
 ## P1-M001 completion evidence
 
@@ -95,6 +117,12 @@ P1-M001 implementation is complete; closure and merge verification remain.
 - Plan CI: `35493471046` — all four jobs green.
 - Validated implementation head: `f71e4b15af3e5eb09c172ea11d3464d946415847`.
 - Exact implementation CI: `35493600837` — all four jobs green.
+- Closure commit: `4e2a0b39745fec576eb3579d5f9895fe380c1019`.
+- Closure CI: `35493875738` — all four jobs green.
+- Merge commit: `3805f0007618395011f3733e38c0514a9fb5ac6e`.
+- Post-merge main CI: `35493925460` — all four jobs green for that exact merge commit.
+
+P1-M001 closure and integration checks are complete.
 
 ## P0-M012 completion evidence
 

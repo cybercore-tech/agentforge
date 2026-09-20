@@ -22,7 +22,12 @@ version = "0.0.1"
 name = "agentforge-cli"
 version = "0.0.1"
 dependencies = [
+ "agentforge-adapter",
+ "agentforge-audit",
  "agentforge-core",
+ "agentforge-intake",
+ "agentforge-orchestrator",
+ "agentforge-state",
 ]
 
 [[package]]
@@ -41,11 +46,22 @@ name = "agentforge-gate"
 version = "0.0.1"
 
 [[package]]
-name = "agentforge-orchestrator"
+name = "agentforge-intake"
 version = "0.0.1"
 dependencies = [
  "agentforge-core",
+]
+
+[[package]]
+name = "agentforge-orchestrator"
+version = "0.0.1"
+dependencies = [
+ "agentforge-adapter",
+ "agentforge-audit",
+ "agentforge-core",
  "agentforge-policy",
+ "agentforge-state",
+ "agentforge-worktree",
 ]
 
 [[package]]
