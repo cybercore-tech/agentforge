@@ -56,6 +56,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "agentforge-scheduler"
+version = "0.0.1"
+dependencies = [
+ "agentforge-core",
+]
+
+[[package]]
 name = "agentforge-state"
 version = "0.0.1"
 dependencies = [
