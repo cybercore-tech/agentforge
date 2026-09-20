@@ -1,6 +1,6 @@
 # Plan: P2-M001 — Read-only operator HUD
 
-Status: Draft
+Status: Approved
 Milestone: P2-M001
 Created: 2026-09-20
 

@@ -7,11 +7,11 @@
 
 ## Current phase
 
-Phase 1 — multi-agent scheduling and integration.
+Phase 2 — operator experience.
 
 ## Active milestone
 
-No implementation milestone is active. P1-M003 is complete; no subsequent plan is approved.
+`P2-M001` — Read-only operator HUD (approved plan; implementation may begin).
 
 ## Completed milestones
 
@@ -27,6 +27,7 @@ No implementation milestone is active. P1-M003 is complete; no subsequent plan i
 - `P1-M001` — Multi-agent scheduling and serialized integration.
 - `P1-M002` — Single-task orchestration loop.
 - `P1-M003` — Project blueprint and task intake.
+- `P2-M001` — Read-only operator HUD (active).
 
 ## P0-M005 completion evidence
 
@@ -86,12 +87,12 @@ audit events, and deployment orchestration remain intentionally unimplemented.
 
 ## Next planned milestone
 
-No next milestone is approved. P2 TUI/HUD operator experience remains the next reserved product area.
+P2-M001 is active within its approved file boundary.
 
 ## Known blockers
 
-P1-M003 is complete. A future plan is required before implementing the TUI/HUD or additional
-orchestration gaps.
+P1-M003 is complete. P2-M001 implementation is authorized; interactive editing remains out of
+scope until a later approved plan.
 
 ## P1-M003 completion evidence
 

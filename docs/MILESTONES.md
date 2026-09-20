@@ -29,6 +29,12 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 - `P4-*` — remote workers and distributed execution;
 - `P5-*` — release/deployment orchestration.
 
+## Phase 2 — operator experience
+
+| ID | Status | Milestone | Acceptance signal |
+| --- | --- | --- | --- |
+| P2-M001 | active | Read-only operator HUD | Operators can inspect blueprint, task, audit, and worktree state through a deterministic read-only report. |
+
 ## Phase 1 — multi-agent scheduling and integration
 
 | ID | Status | Milestone | Acceptance signal |
