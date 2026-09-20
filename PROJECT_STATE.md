@@ -11,7 +11,7 @@ Phase 2 — operator experience.
 
 ## Active milestone
 
-None. P2-M006 is complete; the next increment is intentionally unplanned until real operator use
+None. P2-M007 is complete; the next increment is intentionally unplanned until real operator use
 identifies the next bounded need.
 
 ## Completed milestones
@@ -34,6 +34,18 @@ identifies the next bounded need.
 - `P2-M004` — Release readiness.
 - `P2-M005` — Local daemon and dogfooding.
 - `P2-M006` — Real-agent dogfooding and operator workflow.
+- `P2-M007` — Cross-platform agent operations.
+
+## P2-M007 completion evidence
+
+- Approved plan: `.plans/P2-M007-cross-platform-agent-operations.plan.md`.
+- Implementation commits: `0153810`, `11c6b32`, `11ea7e7`, `4c33f2f`.
+- Exact implementation CI: `35506798008` — all matrix jobs green, including Windows worktree
+  lifecycle coverage.
+- Closure commit: recorded in the final checkpoint below.
+- The milestone adds Windows-native Git path argument conversion and path equivalence, bounded
+  local agent profiles selectable by direct CLI or daemon execution, and cooperative bounded daemon
+  start/status/stop/restart supervision.
 
 ## P2-M004 completion evidence
 

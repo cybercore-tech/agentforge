@@ -39,6 +39,7 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 | P2-M004 | complete | Release readiness | The project has explicit licensing/versioning, reproducible tagged artifacts, and cross-platform CI coverage. |
 | P2-M005 | complete | Local daemon and dogfooding | Operators can run one approved task through a bounded local daemon with durable failure evidence and a real end-to-end workflow. |
 | P2-M006 | complete | Real-agent dogfooding and operator workflow | Operators can prepare managed worktrees, run a configured executable through the daemon, inspect recovery evidence, and retire clean worktrees safely. |
+| P2-M007 | complete | Cross-platform agent operations | Windows worktrees, bounded local agent profiles, and cooperative daemon supervision are available with exact CI evidence. |
 
 ## Phase 1 — multi-agent scheduling and integration
 
