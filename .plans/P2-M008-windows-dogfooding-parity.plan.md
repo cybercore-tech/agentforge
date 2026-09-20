@@ -108,5 +108,5 @@ from the same worktree-backed workflow operators use, not only compilation and C
 
 Implementation commits: `f6ee2e4`, `4b2f1f4`.
 Implementation CI: `35520394000` — all jobs green for exact head `4b2f1f4`.
-Closure commit: pending.
-Closure CI: pending.
+Closure commit: `d6a8e43`.
+Closure CI: `35523593533` — all jobs green for exact closure head `d6a8e43`.

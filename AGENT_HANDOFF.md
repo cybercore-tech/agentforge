@@ -7,7 +7,8 @@
 - P2-M008 implementation commits: `f6ee2e4`, `4b2f1f4`; exact CI `35520394000` is green across
   repository policy, stable, MSRV, CLI smoke, Linux, macOS, and Windows.
 - P2-M008 plan amendment: `4750814` bound the portable Rust fixture file boundary.
-- P2-M008 closure remains to be recorded after the separate closure checkpoint and exact CI run.
+- P2-M008 closure commit: `d6a8e43`; replacement exact closure CI `35523593533` is green across
+  repository policy, stable, MSRV, CLI smoke, Linux, macOS, and Windows.
 - P2-M007 implementation commits: `0153810`, `11c6b32`, `11ea7e7`, `4c33f2f`, `2144aa7`,
   `f963e17`, and `2bd09e7`; exact CI `35518517068` is green across MSRV, stable, policy,
   CLI smoke, Linux, macOS, and Windows.

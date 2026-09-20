@@ -44,6 +44,8 @@ identifies the next bounded need.
 - Implementation commits: `f6ee2e4`, `4b2f1f4`.
 - Exact implementation CI: `35520394000` — all jobs green across repository policy, stable,
   MSRV, CLI smoke, Ubuntu, macOS, and Windows for exact head `4b2f1f4`.
+- Closure commit: `d6a8e43`; exact closure CI `35523593533` is green across all jobs and supported
+  platforms.
 - Portable worktree lifecycle tests now compare canonical roots and run on every platform matrix
   host; daemon CLI dogfooding uses a direct Rust executable fixture without shell interpolation.
 
@@ -177,7 +179,7 @@ None. Future work should be scoped from observed operator usage and approved bef
 ## Known blockers
 
 Artifact signing and provenance attestations remain future work. Windows Git verbatim temporary-path
-support for worktree-backed dogfooding also remains separately scoped.
+handling and worktree-backed dogfooding are covered by the completed P2-M007 and P2-M008 evidence.
 
 ## P2-M002 completion evidence
 
