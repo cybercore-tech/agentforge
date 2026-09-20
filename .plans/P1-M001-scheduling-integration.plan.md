@@ -1,6 +1,6 @@
 # Plan: P1-M001 — Multi-agent scheduling and serialized integration
 
-Status: Draft
+Status: Approved
 Milestone: P1-M001
 Created: 2026-09-19
 

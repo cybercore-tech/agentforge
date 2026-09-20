@@ -1,6 +1,6 @@
 # ADR-0018: Deterministic multi-agent scheduling and serialized integration
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-19
 - Decision owners: AgentForge project
 
