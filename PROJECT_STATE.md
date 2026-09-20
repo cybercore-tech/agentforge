@@ -11,7 +11,7 @@ Phase 2 — operator experience.
 
 ## Active milestone
 
-No implementation milestone is active. P2-M002 is complete; no subsequent plan is approved.
+`P2-M003` — Controlled operator actions (approved plan; implementation may begin after checkpoint CI).
 
 ## Completed milestones
 
@@ -29,6 +29,7 @@ No implementation milestone is active. P2-M002 is complete; no subsequent plan i
 - `P1-M003` — Project blueprint and task intake.
 - `P2-M001` — Read-only operator HUD.
 - `P2-M002` — Interactive operator HUD.
+- `P2-M003` — Controlled operator actions (active).
 
 ## P0-M005 completion evidence
 
@@ -89,13 +90,12 @@ read a deterministic, bounded HUD snapshot of intake, task, audit, and managed w
 
 ## Next planned milestone
 
-No next milestone is approved. P2-M002 is complete; a later operator-experience increment requires
-a new approved plan.
+P2-M003 is active within its approved file boundary.
 
 ## Known blockers
 
-P2-M002 is complete. Editing, richer terminal controls, and mutation remain out of scope until a
-later approved plan.
+P2-M002 is complete. P2-M003 adds explicit audited operator actions; HUD-embedded mutation,
+editing, and uncontrolled automation remain out of scope.
 
 ## P2-M002 completion evidence
 

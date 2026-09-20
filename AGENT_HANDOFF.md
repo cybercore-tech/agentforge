@@ -2,8 +2,8 @@
 
 ## Repository state
 
-- Active milestone: none.
-- Active plan: none.
+- Active milestone: P2-M003 — Controlled operator actions.
+- Active plan: `.plans/P2-M003-controlled-operator-actions.plan.md` — Approved.
 - P0-M001 status: Complete.
 - P0-M002 status: Complete.
 - P0-M003 status: Complete.
@@ -40,6 +40,7 @@
 - P1-M003 plan: `.plans/P1-M003-project-intake.plan.md` — Completed; implementation and exact-head CI are green.
 - P2-M001 plan: `.plans/P2-M001-operator-hud.plan.md` — Completed; implementation and exact-head CI are green.
 - P2-M002 plan: `.plans/P2-M002-interactive-hud.plan.md` — Completed; implementation and exact-head CI are green.
+- P2-M003 plan: `.plans/P2-M003-controlled-operator-actions.plan.md` — Approved; implementation may begin after checkpoint CI.
 - P1-M001 implementation: `f71e4b15af3e5eb09c172ea11d3464d946415847`; CI `35493600837` green.
 - P1-M002 implementation: `0dcd50d08b8fcec9c25a9ab13f3567e2f50209cd`; CI `35494859218` green.
 - P1-M003 implementation: `987b971a05ae7ef74b4e9da8cb486b9f0b597260`; CI `35495846139` green.
@@ -59,7 +60,7 @@
 4. Read `docs/WORKTREE_ISOLATION.md`.
 5. Read ADR-0002 and ADR-0010.
 6. Run `./scripts/project-status`.
-7. Draft and approve the next plan before making further implementation changes.
+7. Implement P2-M003 only within the approved plan boundary after its activation checkpoint CI is green.
 8. Never bypass repository hooks or gates.
 9. Classify failures before repair.
 

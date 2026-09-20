@@ -1,6 +1,6 @@
 # Plan: P2-M003 — Controlled operator actions
 
-Status: Draft
+Status: Approved
 Milestone: P2-M003
 Created: 2026-09-20
 
