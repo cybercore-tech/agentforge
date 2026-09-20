@@ -1,5 +1,10 @@
 //! `forge` command-line entry point.
 
+use agentforge_adapter::{ProcessAdapter, ProcessAdapterConfig};
+use agentforge_audit::FileAuditStore;
+use agentforge_core::task::TaskId;
+use agentforge_orchestrator::execute_process_persisted;
+use agentforge_state::FileTaskStore;
 use std::path::Path;
 use std::process::ExitCode;
 
@@ -23,6 +28,7 @@ fn main() -> ExitCode {
             print_status(Path::new("."));
             ExitCode::SUCCESS
         }
+        Some("run") => run_command(args.collect()),
         Some(other) => {
             eprintln!("unknown command: {other}");
             print_usage();
@@ -36,7 +42,67 @@ fn main() -> ExitCode {
 }
 
 fn print_usage() {
-    println!("usage: forge <version|doctor|status>");
+    println!("usage: forge <version|doctor|status|run <root> <task-id> <absolute-executable>>");
+}
+
+fn run_command(arguments: Vec<String>) -> ExitCode {
+    if arguments.len() != 3 {
+        eprintln!("run requires: <root> <task-id> <absolute-executable>");
+        print_usage();
+        return ExitCode::from(2);
+    }
+    let root = std::path::PathBuf::from(&arguments[0]);
+    let task_id = match TaskId::parse(arguments[1].clone()) {
+        Ok(value) => value,
+        Err(error) => {
+            eprintln!("invalid task ID: {error}");
+            return ExitCode::from(2);
+        }
+    };
+    let task_store = FileTaskStore::for_project_root(&root);
+    let audit_dir = root.join(".forge");
+    if let Err(error) = std::fs::create_dir_all(&audit_dir) {
+        eprintln!("cannot create audit directory: {error}");
+        return ExitCode::from(1);
+    }
+    let mut audit_store = match FileAuditStore::open(audit_dir.join("audit.log")) {
+        Ok(store) => store,
+        Err(error) => {
+            eprintln!("cannot open audit log: {error}");
+            return ExitCode::from(1);
+        }
+    };
+    let adapter = match ProcessAdapter::new(ProcessAdapterConfig::new(
+        "cli-process",
+        arguments[2].clone(),
+    )) {
+        Ok(value) => value,
+        Err(error) => {
+            eprintln!("invalid adapter configuration: {error}");
+            return ExitCode::from(2);
+        }
+    };
+    match execute_process_persisted(
+        &root,
+        &task_store,
+        &mut audit_store,
+        &task_id,
+        &adapter,
+        &[],
+    ) {
+        Ok(execution) => {
+            println!(
+                "task {} launched; termination={:?}",
+                execution.report.task_id(),
+                execution.report.termination()
+            );
+            ExitCode::SUCCESS
+        }
+        Err(error) => {
+            eprintln!("task run failed: {error}");
+            ExitCode::from(1)
+        }
+    }
 }
 
 fn print_doctor(root: &Path) {

@@ -22,7 +22,11 @@ version = "0.0.1"
 name = "agentforge-cli"
 version = "0.0.1"
 dependencies = [
+ "agentforge-adapter",
+ "agentforge-audit",
  "agentforge-core",
+ "agentforge-orchestrator",
+ "agentforge-state",
 ]
 
 [[package]]
