@@ -189,6 +189,8 @@ Implementation commits: `98841d7860a93dbdb10294d9fcf48710b36683d4`,
 `ba713c74433abfaddf1db847a0f25f6f83201af7`, `65409dc5c629d31cf691bd7a3c426793f5943821`.
 Implementation CI: `35503881437` and `35504237571` — all jobs green for the exact heads after
 the daemon runtime and dogfooding coverage changes.
+Closure commit: `50b3b8902c3acb68ff76a12598698ff69afbf401`.
+Closure CI: `35504369065` — all jobs green for the exact closure SHA.
 Local gate: `CARGO_TARGET_DIR=/tmp/agentforge-cargo-target ./scripts/gate.sh full` — passed.
 Completed: 2026-09-20.
 Notes: The dogfooding test covers intake, managed worktree creation, daemon-backed execution, HUD

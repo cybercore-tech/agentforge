@@ -52,6 +52,8 @@ identifies the next bounded need.
   `ba713c74433abfaddf1db847a0f25f6f83201af7`, and
   `65409dc5c629d31cf691bd7a3c426793f5943821`.
 - Exact implementation CI: `35503881437` and `35504237571` — all jobs green for the exact heads.
+- Closure commit: `50b3b8902c3acb68ff76a12598698ff69afbf401`.
+- Closure CI: `35504369065` — all jobs green for the exact closure SHA.
 - Local full gate: `CARGO_TARGET_DIR=/tmp/agentforge-cargo-target ./scripts/gate.sh full` — passed.
 - The bounded loopback `forged` service now supports durable status/run/stop operation, and the
   temporary-repository dogfooding path proves intake through explicit acceptance and safe cleanup.

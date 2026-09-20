@@ -58,8 +58,10 @@
 - P2-M005 implementation commits: `98841d7860a93dbdb10294d9fcf48710b36683d4`,
   `ba713c74433abfaddf1db847a0f25f6f83201af7`, and `65409dc5c629d31cf691bd7a3c426793f5943821`;
   CI `35503881437` and `35504237571` green for the exact implementation heads.
-- P2-M005 plan: `.plans/P2-M005-daemon-dogfooding.plan.md` — Completed; closure remains to be
-  recorded in the separate documentation checkpoint.
+- P2-M005 closure: `50b3b8902c3acb68ff76a12598698ff69afbf401`; CI `35504369065` green for the
+  exact closure SHA.
+- P2-M005 plan: `.plans/P2-M005-daemon-dogfooding.plan.md` — Completed; closure evidence is
+  recorded in this final checkpoint.
 - P0-M012 implementation: `fcf3809c9f5c099833cb07862e626ca3f1764cff`; CI `35493160857` green.
 - P0-M011 implementation: `bd1aaf24800dde73f1dc707519f5d1ed710a6b0e`; CI `35492790507` green.
 - P0-M011 closure: `62911373015ed8e94d7e8883b955c078a175cf48`; CI `35492882542` green.
