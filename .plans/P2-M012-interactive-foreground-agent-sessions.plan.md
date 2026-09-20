@@ -1,6 +1,6 @@
 # Plan: P2-M012 — Interactive foreground agent sessions
 
-Status: Draft
+Status: Approved
 Milestone: P2-M012
 Created: 2026-09-20
 
