@@ -1,0 +1,14 @@
+[package]
+name = "agentforge-orchestrator"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+agentforge-core = { path = "../agentforge-core" }
+agentforge-policy = { path = "../agentforge-policy" }
+
+[lints]
+workspace = true
