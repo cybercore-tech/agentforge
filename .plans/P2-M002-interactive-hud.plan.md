@@ -1,6 +1,6 @@
 # Plan: P2-M002 — Interactive operator HUD
 
-Status: Draft
+Status: Approved
 Milestone: P2-M002
 Created: 2026-09-20
 
