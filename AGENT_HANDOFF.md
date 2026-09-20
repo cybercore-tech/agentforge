@@ -4,10 +4,11 @@
 
 - Active milestone: none; P2-M007 — Cross-platform agent operations is complete.
 - Active plan: none (`.plans/ACTIVE` is intentionally absent after closure).
-- P2-M007 implementation commits: `0153810`, `11c6b32`, `11ea7e7`, and
-  `4c33f2f`; exact CI `35506798008` is green across MSRV, stable, policy, CLI smoke,
-  Linux, macOS, and Windows.
-- P2-M007 closure is the next commit after this evidence update; no implementation work remains.
+- P2-M007 implementation commits: `0153810`, `11c6b32`, `11ea7e7`, `4c33f2f`, `2144aa7`,
+  `f963e17`, and `2bd09e7`; exact CI `35518517068` is green across MSRV, stable, policy,
+  CLI smoke, Linux, macOS, and Windows.
+- P2-M007 closure is this checkpoint; no implementation work remains after the final exact-head
+  closure CI is recorded.
 - P0-M001 status: Complete.
 - P0-M002 status: Complete.
 - P0-M003 status: Complete.

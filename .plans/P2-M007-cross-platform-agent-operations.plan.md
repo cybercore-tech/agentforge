@@ -1,6 +1,6 @@
 # Plan: P2-M007 — Cross-platform agent operations
 
-Status: Approved
+Status: Completed
 Milestone: P2-M007
 Created: 2026-09-20
 
@@ -125,26 +125,29 @@ Profiles grant no task capability and cannot bypass task approval or worktree ve
 
 ## Acceptance criteria
 
-- [ ] Managed worktree create/inspect/list/retire lifecycle passes on Windows CI without weakening
+- [x] Managed worktree create/inspect/list/retire lifecycle passes on Windows CI without weakening
       ownership, path, dirty-state, or non-forced-retirement guarantees.
-- [ ] Operators can define, validate, inspect, and select a local agent profile using direct
+- [x] Operators can define, validate, inspect, and select a local agent profile using direct
       executable arguments and bounded limits; profiles cannot grant authority.
-- [ ] Existing direct and daemon execution paths can consume a validated profile without shell
+- [x] Existing direct and daemon execution paths can consume a validated profile without shell
       interpolation or compatibility regressions.
-- [ ] Operators can start, inspect, cooperatively stop, and boundedly restart the daemon with
+- [x] Operators can start, inspect, cooperatively stop, and boundedly restart the daemon with
       deterministic readiness and stale-instance diagnostics.
-- [ ] Crash, disconnect, timeout, and ambiguous metadata recovery remains fail-closed and durable.
-- [ ] Documentation explains Windows support, profile setup, daemon supervision, and recovery.
-- [ ] Full local gate and exact-head CI pass for implementation and closure checkpoints.
+- [x] Crash, disconnect, timeout, and ambiguous metadata recovery remains fail-closed and durable.
+- [x] Documentation explains Windows support, profile setup, daemon supervision, and recovery.
+- [x] Full local gate and exact-head CI pass for implementation and closure checkpoints.
 
 ## Completion record
 
-Implementation commits: `0153810`, `11c6b32`, `11ea7e7`, `4c33f2f`.
-CI run: `35506798008` (exact `4c33f2f`, all matrix jobs green).
+Implementation commits: `0153810`, `11c6b32`, `11ea7e7`, `4c33f2f`, `2144aa7`,
+`f963e17`, and `2bd09e7`.
+CI runs: `35506798008` (exact `4c33f2f`) and `35518517068` (exact `2bd09e7`), all matrix jobs
+green.
 Closure commit: pending after bounded daemon-test teardown repair.
 Closure CI: pending after bounded daemon-test teardown repair.
 Completed: 2026-09-20.
 Notes: Windows Git arguments now use native paths while comparison remains canonical and
 case-insensitive. Profiles are bounded, versioned, direct-argument configurations with cleared
-environments and no authority grants. Daemon start/restart waits for verified loopback readiness
-and refuses stale or malformed metadata without adoption or PID killing.
+environments and no authority grants. Daemon start/restart waits for verified loopback readiness,
+cooperative endpoint cleanup, and transient Windows executable-release races; it refuses stale or
+malformed metadata without adoption or PID killing.

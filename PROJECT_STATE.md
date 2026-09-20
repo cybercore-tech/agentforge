@@ -39,13 +39,14 @@ identifies the next bounded need.
 ## P2-M007 completion evidence
 
 - Approved plan: `.plans/P2-M007-cross-platform-agent-operations.plan.md`.
-- Implementation commits: `0153810`, `11c6b32`, `11ea7e7`, `4c33f2f`.
-- Exact implementation CI: `35506798008` — all matrix jobs green, including Windows worktree
-  lifecycle coverage.
-- Closure commit: recorded in the final checkpoint below.
+- Implementation commits: `0153810`, `11c6b32`, `11ea7e7`, `4c33f2f`, `2144aa7`, `f963e17`,
+  and `2bd09e7`.
+- Exact implementation CI: `35518517068` — all matrix jobs green for the final daemon lifecycle
+  repair, including Windows, macOS, and Linux.
+- Closure commit: recorded in the final closure checkpoint below.
 - The milestone adds Windows-native Git path argument conversion and path equivalence, bounded
   local agent profiles selectable by direct CLI or daemon execution, and cooperative bounded daemon
-  start/status/stop/restart supervision.
+  start/status/stop/restart supervision with cross-platform teardown recovery.
 
 ## P2-M004 completion evidence
 
