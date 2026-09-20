@@ -25,6 +25,10 @@ Managed worktrees are discovered through `git worktree list --porcelain`.
 Inspection reports task identity, path, branch, HEAD commit, cleanliness, and relevant Git operation
 state.
 
+On Windows, Git may report a normal path while the filesystem returns a verbatim canonical path.
+The manager compares normalized case-insensitive path keys and accepts only equivalent forms; it
+still requires every managed entry to remain directly beneath the deterministic managed root.
+
 ## Retirement
 
 Normal retirement is intentionally conservative.

@@ -111,8 +111,10 @@ pub fn start_with_program(
     program: impl AsRef<OsStr>,
 ) -> Result<DaemonStatus, DaemonError> {
     let root = root.as_ref();
-    if let Ok(existing) = status(root) {
-        return Err(DaemonError::AlreadyRunning(existing.endpoint));
+    match status(root) {
+        Ok(existing) => return Err(DaemonError::AlreadyRunning(existing.endpoint)),
+        Err(DaemonError::NotRunning) => {}
+        Err(error) => return Err(error),
     }
     let mut child = Command::new(program)
         .arg("serve")
@@ -129,7 +131,7 @@ pub fn start_with_program(
     loop {
         match status(root) {
             Ok(status) => return Ok(status),
-            Err(DaemonError::NotRunning) | Err(DaemonError::StaleInstance(_)) => {}
+            Err(DaemonError::NotRunning) => {}
             Err(error) => {
                 terminate_owned_child(&mut child);
                 return Err(error);

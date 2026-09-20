@@ -61,6 +61,8 @@ pub const AGENT_PROFILE_RELATIVE_PATH: &str = ".forge/agents";
 const MAX_PROFILE_BYTES: u64 = 64 * 1024;
 const MAX_PROFILE_ARGUMENTS: usize = 64;
 const MAX_PROFILE_ENVIRONMENT: usize = 64;
+const MAX_PROFILE_TIMEOUT_MS: u64 = 24 * 60 * 60 * 1000;
+const MAX_PROFILE_OUTPUT_BYTES: usize = 64 * 1024 * 1024;
 
 /// A bounded, project-local process profile for an agent.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -265,6 +267,11 @@ fn parse_profile(id: &str, text: &str) -> Result<AgentProfile, AdapterError> {
                         "profile {id} line {line_number} has invalid timeout_ms"
                     ))
                 })?;
+                if parsed == 0 || parsed > MAX_PROFILE_TIMEOUT_MS {
+                    return Err(AdapterError::Profile(format!(
+                        "profile {id} line {line_number} timeout_ms is outside 1..={MAX_PROFILE_TIMEOUT_MS}"
+                    )));
+                }
                 set_once(&mut timeout_ms, parsed, id, line_number, "timeout_ms")?;
             }
             "max_output_bytes" => {
@@ -273,6 +280,11 @@ fn parse_profile(id: &str, text: &str) -> Result<AgentProfile, AdapterError> {
                         "profile {id} line {line_number} has invalid max_output_bytes"
                     ))
                 })?;
+                if parsed == 0 || parsed > MAX_PROFILE_OUTPUT_BYTES {
+                    return Err(AdapterError::Profile(format!(
+                        "profile {id} line {line_number} max_output_bytes is outside 1..={MAX_PROFILE_OUTPUT_BYTES}"
+                    )));
+                }
                 set_once(
                     &mut max_output_bytes,
                     parsed,
@@ -319,6 +331,18 @@ fn parse_profile(id: &str, text: &str) -> Result<AgentProfile, AdapterError> {
     }
     let executable = executable
         .ok_or_else(|| AdapterError::Profile(format!("profile {id} is missing executable")))?;
+    let executable_path = Path::new(&executable);
+    if !executable_path.is_absolute() {
+        return Err(AdapterError::Profile(format!(
+            "profile {id} executable path must be absolute"
+        )));
+    }
+    if !executable_path.is_file() {
+        return Err(AdapterError::Profile(format!(
+            "profile {id} executable does not exist or is not a file: {}",
+            executable_path.display()
+        )));
+    }
     let timeout = Duration::from_millis(timeout_ms.unwrap_or(60_000));
     let max_output_bytes = max_output_bytes.unwrap_or(1024 * 1024);
     let mut config = ProcessAdapterConfig::new(id, executable)

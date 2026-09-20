@@ -45,6 +45,7 @@ The current repository provides:
 - Read-only one-shot and watch-mode operator HUD. 👀
 - Explicit task inspection, approval, accept, cancel, and retry commands. 🧑‍💻
 - A persisted `forge run` path that consumes only verified, task-linked approval evidence.
+- Versioned local agent profiles with bounded direct arguments and explicit environment values. 🤖
 - An optional loopback-only `forged` runtime with bounded `forge daemon` lifecycle commands. ⚙️
 - Explicit `forge worktree` commands for safe task worktree preparation and retirement. 🌳
 
@@ -137,16 +138,45 @@ if `.forge/audit.log` is missing or corrupt. 🔏
 
 ## Running a task ⚙️
 
-The current CLI entry point is:
+The current CLI entry points are:
 
 ```bash
 forge run <project-root> <task-id> <absolute-executable>
+forge run <project-root> <task-id> --profile <profile-id>
 ```
 
 The run path performs policy, task-state, worktree, adapter, gate, audit, and handoff checks around
 the configured local executable. The executable is passed directly as a process argument; shell
 interpolation is not used. A successful process remains in the appropriate review/acceptance flow
 until an independent operator decision is recorded.
+
+Define and inspect a project-local profile in `.forge/agents/<profile-id>.conf`, then
+validate it before use:
+
+```bash
+forge agent list /path/to/project
+forge agent validate /path/to/project local-agent
+forge agent inspect /path/to/project local-agent
+```
+
+Profiles use a versioned `key=value` format for an absolute executable, repeated literal
+arguments, `env.NAME=value` entries, timeout, and output limits. The child receives a
+cleared environment plus only explicit values. Profiles never grant task authority; normal
+capability, approval, worktree, and audit checks still apply. See
+[`docs/AGENT_PROFILES.md`](docs/AGENT_PROFILES.md).
+
+For a supervised local daemon:
+
+```bash
+forge daemon start /path/to/project
+forge daemon status /path/to/project
+forge daemon restart /path/to/project
+forge daemon stop /path/to/project
+```
+
+Startup waits for a bounded, verified loopback endpoint. Stale or malformed metadata remains
+fail-closed and requires explicit operator inspection; AgentForge never silently adopts or kills
+an ambiguous daemon.
 
 Worktree creation and retirement are implemented as provider-neutral crate APIs and are deliberately
 conservative: dirty or ambiguous worktrees are not force-removed, reset, or cleaned. See

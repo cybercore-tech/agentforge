@@ -24,6 +24,16 @@ forged serve --root /path/to/project --bind 127.0.0.1:0
 
 Port `0` lets the operating system choose an available local port.
 
+For bounded background supervision, use the forge operator commands:
+
+    forge daemon start /path/to/project
+    forge daemon status /path/to/project
+    forge daemon restart /path/to/project
+    forge daemon stop /path/to/project
+
+start waits for a verified loopback endpoint. restart performs a cooperative stop followed by
+start. Neither command kills a PID merely because it appears in daemon metadata.
+
 ## Prepare a task
 
 Worktrees are explicit operator actions. Create and inspect the deterministic task worktree before
@@ -43,6 +53,7 @@ not adopt an unrelated worktree or silently repair an unsafe state.
 ```bash
 forge daemon status /path/to/project
 forge daemon run /path/to/project P2-M005-T0001 /absolute/path/to/agent
+forge daemon run /path/to/project P2-M005-T0001 --profile local-agent
 forge daemon stop /path/to/project
 ```
 
@@ -68,6 +79,9 @@ task branches, or accept tasks.
 Requests and responses use versioned, newline-framed records with bounded size. Unknown commands,
 malformed endpoint metadata, non-loopback addresses, invalid task IDs, and non-absolute executable
 paths fail closed.
+
+Project-local profiles are validated before a daemon run and use direct executable arguments; see
+AGENT_PROFILES.md for the bounded configuration format.
 
 If a daemon crashes, its endpoint and lock metadata are intentionally not adopted automatically.
 Inspect the project and confirm no daemon process owns it before removing stale metadata manually.

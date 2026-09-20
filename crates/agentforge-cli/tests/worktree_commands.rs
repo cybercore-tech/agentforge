@@ -1,7 +1,6 @@
 #![allow(missing_docs)]
 
-#[cfg(not(windows))]
-mod unix_tests {
+mod worktree_tests {
     use std::fs;
     use std::path::{Path, PathBuf};
     use std::process::Command;
