@@ -11,7 +11,7 @@ Phase 0 — reliable local orchestration foundation.
 
 ## Active milestone
 
-No implementation milestone is active. P0-M009 closure CI is pending before merge.
+No implementation milestone is active. P0-M010 closure is in progress.
 
 ## Completed milestones
 
@@ -87,7 +87,14 @@ audit events, and deployment orchestration remain intentionally unimplemented.
 
 ## Known blockers
 
-No technical blocker. P0-M009 closure CI is pending before merge.
+P0-M010 implementation is complete; closure evidence and merge verification remain.
+
+## P0-M010 completion evidence
+
+- Approved plan checkpoint: `e7cf33adccfc46eceb0b5c54d09a2682eeccc1bd`.
+- Plan CI: `35490065662` — all four jobs green.
+- Validated implementation head: `1ece087f25ccb6ce8fda96867e9f2502b91e4c86`.
+- Exact implementation CI: `35490199374` — all four jobs green.
 
 ## P0-M009 completion evidence
 
@@ -95,6 +102,12 @@ No technical blocker. P0-M009 closure CI is pending before merge.
 - Plan CI: `35485474803` — all four jobs green.
 - Validated implementation head: `30b557369f3298dceb706935993fcb358ce62c0c`.
 - Exact implementation CI: `35489676966` — all four jobs green.
+- Closure commit: `931c16fede4b9a12051bf83e64a19527a688fd39`.
+- Closure CI: `35489732903` — all four jobs green.
+- Merge commit: `76f5cedefffabf70a699171c75e8a49d721290c4`.
+- Post-merge main CI: `35489772080` — all four jobs green for that exact merge commit.
+
+P0-M009 closure and integration checks are complete.
 
 ## P0-M008 completion evidence
 

@@ -41,6 +41,13 @@ name = "agentforge-gate"
 version = "0.0.1"
 
 [[package]]
+name = "agentforge-policy"
+version = "0.0.1"
+dependencies = [
+ "agentforge-core",
+]
+
+[[package]]
 name = "agentforge-state"
 version = "0.0.1"
 dependencies = [
