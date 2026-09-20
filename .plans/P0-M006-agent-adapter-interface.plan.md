@@ -1,6 +1,6 @@
 # Plan: P0-M006 — Agent adapter interface
 
-Status: Approved
+Status: Completed
 Milestone: P0-M006
 Created: 2026-09-19
 
@@ -208,27 +208,41 @@ approved-plan, implementation, closure, and post-merge commit SHAs.
 
 ## Acceptance criteria
 
-- [ ] Approved plan committed and validated before implementation.
-- [ ] Provider-neutral trait and request/report types are implemented.
-- [ ] Preflight validates task, capability, approval, and current worktree ownership/state.
-- [ ] Configurable local executable receives complete deterministic task input via stdin.
-- [ ] Child arguments and environment are explicit and shell-free.
-- [ ] Output limits, concurrent draining, deadline, and direct-child reaping are tested.
-- [ ] Process exit and task acceptance are distinct; result binding is validated.
-- [ ] Offline fixture tests cover every row of the matrix.
-- [ ] No external Rust dependency or core/persistence change is introduced.
-- [ ] Exact implementation local gate and remote CI are green.
-- [ ] Exact closure CI is green.
-- [ ] Post-merge main CI is green.
+- [x] Approved plan committed and validated before implementation.
+- [x] Provider-neutral trait and request/report types are implemented.
+- [x] Preflight validates task, capability, approval, and current worktree ownership/state.
+- [x] Configurable local executable receives complete deterministic task input via stdin.
+- [x] Child arguments and environment are explicit and shell-free.
+- [x] Output limits, concurrent draining, deadline, and direct-child reaping are tested.
+- [x] Process exit and task acceptance are distinct; result binding is validated.
+- [x] Offline fixture tests cover every row of the matrix.
+- [x] No external Rust dependency or core/persistence change is introduced.
+- [x] Exact implementation local gate and remote CI are green.
+- [x] Exact closure CI is green.
+- [x] Post-merge main CI is green.
 
 ## Completion record
 
-Implementation commit: pending
-Implementation CI: pending
-Closure commit: pending
-Closure CI: pending
-Post-merge main: pending
-Post-merge CI: pending
-Completed: pending
-Notes: Approved planning checkpoint; implementation authority begins only after this commit passes
-local and remote validation.
+Implementation commit: d277a9191421ae5f4018a4aaacf69f349e2b7974
+Implementation CI: 35482922234 — all four jobs green
+Closure commit: recorded by Git history immediately after this record
+Closure CI: required before merge
+Post-merge main: required after merge
+Post-merge CI: required after merge
+Completed: 2026-09-19
+Notes: P0-M006 completed the provider-neutral local process adapter boundary.
+
+Evidence:
+
+- Draft plan checkpoint: `58029df1a0c0f737979ccaeddc65131e3a274384`.
+- Draft plan CI run `35482475382` — all four jobs green.
+- Approved plan checkpoint: `ee61bd7bd6211e00613a233b111dbd960cc1f030`.
+- Approved plan CI run `35482559468` — all four jobs green.
+- Validated implementation: `d277a9191421ae5f4018a4aaacf69f349e2b7974`.
+- Exact implementation CI run `35482922234` passed Repository policy, Stable code gate,
+  MSRV 1.85.0, and CLI smoke.
+- The full local gate passed and focused adapter tests passed on stable and Rust 1.85.0.
+- The adapter validates task identity, capability, approval acknowledgement, and clean verified
+  worktree state before spawning a local executable.
+- Process evidence remains separate from task acceptance; no provider SDK or external Rust
+  dependency was introduced.

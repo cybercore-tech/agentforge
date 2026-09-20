@@ -13,11 +13,7 @@ Phase 0 — reliable local orchestration foundation.
 
 No implementation milestone is currently active.
 
-`P0-M006` — Agent adapter interface.
-
-Active plan: `.plans/P0-M006-agent-adapter-interface.plan.md`.
-Plan status: Approved.
-Implementation must wait for local and remote validation of this exact plan checkpoint.
+`.plans/ACTIVE` is intentionally absent.
 
 ## Completed milestones
 
@@ -26,6 +22,7 @@ Implementation must wait for local and remote validation of this exact plan chec
 - `P0-M003` — Plan-first workflow enforcement.
 - `P0-M004` — Task graph and durable state.
 - `P0-M005` — Worktree isolation manager.
+- `P0-M006` — Agent adapter interface.
 
 ## P0-M005 completion evidence
 
@@ -45,6 +42,15 @@ Implementation must wait for local and remote validation of this exact plan chec
 
 P0-M005 closure and integration checks are complete.
 
+## P0-M006 completion evidence
+
+- Approved plan checkpoint: `ee61bd7bd6211e00613a233b111dbd960cc1f030`.
+- Plan CI: `35482559468` — all four jobs green.
+- Validated implementation head: `d277a9191421ae5f4018a4aaacf69f349e2b7974`.
+- Exact implementation CI: `35482922234` — all four jobs green.
+
+Closure CI and post-merge `main` CI remain required before P0-M007 begins.
+
 ## Current capability
 
 AgentForge now has:
@@ -63,15 +69,17 @@ AgentForge now has:
 - isolated temporary-repository integration coverage;
 - Rust 1.85.0 compatibility without external Rust dependencies.
 
-External coding-agent execution, scheduling, automated gates, CI failure automation, audit events,
-and deployment orchestration remain intentionally unimplemented.
+AgentForge can now invoke an explicitly configured local coding-agent executable in a verified task
+worktree through a provider-neutral interface. Execution evidence is bounded and remains separate
+from task acceptance. Scheduling, gate automation, CI failure automation, audit events, and
+deployment orchestration remain intentionally unimplemented.
 
 ## Next planned milestone
 
-`P0-M006` — Agent adapter interface.
+`P0-M007` — Gate engine.
 
-Validate the Approved P0-M006 plan checkpoint locally and remotely before coding.
+P0-M006 is complete pending closure CI and post-merge main CI.
 
 ## Known blockers
 
-No technical blocker beyond plan-checkpoint validation.
+No technical blocker beyond completing the P0-M006 closure/merge validation sequence.
