@@ -8,3 +8,8 @@ human-controlled decisions.
 The first operator entry point is `forge run <root> <task-id> <absolute-executable>`. It reads
 `.forge/state/tasks.snapshot`, writes `.forge/audit.log`, requires a pre-created managed worktree,
 and leaves successful tasks in `Running` until independently accepted.
+
+Project intake precedes execution. `forge init <root>` creates non-overwriting blueprint and
+guideline templates; `forge blueprint validate <root>` validates them read-only; and
+`forge task create ...` creates an explicit task contract in the durable snapshot. Guideline prose
+never grants authority, and task creation does not execute work.

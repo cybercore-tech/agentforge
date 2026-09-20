@@ -14,6 +14,7 @@ path = "src/main.rs"
 agentforge-core = { path = "../agentforge-core" }
 agentforge-adapter = { path = "../agentforge-adapter" }
 agentforge-audit = { path = "../agentforge-audit" }
+agentforge-intake = { path = "../agentforge-intake" }
 agentforge-orchestrator = { path = "../agentforge-orchestrator" }
 agentforge-state = { path = "../agentforge-state" }
 
