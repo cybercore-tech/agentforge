@@ -3,6 +3,7 @@ members = [
     "crates/agentforge-core",
     "crates/agentforge-state",
     "crates/agentforge-worktree",
+    "crates/agentforge-adapter",
     "crates/agentforge-cli",
     "crates/agentforge-daemon",
     "tools/xtask",
