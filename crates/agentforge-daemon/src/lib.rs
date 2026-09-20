@@ -123,17 +123,7 @@ pub fn start_with_program(
         Err(DaemonError::NotRunning) => {}
         Err(error) => return Err(error),
     }
-    let mut child = Command::new(program)
-        .arg("serve")
-        .arg("--root")
-        .arg(root)
-        .arg("--bind")
-        .arg(bind.to_string())
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(DaemonError::Io)?;
+    let mut child = spawn_daemon(program.as_ref(), root, bind)?;
     let deadline = Instant::now() + START_TIMEOUT;
     loop {
         match status(root) {
@@ -177,6 +167,34 @@ pub fn restart_with_program(
 fn terminate_owned_child(child: &mut Child) {
     let _ = child.kill();
     let _ = child.wait();
+}
+
+fn spawn_daemon(program: &OsStr, root: &Path, bind: SocketAddr) -> Result<Child, DaemonError> {
+    let deadline = Instant::now() + START_TIMEOUT;
+    loop {
+        match Command::new(program)
+            .arg("serve")
+            .arg("--root")
+            .arg(root)
+            .arg("--bind")
+            .arg(bind.to_string())
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .spawn()
+        {
+            Ok(child) => return Ok(child),
+            // Windows can retain an executable image lock briefly after a
+            // cooperative stop has removed the daemon endpoint. Retry only
+            // this transient launch error within the existing startup bound.
+            Err(error)
+                if error.kind() == io::ErrorKind::PermissionDenied && Instant::now() < deadline =>
+            {
+                thread::sleep(Duration::from_millis(25));
+            }
+            Err(error) => return Err(DaemonError::Io(error)),
+        }
+    }
 }
 
 /// Queries the daemon endpoint for one project.
