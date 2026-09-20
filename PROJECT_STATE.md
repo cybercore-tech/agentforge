@@ -11,10 +11,7 @@ Phase 0 — reliable local orchestration foundation.
 
 ## Active milestone
 
-`P0-M009` — Event and audit log.
-
-Active plan: `.plans/P0-M009-event-audit-log.plan.md`.
-Plan status: Approved. Implementation awaits local and remote validation of this exact checkpoint.
+No implementation milestone is active. P0-M009 closure CI is pending before merge.
 
 ## Completed milestones
 
@@ -26,6 +23,7 @@ Plan status: Approved. Implementation awaits local and remote validation of this
 - `P0-M006` — Agent adapter interface.
 - `P0-M007` — Gate engine.
 - `P0-M008` — CI monitor and failure classifier.
+- `P0-M009` — Event and audit log.
 
 ## P0-M005 completion evidence
 
@@ -85,11 +83,18 @@ audit events, and deployment orchestration remain intentionally unimplemented.
 
 ## Next planned milestone
 
-`P0-M009` — Event and audit log.
+`P0-M010` — Capability and permission policy.
 
 ## Known blockers
 
-No technical blocker. P0-M009 implementation awaits plan-checkpoint validation.
+No technical blocker. P0-M009 closure CI is pending before merge.
+
+## P0-M009 completion evidence
+
+- Approved plan checkpoint: `67a0b2abe8794e348277b1ea41a362fc578d8a2a`.
+- Plan CI: `35485474803` — all four jobs green.
+- Validated implementation head: `30b557369f3298dceb706935993fcb358ce62c0c`.
+- Exact implementation CI: `35489676966` — all four jobs green.
 
 ## P0-M008 completion evidence
 

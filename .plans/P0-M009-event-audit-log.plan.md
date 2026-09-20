@@ -1,6 +1,6 @@
 # Plan: P0-M009 — Event and audit log
 
-Status: Approved
+Status: Completed
 Milestone: P0-M009
 Created: 2026-09-19
 
@@ -165,19 +165,29 @@ implementation, closure, and post-merge SHAs.
 
 ## Acceptance criteria
 
-- [ ] Approved plan is committed and green before implementation.
-- [ ] Versioned append/replay and canonical integrity chain are implemented and tested.
-- [ ] Corruption, partial writes, gaps, duplicates, unknown versions, and oversized input fail closed.
-- [ ] Deterministic bounded queries and serialized durable appends are tested.
-- [ ] No external dependency, authority grant, automatic repair, or unrelated subsystem change is introduced.
+- [x] Approved plan is committed and green before implementation.
+- [x] Versioned append/replay and canonical integrity chain are implemented and tested.
+- [x] Corruption, partial writes, gaps, duplicates, unknown versions, and oversized input fail closed.
+- [x] Deterministic bounded queries and serialized durable appends are tested.
+- [x] No external dependency, authority grant, automatic repair, or unrelated subsystem change is introduced.
 - [ ] Exact implementation, closure, and post-merge CI are green.
 
 ## Completion record
 
-Implementation commit: pending
-Implementation CI: pending
+Implementation commit: 30b557369f3298dceb706935993fcb358ce62c0c
+Implementation CI: 35489676966 — all four jobs green
 Closure commit: pending
 Closure CI: pending
 Post-merge main: pending
 Post-merge CI: pending
 Completed: pending
+
+Evidence:
+
+- Draft plan checkpoint: `b6c8cf1bf41ad3bb14ea6de0a02f15f2ee045d19`;
+  CI run `35485381741` was green.
+- Approved plan checkpoint: `67a0b2abe8794e348277b1ea41a362fc578d8a2a`;
+  CI run `35485474803` was green.
+- The full local gate and focused audit tests passed for the implementation.
+- Exact implementation CI run `35489676966` passed Repository policy, Stable code gate,
+  MSRV 1.85.0, and CLI smoke for `30b557369f3298dceb706935993fcb358ce62c0c`.

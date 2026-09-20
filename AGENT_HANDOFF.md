@@ -2,8 +2,8 @@
 
 ## Repository state
 
-- Active milestone: P0-M009 — Event and audit log.
-- Active plan: `.plans/P0-M009-event-audit-log.plan.md` — Approved.
+- Active milestone: none; P0-M009 closure CI is pending before merge.
+- Active plan: none.
 - P0-M001 status: Complete.
 - P0-M002 status: Complete.
 - P0-M003 status: Complete.
@@ -26,8 +26,11 @@
 - P0-M008 closure: `5b548bb53263c8e0dc10a5c3e9ad5edbffdad068`; CI `35485184645` green.
 - P0-M008 main merge: `407f42214fb9099bc947dad3727b693a046cc04d`; CI `35485226922` green.
 - Current implementation branch: `feat/p0-m009-event-audit-log`.
-- P0-M009 plan: `.plans/P0-M009-event-audit-log.plan.md` — Approved;
-  implementation awaits exact plan-checkpoint CI.
+- P0-M009 implementation head: `30b557369f3298dceb706935993fcb358ce62c0c`.
+- P0-M009 implementation CI: `35489676966` — all four jobs green.
+- Current closure branch: `feat/p0-m009-event-audit-log`.
+- P0-M009 plan: `.plans/P0-M009-event-audit-log.plan.md` — Completed;
+  closure CI remains required.
 
 ## Resume checklist
 
@@ -37,10 +40,9 @@
 4. Read `docs/WORKTREE_ISOLATION.md`.
 5. Read ADR-0002 and ADR-0010.
 6. Run `./scripts/project-status`.
-7. Read the Approved P0-M009 plan and ADR-0014.
-8. Require green CI for the committed plan before implementation.
-9. Never bypass repository hooks or gates.
-10. Classify failures before repair.
+7. Verify CI for the P0-M009 closure commit, then merge and verify the resulting main commit.
+8. Never bypass repository hooks or gates.
+9. Classify failures before repair.
 
 ## Completed P0-M005 work
 
