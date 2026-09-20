@@ -18,7 +18,7 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 | P0-M008 | complete | CI monitor and failure classifier | Exact runs are observed and failures are classified before repair. |
 | P0-M009 | complete | Event and audit log | Orchestration decisions and task transitions are durably recorded. |
 | P0-M010 | complete | Capability and permission policy | Agents receive explicit least-privilege capabilities. |
-| P0-M011 | planned | Doctor and status diagnostics | Operators can inspect environment, project, agents, worktrees, and blockers. |
+| P0-M011 | active | Doctor and status diagnostics | Operators can inspect environment, project, agents, worktrees, and blockers. |
 | P0-M012 | planned | Single-agent vertical slice | One approved task flows through worktree, agent, gates, review handoff, and audit evidence. |
 
 ## Future phase reservations

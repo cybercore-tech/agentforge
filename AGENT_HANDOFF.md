@@ -2,8 +2,8 @@
 
 ## Repository state
 
-- Active milestone: none; P0-M011 is in Draft planning.
-- Active plan: none.
+- Active milestone: P0-M011 — Doctor and status diagnostics.
+- Active plan: `.plans/P0-M011-doctor-status.plan.md` — Approved.
 - P0-M001 status: Complete.
 - P0-M002 status: Complete.
 - P0-M003 status: Complete.
@@ -33,7 +33,7 @@
 - Current closure branch: `feat/p0-m009-event-audit-log`.
 - P0-M009 plan: `.plans/P0-M009-event-audit-log.plan.md` — Completed.
 - P0-M010 plan: `.plans/P0-M010-capability-policy.plan.md` — Completed; merged and post-merge CI green.
-- P0-M011 plan: `.plans/P0-M011-doctor-status.plan.md` — Draft; no implementation authority yet.
+- P0-M011 plan: `.plans/P0-M011-doctor-status.plan.md` — Approved; implementation may begin within the declared boundary.
 - P0-M010 implementation: `1ece087f25ccb6ce8fda96867e9f2502b91e4c86`; CI `35490199374` green.
 
 ## Resume checklist
@@ -44,7 +44,7 @@
 4. Read `docs/WORKTREE_ISOLATION.md`.
 5. Read ADR-0002 and ADR-0010.
 6. Run `./scripts/project-status`.
-7. Review P0-M011 plan and ADR-0016; obtain a separate approved-plan commit and green CI before implementation.
+7. Implement P0-M011 only within the approved plan boundary and record exact CI evidence.
 8. Never bypass repository hooks or gates.
 9. Classify failures before repair.
 

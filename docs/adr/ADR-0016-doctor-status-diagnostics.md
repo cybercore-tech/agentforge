@@ -1,6 +1,6 @@
 # ADR-0016: Read-only deterministic doctor and status diagnostics
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-19
 - Decision owners: AgentForge project
 

@@ -1,6 +1,6 @@
 # Plan: P0-M011 — Doctor and status diagnostics
 
-Status: Draft
+Status: Approved
 Milestone: P0-M011
 Created: 2026-09-19
 
