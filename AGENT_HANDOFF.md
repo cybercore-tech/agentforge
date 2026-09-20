@@ -2,7 +2,7 @@
 
 ## Repository state
 
-- Active milestone: none.
+- Active milestone: none; P0-M007 closure CI is pending before merge.
 - Active plan: none.
 - P0-M001 status: Complete.
 - P0-M002 status: Complete.
@@ -17,8 +17,10 @@
 - P0-M006 implementation CI: `35482922234` — all four jobs green.
 - P0-M006 closure: `bfad41192a4376e1f36d7f2791ddba1e0dabeb2b`; CI `35483034282` green.
 - P0-M006 main merge: `023a74969826f1de1bfb80c49e0dda125942336b`; CI `35483102850` green.
-- Current planning branch: `feat/p0-m007-gate-engine`.
-- P0-M007 plan: `.plans/P0-M007-gate-engine.plan.md` — Approved.
+- P0-M007 implementation head: `bc115e2c8f12d3459287661e554f02f7adb7b3e4`.
+- P0-M007 implementation CI: `35483980498` — all four jobs green.
+- Current closure branch: `feat/p0-m007-gate-engine`.
+- P0-M007 plan: `.plans/P0-M007-gate-engine.plan.md` — Completed; closure CI remains required.
 
 ## Resume checklist
 
@@ -28,10 +30,9 @@
 4. Read `docs/WORKTREE_ISOLATION.md`.
 5. Read ADR-0002 and ADR-0010.
 6. Run `./scripts/project-status`.
-7. Read the Approved P0-M007 plan and ADR-0012.
-8. Require green CI for the committed plan before implementation.
-9. Never bypass repository hooks or gates.
-10. Classify failures before repair.
+7. Verify CI for the P0-M007 closure commit, then merge and verify the resulting main commit.
+8. Never bypass repository hooks or gates.
+9. Classify failures before repair.
 
 ## Completed P0-M005 work
 
@@ -54,11 +55,9 @@ P0-M005 established the task-owned Git worktree lifecycle:
 Exact implementation CI run `35481590769` passed all four jobs for
 `e302cdae8a6610be04ec244bcefa2eab7c768864`.
 
-## Next milestone
+## P0-M007 work
 
-The next planned milestone is:
-
-`P0-M007 — Gate engine`
-
-P0-M006 closure and post-merge checks are verified green. P0-M007 will add explicit bounded gate
-execution before later CI classification, audit, policy, diagnostics, and vertical-slice work.
+P0-M007 added a standard-library-only gate engine with direct explicit executable/argument
+configuration, cleared child environments, bounded concurrent raw output capture, timeout and
+output-limit termination, ordered batch reports, and duplicate-name rejection. Its exact
+implementation CI is green; closure, merge, and post-merge evidence remain to be recorded.

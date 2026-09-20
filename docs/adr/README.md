@@ -17,4 +17,4 @@ ADRs are permanent numbered records of consequential design decisions.
 | ADR-0009 | Accepted | Versioned task-state snapshots behind a storage boundary |
 | ADR-0010 | Accepted | Deterministic managed worktree lifecycle |
 | ADR-0011 | Accepted | Provider-neutral agent adapter execution boundary |
-| ADR-0012 | Proposed | Explicit gate definitions and structured process evidence |
+| ADR-0012 | Accepted | Explicit gate definitions and structured process evidence |

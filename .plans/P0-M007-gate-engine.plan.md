@@ -1,6 +1,6 @@
 # Plan: P0-M007 — Gate engine
 
-Status: Approved
+Status: Completed
 Milestone: P0-M007
 Created: 2026-09-19
 
@@ -86,18 +86,28 @@ Implementation: `Cargo.toml`, `Cargo.lock`, `crates/agentforge-gate/**`, and `do
 
 ## Acceptance criteria
 
-- [ ] Approved plan is committed and green before implementation.
-- [ ] Direct, explicit, bounded gate execution is implemented and tested.
-- [ ] Ordered batch execution and duplicate rejection are tested.
-- [ ] No external dependency or shell invocation is introduced.
+- [x] Approved plan is committed and green before implementation.
+- [x] Direct, explicit, bounded gate execution is implemented and tested.
+- [x] Ordered batch execution and duplicate rejection are tested.
+- [x] No external dependency or shell invocation is introduced.
 - [ ] Exact implementation, closure, and post-merge CI are green.
 
 ## Completion record
 
-Implementation commit: pending
-Implementation CI: pending
-Closure commit: pending
-Closure CI: pending
-Post-merge main: pending
-Post-merge CI: pending
-Completed: pending
+Implementation commit: bc115e2c8f12d3459287661e554f02f7adb7b3e4
+Implementation CI: 35483980498 — all four jobs green
+Closure commit: recorded by Git history immediately after this record
+Closure CI: required before merge
+Post-merge main: required after merge
+Post-merge CI: required after merge
+Completed: 2026-09-19
+
+Evidence:
+
+- Draft plan checkpoint: `1480476b63da45450eb3a2e7e55172fc7a6da486`;
+  CI run `35483609452` was green.
+- Approved plan checkpoint: `216f5269e6186274f22bfa974f54cead4326ecb5`;
+  CI run `35483669377` was green.
+- The full local gate and focused gate-engine tests passed for the implementation.
+- Exact implementation CI run `35483980498` passed Repository policy, Stable code gate,
+  MSRV 1.85.0, and CLI smoke for `bc115e2c8f12d3459287661e554f02f7adb7b3e4`.

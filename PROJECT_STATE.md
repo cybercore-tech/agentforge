@@ -11,10 +11,7 @@ Phase 0 — reliable local orchestration foundation.
 
 ## Active milestone
 
-`P0-M007` — Gate engine.
-
-Active plan: `.plans/P0-M007-gate-engine.plan.md`.
-Plan status: Approved. Implementation awaits local and remote validation of this exact checkpoint.
+None. P0-M007 closure CI is pending before merge.
 
 ## Completed milestones
 
@@ -24,6 +21,7 @@ Plan status: Approved. Implementation awaits local and remote validation of this
 - `P0-M004` — Task graph and durable state.
 - `P0-M005` — Worktree isolation manager.
 - `P0-M006` — Agent adapter interface.
+- `P0-M007` — Gate engine.
 
 ## P0-M005 completion evidence
 
@@ -77,15 +75,21 @@ AgentForge now has:
 
 AgentForge can now invoke an explicitly configured local coding-agent executable in a verified task
 worktree through a provider-neutral interface. Execution evidence is bounded and remains separate
-from task acceptance. Scheduling, gate automation, CI failure automation, audit events, and
-deployment orchestration remain intentionally unimplemented.
+from task acceptance. It can also run direct, explicit local gates with cleared child environments,
+bounded raw evidence, deadlines, and ordered batch reports. Scheduling, CI failure automation,
+audit events, and deployment orchestration remain intentionally unimplemented.
 
 ## Next planned milestone
 
-`P0-M007` — Gate engine. Draft plan: `.plans/P0-M007-gate-engine.plan.md`.
-
-Implementation awaits plan approval and validation.
+`P0-M008` — CI monitor and failure classifier.
 
 ## Known blockers
 
-No technical blocker. P0-M007 implementation awaits plan approval and validation.
+No technical blocker. P0-M007 closure CI is pending before merge.
+
+## P0-M007 completion evidence
+
+- Approved plan checkpoint: `216f5269e6186274f22bfa974f54cead4326ecb5`.
+- Plan CI: `35483669377` — all four jobs green.
+- Validated implementation head: `bc115e2c8f12d3459287661e554f02f7adb7b3e4`.
+- Exact implementation CI: `35483980498` — all four jobs green.
