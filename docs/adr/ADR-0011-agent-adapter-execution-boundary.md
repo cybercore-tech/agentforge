@@ -1,6 +1,6 @@
 # ADR-0011: Provider-neutral agent adapter execution boundary
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-19
 - Decision owners: AgentForge project
 

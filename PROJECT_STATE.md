@@ -13,11 +13,11 @@ Phase 0 — reliable local orchestration foundation.
 
 No implementation milestone is currently active.
 
-`.plans/ACTIVE` is intentionally absent.
+`P0-M006` — Agent adapter interface.
 
-P0-M006 planning is in progress on `feat/p0-m006-agent-adapter-interface`.
-Draft plan: `.plans/P0-M006-agent-adapter-interface.plan.md`.
-Human approval and a validated Approved plan checkpoint are required before implementation.
+Active plan: `.plans/P0-M006-agent-adapter-interface.plan.md`.
+Plan status: Approved.
+Implementation must wait for local and remote validation of this exact plan checkpoint.
 
 ## Completed milestones
 
@@ -70,8 +70,8 @@ and deployment orchestration remain intentionally unimplemented.
 
 `P0-M006` — Agent adapter interface.
 
-Review the P0-M006 Draft plan and proposed ADR-0011, then approve the plan checkpoint before coding.
+Validate the Approved P0-M006 plan checkpoint locally and remotely before coding.
 
 ## Known blockers
 
-No technical blocker. P0-M006 implementation awaits plan approval and validation.
+No technical blocker beyond plan-checkpoint validation.

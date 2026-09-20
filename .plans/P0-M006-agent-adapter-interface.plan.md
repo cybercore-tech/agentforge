@@ -1,6 +1,6 @@
 # Plan: P0-M006 — Agent adapter interface
 
-Status: Draft
+Status: Approved
 Milestone: P0-M006
 Created: 2026-09-19
 
@@ -230,4 +230,5 @@ Closure CI: pending
 Post-merge main: pending
 Post-merge CI: pending
 Completed: pending
-Notes: Draft planning checkpoint; implementation authority has not been activated.
+Notes: Approved planning checkpoint; implementation authority begins only after this commit passes
+local and remote validation.
