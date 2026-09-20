@@ -104,3 +104,39 @@ jobs:
 
       - name: forged version
         run: cargo run -p agentforge-daemon --locked -- --version
+
+  platform-matrix:
+    name: Platform ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - macos-14
+          - windows-2022
+    steps:
+      - name: Check out exact head
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Install stable Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - name: Check workspace on ${{ matrix.os }}
+        run: cargo check --workspace --all-targets --locked
+
+      - name: Run portable tests on ${{ matrix.os }}
+        run: >-
+          cargo test --workspace --locked
+          --exclude agentforge-adapter
+          --exclude agentforge-ci
+          --exclude agentforge-gate
+          --exclude agentforge-orchestrator
+          --exclude agentforge-worktree
+
+      - name: forge smoke on ${{ matrix.os }}
+        run: cargo run -p agentforge-cli --locked -- version

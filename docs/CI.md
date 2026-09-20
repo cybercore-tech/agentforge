@@ -6,12 +6,13 @@ P0-M003 bootstraps GitHub Actions as AgentForge's independent remote validation 
 
 The repository workflow is `.github/workflows/ci.yml`.
 
-It exposes four independently visible jobs:
+It exposes independently visible policy, code, compatibility, smoke, and platform jobs:
 
 1. `Repository policy`
 2. `Stable code gate`
 3. `MSRV 1.85.0`
 4. `CLI smoke`
+5. `Platform matrix`
 
 Independent jobs keep failures classifiable instead of hiding all evidence behind one monolithic
 status.
@@ -84,6 +85,20 @@ The smoke job verifies:
 - `forge version`;
 - `forge doctor`;
 - `forged --version`.
+
+## Platform matrix
+
+The `Platform matrix` job runs stable workspace checks, portable tests, and CLI version smoke on
+Ubuntu 24.04, macOS 14, and Windows 2022. Unix-specific integration fixtures remain in the Linux
+stable gate because they exercise `/usr/bin` process and Git-worktree behavior; the matrix still
+compiles the complete workspace on every supported host.
+
+## Release workflow
+
+`.github/workflows/release.yml` runs for `vMAJOR.MINOR.PATCH` tags and manual dispatch. Tagged runs
+verify that the tag matches the workspace version, build `forge` and `forged` for four targets,
+package archives, emit SHA-256 checksums, and publish a GitHub release with least-privilege write
+permission only on the publish job. Manual runs package artifacts without publishing.
 
 ## P0-M008 observation boundary
 

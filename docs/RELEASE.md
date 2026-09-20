@@ -1,0 +1,54 @@
+# Release process 📦
+
+AgentForge uses a small, explicit release process for its early `0.x` line.
+
+## Version policy
+
+The workspace version is the release version. Tags must use `vMAJOR.MINOR.PATCH` and must match the
+workspace version exactly. The current line is `0.0.x` because APIs and operator workflows are still
+evolving.
+
+- Patch releases contain compatible fixes and documentation corrections.
+- Minor releases may add capabilities and non-breaking interfaces.
+- Breaking changes are called out in `CHANGELOG.md`; before `1.0.0`, compatibility remains an
+  explicit best-effort promise rather than a long-term guarantee.
+
+Update `Cargo.toml` and `CHANGELOG.md` together before creating a release tag. The release workflow
+rejects a tag whose version does not match the workspace metadata.
+
+## Artifacts
+
+The tagged release workflow builds `forge` and `forged` for:
+
+- `x86_64-unknown-linux-gnu`
+- `x86_64-apple-darwin`
+- `aarch64-apple-darwin`
+- `x86_64-pc-windows-msvc`
+
+Each target produces an `agentforge-<version>-<target>.tar.gz` archive and a sibling SHA-256 file.
+The GitHub release also contains a consolidated `SHA256SUMS` file. Artifacts are unsigned in this
+phase; signing and provenance attestations are future release-engineering work.
+
+## Creating a release
+
+1. Update the workspace version and `CHANGELOG.md`.
+2. Run `./scripts/gate.sh full`.
+3. Commit and push the versioned release preparation.
+4. Confirm exact-head CI is green.
+5. Create and push the matching tag, for example:
+
+   ```bash
+   git tag -a v0.0.1 -m "AgentForge v0.0.1"
+   git push origin v0.0.1
+   ```
+
+6. Verify the four build jobs, checksums, and generated GitHub release before announcing it.
+
+The workflow also supports manual dispatch for packaging validation. Manual runs build artifacts but
+do not publish a release.
+
+## Support expectations
+
+Releases are currently source-compatible only within the documented `0.x` policy. The project is
+local-first and does not promise a hosted service, automatic deployment, or a running daemon in this
+phase. Report reproducible failures with the exact release version, target, command, and evidence.

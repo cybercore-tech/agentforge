@@ -24,6 +24,10 @@ version = "0.0.1"
 edition = "2024"
 rust-version = "1.85"
 authors = ["AgentForge contributors"]
+description = "Local-first, model-agnostic agentic software-development environment"
+repository = "https://github.com/darkstardevx/agentforge"
+readme = "README.md"
+license = "MIT"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
