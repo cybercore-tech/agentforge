@@ -11,7 +11,7 @@ Phase 0 — reliable local orchestration foundation.
 
 ## Active milestone
 
-No implementation milestone is active. P0-M010 closure is in progress.
+No implementation milestone is active. P0-M011 closure is in progress.
 
 ## Completed milestones
 
@@ -87,7 +87,14 @@ audit events, and deployment orchestration remain intentionally unimplemented.
 
 ## Known blockers
 
-P0-M010 implementation is complete; closure evidence and merge verification remain.
+P0-M011 implementation is complete; closure and merge verification remain.
+
+## P0-M011 completion evidence
+
+- Approved plan checkpoint: `8bf2ad634fd834219bc32bb09eb6eff58f10d5f0`.
+- Plan CI: `35492671297` — all four jobs green.
+- Validated implementation head: `bd1aaf24800dde73f1dc707519f5d1ed710a6b0e`.
+- Exact implementation CI: `35492790507` — all four jobs green.
 
 ## P0-M010 completion evidence
 
