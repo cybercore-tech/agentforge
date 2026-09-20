@@ -43,6 +43,7 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 | P2-M008 | complete | Windows dogfooding parity | Managed worktree and daemon CLI dogfooding suites pass on Linux, macOS, and Windows with direct portable fixtures. |
 | P2-M009 | complete | Daemon audit-sequence continuation | Persisted daemon runs append contiguous, integrity-linked audit events after existing project history. |
 | P2-M010 | complete | Guided project intake surface | Operators can author validated blueprint/guideline documents and optional task drafts through a bounded preview-confirm workflow. |
+| P2-M011 | complete | Guided intake operator hardening | Operators can replay bounded intake sessions and verify intake-to-task/HUD handoff on disposable projects. |
 
 ## Phase 1 — multi-agent scheduling and integration
 

@@ -2,8 +2,13 @@
 
 ## Repository state
 
-- Active milestone: none; P2-M010 — guided project intake surface is complete.
+- Active milestone: none; P2-M011 — guided intake operator hardening is complete.
 - Active plan: none (`.plans/ACTIVE` is intentionally absent after closure).
+- P2-M011 implementation commit: `7b40c0a83cf022d66462270d4d4ca6fc66c40975`; exact CI
+  `35529284464` is green across repository policy, stable, MSRV, CLI smoke, Linux, macOS, and
+  Windows.
+- P2-M011 plan: `.plans/P2-M011-guided-intake-operator-hardening.plan.md` — completed with bounded
+  `--input-file` replay, fail-closed input validation, and disposable intake-to-HUD dogfooding.
 - P2-M010 implementation commit: `5533454d0d1fb75129b675e61569931a685b934a`; exact CI
   `35528652736` is green across repository policy, stable, MSRV, CLI smoke, Linux, macOS, and
   Windows.

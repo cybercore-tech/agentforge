@@ -11,7 +11,7 @@ Phase 2 — operator experience.
 
 ## Active milestone
 
-None. P2-M010 is complete; the next increment is intentionally unplanned until real operator use
+None. P2-M011 is complete; the next increment is intentionally unplanned until real operator use
 identifies the next bounded need.
 
 ## Completed milestones
@@ -38,6 +38,17 @@ identifies the next bounded need.
 - `P2-M008` — Windows dogfooding parity.
 - `P2-M009` — Daemon audit-sequence continuation.
 - `P2-M010` — Guided project intake surface.
+- `P2-M011` — Guided intake operator hardening.
+
+## P2-M011 completion evidence
+
+- Approved plan: `.plans/P2-M011-guided-intake-operator-hardening.plan.md`.
+- Implementation commit: `7b40c0a83cf022d66462270d4d4ca6fc66c40975`.
+- Exact implementation CI: `35529284464` — green across repository policy, stable, MSRV, CLI
+  smoke, Ubuntu, macOS, and Windows.
+- The guided intake CLI now accepts bounded UTF-8 `--input-file` sessions through the same prompt,
+  preview, confirmation, validation, and rollback engine as stdin; disposable tests verify the
+  intake-to-task-inspect/HUD handoff and fail-closed malformed or oversized inputs.
 
 ## P2-M010 completion evidence
 

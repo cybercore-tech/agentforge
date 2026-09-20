@@ -1,6 +1,6 @@
 # Plan: P2-M011 — Guided intake operator hardening
 
-Status: Approved
+Status: Complete
 Milestone: P2-M011
 Created: 2026-09-20
 
@@ -148,16 +148,18 @@ project dogfood sequence in `docs/BLUEPRINT.md`, `docs/ORCHESTRATION.md`, and th
 
 ## Acceptance criteria
 
-- [ ] `--input-file` reuses the stdin prompt engine without changing authority or confirmation rules.
-- [ ] Missing, malformed, and oversized input files fail before durable mutation.
-- [ ] Disposable-project dogfood proves intake → validation → task inspection/HUD consistency.
-- [ ] Existing interactive intake behavior and all prior lifecycle boundaries remain compatible.
-- [ ] Tests, documentation, local gate, and exact-SHA CI evidence are recorded before closure.
+- [x] `--input-file` reuses the stdin prompt engine without changing authority or confirmation rules.
+- [x] Missing, malformed, and oversized input files fail before durable mutation.
+- [x] Disposable-project dogfood proves intake → validation → task inspection/HUD consistency.
+- [x] Existing interactive intake behavior and all prior lifecycle boundaries remain compatible.
+- [x] Tests, documentation, local gate, and exact-SHA CI evidence are recorded before closure.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
-Notes:
+Implementation commit: `7b40c0a83cf022d66462270d4d4ca6fc66c40975`.
+CI run: `35529284464`.
+CI result: Green across repository policy, stable, MSRV, CLI smoke, Ubuntu, macOS, and Windows.
+Completed: 2026-09-20.
+Notes: Added bounded UTF-8 `--input-file` replay through the existing guided prompt engine,
+failure-side-effect coverage, and disposable intake → validate → inspect/HUD dogfooding. Preview
+and explicit confirmation remain mandatory; no input file is persisted into project state.
