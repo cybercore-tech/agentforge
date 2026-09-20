@@ -1,6 +1,6 @@
 # Plan: P0-M008 — CI monitor and failure classifier
 
-Status: Draft
+Status: Approved
 Milestone: P0-M008
 Created: 2026-09-19
 
@@ -67,8 +67,8 @@ persist the returned evidence and determine whether a classified failure require
 
 ## ADRs
 
-Proposed ADR-0013 records the provider-command observation boundary and conservative failure
-classification policy. It follows ADR-0004 and ADR-0005.
+ADR-0013 records the provider-command observation boundary and conservative failure classification
+policy. It follows ADR-0004 and ADR-0005.
 
 ## Public API / CLI
 

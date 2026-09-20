@@ -11,7 +11,10 @@ Phase 0 — reliable local orchestration foundation.
 
 ## Active milestone
 
-No implementation milestone is active. P0-M008 is in Draft planning.
+`P0-M008` — CI monitor and failure classifier.
+
+Active plan: `.plans/P0-M008-ci-monitor-failure-classifier.plan.md`.
+Plan status: Approved. Implementation awaits local and remote validation of this exact checkpoint.
 
 ## Completed milestones
 
@@ -81,12 +84,11 @@ audit events, and deployment orchestration remain intentionally unimplemented.
 
 ## Next planned milestone
 
-`P0-M008` — CI monitor and failure classifier. Draft plan:
-`.plans/P0-M008-ci-monitor-failure-classifier.plan.md`.
+`P0-M008` — CI monitor and failure classifier.
 
 ## Known blockers
 
-No technical blocker. P0-M008 awaits plan review and approval.
+No technical blocker. P0-M008 implementation awaits plan-checkpoint validation.
 
 ## P0-M007 completion evidence
 

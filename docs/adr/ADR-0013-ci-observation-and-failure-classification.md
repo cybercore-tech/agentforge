@@ -1,6 +1,6 @@
 # ADR-0013: Read-only CI observation and conservative failure classification
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-19
 - Decision owners: AgentForge project
 

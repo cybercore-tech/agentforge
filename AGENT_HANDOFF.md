@@ -2,8 +2,8 @@
 
 ## Repository state
 
-- Active milestone: none; P0-M008 is in Draft planning.
-- Active plan: none.
+- Active milestone: P0-M008 — CI monitor and failure classifier.
+- Active plan: `.plans/P0-M008-ci-monitor-failure-classifier.plan.md` — Approved.
 - P0-M001 status: Complete.
 - P0-M002 status: Complete.
 - P0-M003 status: Complete.
@@ -21,8 +21,9 @@
 - P0-M007 implementation CI: `35483980498` — all four jobs green.
 - P0-M007 closure: `02242b2f3fe7eb82239e2dca43b1bd85aa239a86`; CI `35484071505` green.
 - P0-M007 main merge: `741cf58caa6fca38c4693c4359816f4721a2b126`; CI `35484138853` green.
-- Current planning branch: `feat/p0-m008-ci-monitor-classifier`.
-- P0-M008 plan: `.plans/P0-M008-ci-monitor-failure-classifier.plan.md` — Draft.
+- Current implementation branch: `feat/p0-m008-ci-monitor-classifier`.
+- P0-M008 plan: `.plans/P0-M008-ci-monitor-failure-classifier.plan.md` — Approved;
+  implementation awaits exact plan-checkpoint CI.
 
 ## Resume checklist
 
@@ -32,8 +33,8 @@
 4. Read `docs/WORKTREE_ISOLATION.md`.
 5. Read ADR-0002 and ADR-0010.
 6. Run `./scripts/project-status`.
-7. Read the P0-M008 Draft plan and proposed ADR-0013.
-8. Require plan approval and green CI for the committed Approved plan before implementation.
+7. Read the Approved P0-M008 plan and ADR-0013.
+8. Require green CI for the committed plan before implementation.
 9. Never bypass repository hooks or gates.
 10. Classify failures before repair.
 
