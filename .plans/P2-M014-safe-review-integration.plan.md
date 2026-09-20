@@ -1,6 +1,6 @@
 # Plan: P2-M014 — Safe review and integration workflow
 
-Status: Draft
+Status: Approved
 Milestone: P2-M014
 Created: 2026-09-20
 
