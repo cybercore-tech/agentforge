@@ -11,7 +11,7 @@ Phase 0 — reliable local orchestration foundation.
 
 ## Active milestone
 
-No implementation milestone is active. P0-M012 closure is in progress.
+No implementation milestone is active. P1-M001 is in Draft planning.
 
 ## Completed milestones
 
@@ -87,7 +87,7 @@ audit events, and deployment orchestration remain intentionally unimplemented.
 
 ## Known blockers
 
-P0-M012 implementation is complete; closure and merge verification remain.
+P0-M012 is complete. P1-M001 awaits plan review and approval.
 
 ## P0-M012 completion evidence
 

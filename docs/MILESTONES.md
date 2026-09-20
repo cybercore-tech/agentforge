@@ -28,3 +28,9 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 - `P3-*` — MCP/tool gateway and external systems;
 - `P4-*` — remote workers and distributed execution;
 - `P5-*` — release/deployment orchestration.
+
+## Phase 1 — multi-agent scheduling and integration
+
+| ID | Status | Milestone | Acceptance signal |
+| --- | --- | --- | --- |
+| P1-M001 | planned | Multi-agent scheduling and serialized integration | Runnable batches are deterministic, disjoint work can run concurrently, and integration is serialized. |
