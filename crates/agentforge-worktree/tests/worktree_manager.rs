@@ -79,9 +79,10 @@ fn branch_and_path_are_deterministic() {
         WorktreeManager::branch_for(&task_id),
         "agentforge/task/P0-M005-T0001"
     );
+    let canonical_root = fs::canonicalize(&repo.root).unwrap();
     assert_eq!(
         manager.path_for(&task_id),
-        repo.root.join(".forge/worktrees/P0-M005-T0001")
+        canonical_root.join(".forge/worktrees/P0-M005-T0001")
     );
 }
 

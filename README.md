@@ -74,9 +74,9 @@ cargo test --workspace --locked
 Run the CLI from the checkout:
 
 ```bash
-cargo run -p agentforge-cli -- version
-cargo run -p agentforge-cli -- doctor
-cargo run -p agentforge-cli -- status
+cargo run -p agentforge-cli --bin forge -- version
+cargo run -p agentforge-cli --bin forge -- doctor
+cargo run -p agentforge-cli --bin forge -- status
 ```
 
 For a local binary installation, build in release mode and place the binaries on your `PATH`:
