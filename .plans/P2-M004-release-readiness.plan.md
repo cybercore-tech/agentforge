@@ -1,6 +1,6 @@
 # Plan: P2-M004 — Release readiness
 
-Status: Approved
+Status: Completed
 Milestone: P2-M004
 Created: 2026-09-20
 
@@ -59,15 +59,15 @@ plan amendment before implementation.
 
 ## Acceptance criteria
 
-- [ ] Workspace metadata declares the repository, readme, description, and MIT license.
-- [ ] License and changelog/versioning policy are present and linked from the README.
-- [ ] Release workflow builds both binaries for all four supported targets and packages deterministic
+- [x] Workspace metadata declares the repository, readme, description, and MIT license.
+- [x] License and changelog/versioning policy are present and linked from the README.
+- [x] Release workflow builds both binaries for all four supported targets and packages deterministic
       archives with checksums.
-- [ ] Release workflow cannot publish from an ordinary branch push and uses least-privilege token
+- [x] Release workflow cannot publish from an ordinary branch push and uses least-privilege token
       permissions.
-- [ ] CI exercises stable workspace checks/tests on Linux, macOS, and Windows.
-- [ ] Existing exact-head policy, MSRV coverage, CLI smoke, formatting, Clippy, and tests remain.
-- [ ] Full local gate and exact-head CI pass for implementation and closure commits.
+- [x] CI exercises stable workspace checks/tests on Linux, macOS, and Windows.
+- [x] Existing exact-head policy, MSRV coverage, CLI smoke, formatting, Clippy, and tests remain.
+- [x] Full local gate and exact-head CI pass for implementation and closure commits.
 
 ## Validation
 
@@ -85,3 +85,15 @@ plan amendment before implementation.
 5. Update README and record implementation evidence.
 6. Run local gate and exact-head CI.
 7. Close the milestone with separate documentation and CI evidence.
+
+## Completion record
+
+Implementation commit: `ccad549`
+CI run: `35499518052`
+CI result: all existing and Linux/macOS/Windows matrix jobs green for the exact implementation SHA
+Completed: 2026-09-20
+Notes: Added MIT licensing, workspace release metadata, Keep a Changelog/SemVer policy, tagged and
+manual artifact packaging for four targets, checksum generation, and cross-platform CI. Manual
+release validation `35499534918` built all four target archives and correctly skipped publishing.
+The `macos-13` runner was replaced with supported `macos-14` after hosted-runner availability
+evidence. Closure and post-merge evidence will be recorded by the separate documentation commit.

@@ -36,7 +36,7 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 | P2-M001 | complete | Read-only operator HUD | Operators can inspect blueprint, task, audit, and worktree state through a deterministic read-only report. |
 | P2-M002 | complete | Interactive operator HUD | Operators can run a bounded live HUD, refresh it, inspect recoverable source failures, and exit without mutation. |
 | P2-M003 | complete | Controlled operator actions | Operators can inspect tasks, record explicit approvals, and apply audited lifecycle decisions without mutating through the HUD. |
-| P2-M004 | active | Release readiness | The project has explicit licensing/versioning, reproducible tagged artifacts, and cross-platform CI coverage. |
+| P2-M004 | complete | Release readiness | The project has explicit licensing/versioning, reproducible tagged artifacts, and cross-platform CI coverage. |
 
 ## Phase 1 — multi-agent scheduling and integration
 

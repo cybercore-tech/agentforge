@@ -3,7 +3,7 @@
 ## Current release
 
 - Workspace version: `0.0.1`
-- Release line: Phase 0 foundation
+- Release line: `0.0.x` alpha
 
 ## Current phase
 
@@ -11,7 +11,7 @@ Phase 2 — operator experience.
 
 ## Active milestone
 
-`P2-M004` — Release readiness (approved plan; implementation begins after checkpoint CI).
+None. P2-M004 is complete; no plan is active.
 
 ## Completed milestones
 
@@ -30,11 +30,17 @@ Phase 2 — operator experience.
 - `P2-M001` — Read-only operator HUD.
 - `P2-M002` — Interactive operator HUD.
 - `P2-M003` — Controlled operator actions.
+- `P2-M004` — Release readiness.
 
-## P2-M004 activation
+## P2-M004 completion evidence
 
-- Approved plan: `.plans/P2-M004-release-readiness.plan.md`.
-- Activation checkpoint and exact-head CI evidence will be recorded before implementation.
+- Approved plan checkpoint: `819b2001cafca3518f5d9519d418e6f7d0280b14`.
+- Plan CI: `35499050051` — all four jobs green.
+- Validated implementation head: `ccad549`.
+- Exact implementation CI: `35499518052` — all existing and Linux/macOS/Windows matrix jobs green.
+- Manual release packaging validation: `35499534918` — all four target archives built successfully;
+  publishing was skipped as expected for a manual run.
+- Closure and post-merge evidence will be recorded after the documentation closure commit.
 
 ## P0-M005 completion evidence
 
@@ -95,6 +101,9 @@ read a deterministic, bounded HUD snapshot of intake, task, audit, and managed w
 Operators can also inspect tasks, record explicit required approvals, and apply audited accept,
 cancel, and retry transitions through `forge task`. `forge run` consumes only verified, task-linked
 approval evidence; HUD and watch mode remain read-only.
+The repository now declares its MIT license and `0.0.x` versioning policy, packages tagged/manual
+binary archives with checksums, and validates portable workspace behavior on Linux, macOS, and
+Windows.
 
 ## P2-M003 completion evidence
 
@@ -106,12 +115,13 @@ approval evidence; HUD and watch mode remain read-only.
 
 ## Next planned milestone
 
-P2-M004 is active within its approved release-readiness file boundary.
+No next milestone is approved. The next increment should be planned explicitly from release usage,
+daemon requirements, and real-world dogfooding.
 
 ## Known blockers
 
-P2-M003 is complete. P2-M004 covers release packaging, versioning, licensing, and cross-platform
-validation; daemon-driven orchestration remains outside this milestone.
+P2-M004 is complete. The `forged` daemon remains a placeholder and daemon-driven orchestration,
+artifact signing, and provenance attestations remain future work.
 
 ## P2-M002 completion evidence
 

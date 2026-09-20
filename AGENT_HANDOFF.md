@@ -2,8 +2,8 @@
 
 ## Repository state
 
-- Active milestone: P2-M004 — Release readiness.
-- Active plan: `.plans/P2-M004-release-readiness.plan.md` — Approved.
+- Active milestone: None; P2-M004 — Release readiness is complete.
+- Active plan: None; `.plans/ACTIVE` is intentionally absent between milestones.
 - P0-M001 status: Complete.
 - P0-M002 status: Complete.
 - P0-M003 status: Complete.
@@ -48,8 +48,11 @@
 - P2-M002 implementation: `11792769304f8042235146d670eb554b0bc0cde3`; CI `35497283972` green.
 - P2-M003 implementation: `381afc6d0342ad12b36ce9574dd6ffb1a1c34a93`; CI `35498108446` green.
 - P2-M003 closure: `907913d424148506aa8f1a3704aa89b895ea7658`; CI `35498226882` green.
-- P2-M004 plan: `.plans/P2-M004-release-readiness.plan.md` — Approved; implementation begins after
-  the activation checkpoint CI is green.
+- P2-M004 plan: `.plans/P2-M004-release-readiness.plan.md` — Completed; implementation and exact-head
+  CI are green.
+- P2-M004 implementation: `ccad549`; CI `35499518052` green, including Linux/macOS/Windows matrix.
+- P2-M004 release packaging validation: `35499534918` green for all four target archives; manual
+  publishing correctly skipped.
 - P0-M012 implementation: `fcf3809c9f5c099833cb07862e626ca3f1764cff`; CI `35493160857` green.
 - P0-M011 implementation: `bd1aaf24800dde73f1dc707519f5d1ed710a6b0e`; CI `35492790507` green.
 - P0-M011 closure: `62911373015ed8e94d7e8883b955c078a175cf48`; CI `35492882542` green.
@@ -64,8 +67,7 @@
 4. Read `docs/WORKTREE_ISOLATION.md`.
 5. Read ADR-0002 and ADR-0010.
 6. Run `./scripts/project-status`.
-7. Implement P2-M004 only within the approved release-readiness plan boundary after its activation
-   checkpoint CI is green.
+7. Confirm no active plan before drafting the next milestone; P2-M004 is complete.
 8. Never bypass repository hooks or gates.
 9. Classify failures before repair.
 
