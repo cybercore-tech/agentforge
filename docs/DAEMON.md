@@ -99,6 +99,10 @@ Adapter failures, timeouts, and interrupted requests persist the task transition
 before the error is returned whenever the persistence boundary remains available. A successful run
 does not grant authority to accept, merge, or clean up the task.
 
+Each persisted daemon execution appends to the existing verified audit chain, continuing its next
+sequence and prior digest. Existing audit records are never rewritten or discarded; a corrupt or
+incompatible audit file still fails closed.
+
 The direct command remains available when no daemon is wanted:
 
 ```bash

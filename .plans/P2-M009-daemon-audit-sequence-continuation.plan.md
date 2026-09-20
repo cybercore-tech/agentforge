@@ -1,6 +1,6 @@
 # Plan: P2-M009 — Daemon audit-sequence continuation
 
-Status: Approved
+Status: Complete
 Milestone: P2-M009
 Created: 2026-09-20
 
@@ -158,20 +158,23 @@ closure.
 
 ## Acceptance criteria
 
-- [ ] A daemon run on a project with existing valid audit records appends successfully at the next
+- [x] A daemon run on a project with existing valid audit records appends successfully at the next
       contiguous sequence.
-- [ ] The resulting audit file passes existing integrity and sequence verification.
-- [ ] Empty-log behavior still starts at sequence `1`.
-- [ ] Preflight failures remain fail-closed without launching the agent or fabricating events.
-- [ ] Existing direct execution, task lifecycle, HUD, worktree, and cross-platform gates remain
+- [x] The resulting audit file passes existing integrity and sequence verification.
+- [x] Empty-log behavior still starts at sequence `1`.
+- [x] Preflight failures remain fail-closed without launching the agent or fabricating events.
+- [x] Existing direct execution, task lifecycle, HUD, worktree, and cross-platform gates remain
       green.
-- [ ] The real `P1-M003-T0003` reproduction completes only after implementation validation and is
+- [x] The real `P1-M003-T0003` reproduction completes only after implementation validation and is
       independently reviewed before acceptance.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
-Notes:
+Implementation commit: `d4d17cd`.
+Implementation CI: `35527442420` — all jobs green across repository policy, stable, MSRV, CLI
+smoke, Ubuntu, macOS, and Windows for exact head `d4d17cd2ae88ae4504e3728f298dbdbc51acaa9c`.
+Closure commit: pending.
+Closure CI: pending.
+Completed: 2026-09-20.
+Notes: Real Omniscient dogfooding continued audit records from sequence 5 through 8; the no-op
+fixture task was explicitly cancelled and its clean worktree retired with its branch preserved.

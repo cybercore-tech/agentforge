@@ -11,7 +11,7 @@ Phase 2 — operator experience.
 
 ## Active milestone
 
-None. P2-M008 is complete; the next increment is intentionally unplanned until real operator use
+None. P2-M009 is complete; the next increment is intentionally unplanned until real operator use
 identifies the next bounded need.
 
 ## Completed milestones
@@ -36,6 +36,7 @@ identifies the next bounded need.
 - `P2-M006` — Real-agent dogfooding and operator workflow.
 - `P2-M007` — Cross-platform agent operations.
 - `P2-M008` — Windows dogfooding parity.
+- `P2-M009` — Daemon audit-sequence continuation.
 
 ## P2-M008 completion evidence
 
@@ -48,6 +49,17 @@ identifies the next bounded need.
   platforms.
 - Portable worktree lifecycle tests now compare canonical roots and run on every platform matrix
   host; daemon CLI dogfooding uses a direct Rust executable fixture without shell interpolation.
+
+## P2-M009 completion evidence
+
+- Approved plan: `.plans/P2-M009-daemon-audit-sequence-continuation.plan.md`.
+- Implementation commit: `d4d17cd`.
+- Exact implementation CI: `35527442420` — all jobs green across repository policy, stable, MSRV,
+  CLI smoke, Ubuntu, macOS, and Windows.
+- Persisted execution now seeds each attempt audit with the verified sequence and digest tail;
+  preflight failures remain side-effect free.
+- Real Omniscient dogfooding appended records `#6–#8` after the existing audit tail; the no-op task
+  was cancelled and its clean worktree retired with its branch preserved.
 
 ## P2-M007 completion evidence
 
@@ -155,14 +167,14 @@ worktree through a provider-neutral interface, either directly or through the op
 loopback `forged` service. Execution evidence is bounded and remains separate from task acceptance.
 It can also run direct, explicit local gates with cleared child environments,
 bounded raw evidence, deadlines, and ordered batch reports. Scheduling, CI failure automation,
-audit events, and deployment orchestration remain intentionally unimplemented. Operators can now
+and deployment orchestration remain intentionally unimplemented. Operators can now
 read a deterministic, bounded HUD snapshot of intake, task, audit, and managed worktree state.
 Operators can also inspect tasks, record explicit required approvals, and apply audited accept,
 cancel, and retry transitions through `forge task`. `forge run` consumes only verified, task-linked
 approval evidence; HUD and watch mode remain read-only.
 The repository now declares its MIT license and `0.0.x` versioning policy, packages tagged/manual
 binary archives with checksums, and validates portable workspace behavior on Linux, macOS, and
-Windows.
+Windows. Persisted daemon runs continue verified audit chains without changing the audit format.
 
 ## P2-M003 completion evidence
 

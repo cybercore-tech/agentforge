@@ -37,3 +37,7 @@ state, mutate Git, or approve work.
 P2-M003 adds a separate controlled operator service for task inspection, explicit actor-bound
 approvals, and audited lifecycle decisions. `forge run` consumes only verified task-linked approval
 events; the HUD remains an observation surface.
+
+P2-M009 ensures persisted daemon execution seeds each attempt audit from the verified sequence and
+digest tail, so later runs append contiguous integrity-linked events without changing the audit
+format or acceptance boundary.

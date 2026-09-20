@@ -41,6 +41,7 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 | P2-M006 | complete | Real-agent dogfooding and operator workflow | Operators can prepare managed worktrees, run a configured executable through the daemon, inspect recovery evidence, and retire clean worktrees safely. |
 | P2-M007 | complete | Cross-platform agent operations | Windows worktrees, bounded local agent profiles, and cooperative daemon supervision are available with exact CI evidence. |
 | P2-M008 | complete | Windows dogfooding parity | Managed worktree and daemon CLI dogfooding suites pass on Linux, macOS, and Windows with direct portable fixtures. |
+| P2-M009 | complete | Daemon audit-sequence continuation | Persisted daemon runs append contiguous, integrity-linked audit events after existing project history. |
 
 ## Phase 1 — multi-agent scheduling and integration
 
