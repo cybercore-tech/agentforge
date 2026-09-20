@@ -85,6 +85,25 @@ The smoke job verifies:
 - `forge doctor`;
 - `forged --version`.
 
+## P0-M008 observation boundary
+
+The `agentforge-ci` crate observes remote CI through an operator-configured absolute executable.
+The executable receives literal arguments and explicit environment values; ambient credentials,
+Git overrides, and shell interpolation are not inherited. Its stdout is a bounded UTF-8 protocol:
+the first line is `agentforge-ci-v1`, followed by tab-delimited `run` and `job` records containing
+provider IDs, exact head SHA, status, conclusion, names, and bounded failure excerpts. Fields may
+not contain control characters.
+
+The monitor accepts exactly one run whose reported head SHA matches the requested full SHA. Stale,
+missing, ambiguous, malformed, non-UTF-8, timed-out, and output-limit observations remain explicit
+errors. It never dispatches, retries, cancels, mutates CI, changes source, or transitions a task.
+
+`FailureClassifier` maps failed-job evidence to the repository taxonomy—semantic/test,
+compilation/type, formatting/lint, generated-content corruption, dependency/toolchain,
+documentation/text policy, workflow/governance, infrastructure, or unknown—with documented
+specificity precedence. Classification is evidence for later review, not root-cause proof or repair
+authority. Provider authentication and network behavior remain outside the workspace command.
+
 ## Exact-head evidence
 
 A green run is evidence only for the commit SHA that produced it.
