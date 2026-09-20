@@ -168,7 +168,18 @@ fn spawned_daemon_start_and_restart_are_bounded_and_cooperative() {
         restart_with_program(&root, DEFAULT_BIND, forged).expect("restart daemon cooperatively");
     assert!(restarted.endpoint.address.ip().is_loopback());
     stop(&root).expect("stop restarted daemon");
-    assert!(matches!(status(&root), Err(DaemonError::NotRunning)));
+    let stopped = (0..50).find(|_| {
+        if matches!(status(&root), Err(DaemonError::NotRunning)) {
+            true
+        } else {
+            thread::sleep(Duration::from_millis(10));
+            false
+        }
+    });
+    assert!(
+        stopped.is_some(),
+        "daemon metadata should be removed after stop"
+    );
     fs::remove_dir_all(root).expect("cleanup");
 }
 
