@@ -2,7 +2,9 @@
 
 use agentforge_core::agent::{AgentTask, Capability};
 use agentforge_policy::{PolicyDecision, PolicyEngine, PolicyRequest};
+use agentforge_worktree::WorktreeManager;
 use std::fmt;
+use std::path::Path;
 
 /// Ordered stages in the vertical slice.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
@@ -62,6 +64,8 @@ pub enum SliceError {
     Policy(String),
     /// A required evidence boundary was not satisfied.
     MissingEvidence(SliceStage),
+    /// Repository/worktree preflight failed before execution.
+    Preflight(String),
 }
 
 impl fmt::Display for SliceError {
@@ -71,10 +75,28 @@ impl fmt::Display for SliceError {
             Self::MissingEvidence(stage) => {
                 write!(f, "missing evidence at {} stage", stage.as_str())
             }
+            Self::Preflight(reason) => write!(f, "repository preflight failed: {reason}"),
         }
     }
 }
 impl std::error::Error for SliceError {}
+
+/// Validates the real repository boundary before an adapter can be launched.
+pub fn preflight_repository(root: impl AsRef<Path>, task: &AgentTask) -> Result<(), SliceError> {
+    task.validate()
+        .map_err(|e| SliceError::Preflight(e.to_string()))?;
+    let manager = WorktreeManager::new(root).map_err(|e| SliceError::Preflight(e.to_string()))?;
+    let request = PolicyRequest {
+        capability: Capability::RunLocalCommands,
+        paths: task.allowed_paths.clone(),
+        approval: None,
+    };
+    if let PolicyDecision::Denied(error) = PolicyEngine.evaluate(task, &request, &[]) {
+        return Err(SliceError::Preflight(error.to_string()));
+    }
+    let _ = manager.project_root();
+    Ok(())
+}
 
 /// Runs the ordered, single-agent flow using caller-owned evidence and no ambient state.
 pub fn run(task: &AgentTask, evidence: &SliceEvidence) -> Result<VerticalSliceReport, SliceError> {
@@ -248,5 +270,11 @@ mod tests {
         };
         assert!(execute_once(&task(), &mut fake).is_err());
         assert!(fake.events.is_empty());
+    }
+
+    #[test]
+    fn repository_preflight_checks_real_git_root_and_policy() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        assert!(preflight_repository(root, &task()).is_ok());
     }
 }

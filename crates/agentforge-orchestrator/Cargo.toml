@@ -9,6 +9,7 @@ publish = false
 [dependencies]
 agentforge-core = { path = "../agentforge-core" }
 agentforge-policy = { path = "../agentforge-policy" }
+agentforge-worktree = { path = "../agentforge-worktree" }
 
 [lints]
 workspace = true

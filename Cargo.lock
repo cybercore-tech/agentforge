@@ -46,6 +46,7 @@ version = "0.0.1"
 dependencies = [
  "agentforge-core",
  "agentforge-policy",
+ "agentforge-worktree",
 ]
 
 [[package]]
