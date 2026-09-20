@@ -11,7 +11,7 @@ Phase 0 — reliable local orchestration foundation.
 
 ## Active milestone
 
-None. P0-M007 closure CI is pending before merge.
+No implementation milestone is active. P0-M008 closure CI is pending before merge.
 
 ## Completed milestones
 
@@ -22,6 +22,7 @@ None. P0-M007 closure CI is pending before merge.
 - `P0-M005` — Worktree isolation manager.
 - `P0-M006` — Agent adapter interface.
 - `P0-M007` — Gate engine.
+- `P0-M008` — CI monitor and failure classifier.
 
 ## P0-M005 completion evidence
 
@@ -81,11 +82,18 @@ audit events, and deployment orchestration remain intentionally unimplemented.
 
 ## Next planned milestone
 
-`P0-M008` — CI monitor and failure classifier.
+`P0-M009` — Event and audit log.
 
 ## Known blockers
 
-No technical blocker. P0-M007 closure CI is pending before merge.
+No technical blocker. P0-M008 closure CI is pending before merge.
+
+## P0-M008 completion evidence
+
+- Approved plan checkpoint: `b203df0403ba6e4272770336e77f138a9c4731ee`.
+- Plan CI: `35484652048` — all four jobs green.
+- Validated implementation head: `6c2a057750e38fe1ec8c19c3618773283900b367`.
+- Exact implementation CI: `35485116791` — all four jobs green.
 
 ## P0-M007 completion evidence
 
@@ -93,3 +101,9 @@ No technical blocker. P0-M007 closure CI is pending before merge.
 - Plan CI: `35483669377` — all four jobs green.
 - Validated implementation head: `bc115e2c8f12d3459287661e554f02f7adb7b3e4`.
 - Exact implementation CI: `35483980498` — all four jobs green.
+- Closure commit: `02242b2f3fe7eb82239e2dca43b1bd85aa239a86`.
+- Closure CI: `35484071505` — all four jobs green.
+- Merge commit: `741cf58caa6fca38c4693c4359816f4721a2b126`.
+- Post-merge main CI: `35484138853` — all four jobs green for that exact merge commit.
+
+P0-M007 closure and integration checks are complete.

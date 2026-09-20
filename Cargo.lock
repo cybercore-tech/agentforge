@@ -11,6 +11,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "agentforge-ci"
+version = "0.0.1"
+
+[[package]]
 name = "agentforge-cli"
 version = "0.0.1"
 dependencies = [
