@@ -11,8 +11,8 @@
   repository policy, stable, MSRV, CLI smoke, Linux, macOS, and Windows.
 - P2-M009 implementation commit: `d4d17cd`; exact implementation CI `35527442420` is green across
   repository policy, stable, MSRV, CLI smoke, Linux, macOS, and Windows.
-- P2-M009 plan: `.plans/P2-M009-daemon-audit-sequence-continuation.plan.md` — implementation and
-  real-project reproduction complete; closure evidence remains to be recorded.
+- P2-M009 plan: `.plans/P2-M009-daemon-audit-sequence-continuation.plan.md` — completed with closure
+  commit `59c5934` and exact closure CI `35527646923` green across all supported jobs.
 - The persisted daemon path now seeds attempt audit logs from the verified sequence/digest tail;
   Omniscient dogfooding appended records `#6–#8` after prior history without changing the audit
   format.

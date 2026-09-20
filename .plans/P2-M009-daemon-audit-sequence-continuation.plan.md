@@ -173,8 +173,9 @@ closure.
 Implementation commit: `d4d17cd`.
 Implementation CI: `35527442420` — all jobs green across repository policy, stable, MSRV, CLI
 smoke, Ubuntu, macOS, and Windows for exact head `d4d17cd2ae88ae4504e3728f298dbdbc51acaa9c`.
-Closure commit: pending.
-Closure CI: pending.
+Closure commit: `59c5934`.
+Closure CI: `35527646923` — all jobs green across repository policy, stable, MSRV, CLI smoke,
+Ubuntu, macOS, and Windows for exact closure head `59c5934`.
 Completed: 2026-09-20.
 Notes: Real Omniscient dogfooding continued audit records from sequence 5 through 8; the no-op
 fixture task was explicitly cancelled and its clean worktree retired with its branch preserved.

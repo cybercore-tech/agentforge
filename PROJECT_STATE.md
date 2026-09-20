@@ -56,6 +56,8 @@ identifies the next bounded need.
 - Implementation commit: `d4d17cd`.
 - Exact implementation CI: `35527442420` — all jobs green across repository policy, stable, MSRV,
   CLI smoke, Ubuntu, macOS, and Windows.
+- Closure commit: `59c5934`; exact closure CI `35527646923` is green across repository policy,
+  stable, MSRV, CLI smoke, Ubuntu, macOS, and Windows.
 - Persisted execution now seeds each attempt audit with the verified sequence and digest tail;
   preflight failures remain side-effect free.
 - Real Omniscient dogfooding appended records `#6–#8` after the existing audit tail; the no-op task
