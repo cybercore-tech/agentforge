@@ -1,6 +1,6 @@
 # Plan: P0-M011 — Doctor and status diagnostics
 
-Status: Approved
+Status: Completed
 Milestone: P0-M011
 Created: 2026-09-19
 
@@ -52,8 +52,8 @@ expected.
 
 ## Completion record
 
-Implementation commit: pending
-Implementation CI: pending
+Implementation commit: `bd1aaf24800dde73f1dc707519f5d1ed710a6b0e`
+Implementation CI: `35492790507` — all four jobs green
 Closure commit: pending
 Closure CI: pending
 Post-merge main: pending
