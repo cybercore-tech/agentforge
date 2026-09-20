@@ -215,6 +215,7 @@ Plan checkpoint:
 Implementation checkpoint:
 
 - .gitignore
+- .github/workflows/ci.yml — CI runtime maintenance only
 - Cargo.toml
 - Cargo.lock
 - crates/agentforge-worktree/Cargo.toml
@@ -271,15 +272,16 @@ Any expansion requires an explicit plan amendment before implementation.
 13. Implement dirty/unresolved-operation detection.
 14. Implement safe non-forced retirement.
 15. Add .forge repository ignore boundary.
-16. Run focused tests.
-17. Run full local gate.
-18. Commit implementation checkpoint.
-19. Require exact implementation CI green.
-20. Classify failures before repair.
-21. Close P0-M005 separately.
-22. Require exact closure CI green.
-23. Merge with history preserved.
-24. Require post-merge main CI green before P0-M006.
+16. Update GitHub Actions checkout to the current Node 24 release line and pin the Ubuntu runner baseline.
+17. Run focused tests.
+18. Run full local gate.
+19. Commit implementation checkpoint.
+20. Require exact implementation CI green.
+21. Classify failures before repair.
+22. Close P0-M005 separately.
+23. Require exact closure CI green.
+24. Merge with history preserved.
+25. Require post-merge main CI green before P0-M006.
 
 ## Failure modes
 
@@ -343,6 +345,8 @@ Remote:
 - [ ] No normal operation uses git reset --hard.
 - [ ] No normal operation uses git clean.
 - [ ] .forge runtime data is ignored by Git.
+- [ ] GitHub Actions use a Node 24 checkout release.
+- [ ] GitHub Actions runner OS is pinned for reproducibility.
 - [ ] agentforge-core gains no Git-process dependency.
 - [ ] Temporary-repository integration tests cover create/inspect/retire.
 - [ ] Exact implementation local gate is green.
