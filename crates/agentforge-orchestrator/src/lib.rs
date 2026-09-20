@@ -108,6 +108,57 @@ pub fn run(task: &AgentTask, evidence: &SliceEvidence) -> Result<VerticalSliceRe
     })
 }
 
+/// Side-effect boundary supplied by an operator/runtime integration.
+pub trait StageExecutor {
+    /// Validate policy and approvals before any side effect.
+    fn policy(&mut self, task: &AgentTask) -> Result<(), String>;
+    /// Create and re-inspect the managed worktree.
+    fn worktree(&mut self, task: &AgentTask) -> Result<(), String>;
+    /// Invoke the configured bounded adapter.
+    fn agent(&mut self, task: &AgentTask) -> Result<(), String>;
+    /// Run declared quality gates.
+    fn gates(&mut self, task: &AgentTask) -> Result<(), String>;
+    /// Append durable audit evidence.
+    fn audit(&mut self, task: &AgentTask, stage: SliceStage) -> Result<(), String>;
+    /// Emit a review handoff without accepting the result.
+    fn review_handoff(&mut self, task: &AgentTask) -> Result<(), String>;
+}
+
+/// Executes the ordered runtime boundary supplied by an integration.
+pub fn execute_once<E: StageExecutor>(
+    task: &AgentTask,
+    executor: &mut E,
+) -> Result<VerticalSliceReport, SliceError> {
+    executor.policy(task).map_err(SliceError::Policy)?;
+    executor
+        .audit(task, SliceStage::Policy)
+        .map_err(SliceError::Policy)?;
+    executor.worktree(task).map_err(SliceError::Policy)?;
+    executor
+        .audit(task, SliceStage::Worktree)
+        .map_err(SliceError::Policy)?;
+    executor.agent(task).map_err(SliceError::Policy)?;
+    executor
+        .audit(task, SliceStage::Agent)
+        .map_err(SliceError::Policy)?;
+    executor.gates(task).map_err(SliceError::Policy)?;
+    executor
+        .audit(task, SliceStage::Gates)
+        .map_err(SliceError::Policy)?;
+    executor.review_handoff(task).map_err(SliceError::Policy)?;
+    Ok(VerticalSliceReport {
+        task_id: task.task_id.clone(),
+        stages: vec![
+            SliceStage::Policy,
+            SliceStage::Worktree,
+            SliceStage::Agent,
+            SliceStage::Gates,
+            SliceStage::ReviewHandoff,
+        ],
+        review_ready: true,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -144,5 +195,58 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(e, SliceError::MissingEvidence(SliceStage::Agent));
+    }
+
+    struct Fake {
+        events: Vec<SliceStage>,
+        fail_policy: bool,
+    }
+    impl StageExecutor for Fake {
+        fn policy(&mut self, _: &AgentTask) -> Result<(), String> {
+            if self.fail_policy {
+                Err("denied".into())
+            } else {
+                Ok(())
+            }
+        }
+        fn worktree(&mut self, _: &AgentTask) -> Result<(), String> {
+            self.events.push(SliceStage::Worktree);
+            Ok(())
+        }
+        fn agent(&mut self, _: &AgentTask) -> Result<(), String> {
+            self.events.push(SliceStage::Agent);
+            Ok(())
+        }
+        fn gates(&mut self, _: &AgentTask) -> Result<(), String> {
+            self.events.push(SliceStage::Gates);
+            Ok(())
+        }
+        fn audit(&mut self, _: &AgentTask, stage: SliceStage) -> Result<(), String> {
+            self.events.push(stage);
+            Ok(())
+        }
+        fn review_handoff(&mut self, _: &AgentTask) -> Result<(), String> {
+            self.events.push(SliceStage::ReviewHandoff);
+            Ok(())
+        }
+    }
+    #[test]
+    fn execute_once_orders_runtime_boundaries() {
+        let mut fake = Fake {
+            events: Vec::new(),
+            fail_policy: false,
+        };
+        let report = execute_once(&task(), &mut fake).unwrap();
+        assert!(report.review_ready);
+        assert_eq!(fake.events.last(), Some(&SliceStage::ReviewHandoff));
+    }
+    #[test]
+    fn execute_once_stops_before_side_effects_when_policy_denies() {
+        let mut fake = Fake {
+            events: Vec::new(),
+            fail_policy: true,
+        };
+        assert!(execute_once(&task(), &mut fake).is_err());
+        assert!(fake.events.is_empty());
     }
 }
