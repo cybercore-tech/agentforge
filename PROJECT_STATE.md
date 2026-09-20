@@ -11,7 +11,7 @@ Phase 0 — reliable local orchestration foundation.
 
 ## Active milestone
 
-No implementation milestone is active. P0-M012 is in Draft planning.
+`P0-M012` — Single-agent vertical slice (approved plan; implementation not yet started).
 
 ## Completed milestones
 
@@ -87,7 +87,7 @@ audit events, and deployment orchestration remain intentionally unimplemented.
 
 ## Known blockers
 
-P0-M011 is complete. P0-M012 awaits plan review and approval.
+P0-M011 is complete. P0-M012 implementation is authorized within the approved plan boundary.
 
 ## P0-M011 completion evidence
 

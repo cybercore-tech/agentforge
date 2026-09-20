@@ -1,6 +1,6 @@
 # ADR-0017: Explicit single-agent vertical slice
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-19
 - Decision owners: AgentForge project
 

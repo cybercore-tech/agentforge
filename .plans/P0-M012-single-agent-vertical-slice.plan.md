@@ -1,6 +1,6 @@
 # Plan: P0-M012 — Single-agent vertical slice
 
-Status: Draft
+Status: Approved
 Milestone: P0-M012
 Created: 2026-09-19
 

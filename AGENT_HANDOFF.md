@@ -2,8 +2,8 @@
 
 ## Repository state
 
-- Active milestone: none; P0-M012 is in Draft planning.
-- Active plan: none.
+- Active milestone: P0-M012 — Single-agent vertical slice.
+- Active plan: `.plans/P0-M012-single-agent-vertical-slice.plan.md` — Approved.
 - P0-M001 status: Complete.
 - P0-M002 status: Complete.
 - P0-M003 status: Complete.
@@ -34,7 +34,7 @@
 - P0-M009 plan: `.plans/P0-M009-event-audit-log.plan.md` — Completed.
 - P0-M010 plan: `.plans/P0-M010-capability-policy.plan.md` — Completed; merged and post-merge CI green.
 - P0-M011 plan: `.plans/P0-M011-doctor-status.plan.md` — Completed; merged and post-merge CI green.
-- P0-M012 plan: `.plans/P0-M012-single-agent-vertical-slice.plan.md` — Draft; no implementation authority yet.
+- P0-M012 plan: `.plans/P0-M012-single-agent-vertical-slice.plan.md` — Approved; implementation may begin within the declared boundary.
 - P0-M011 implementation: `bd1aaf24800dde73f1dc707519f5d1ed710a6b0e`; CI `35492790507` green.
 - P0-M011 closure: `62911373015ed8e94d7e8883b955c078a175cf48`; CI `35492882542` green.
 - P0-M011 main merge: `f35aebea3f017c3dd015dc4bb24a70ab04f1c59a`; CI `35492920743` green.
@@ -48,7 +48,7 @@
 4. Read `docs/WORKTREE_ISOLATION.md`.
 5. Read ADR-0002 and ADR-0010.
 6. Run `./scripts/project-status`.
-7. Review P0-M012 plan and ADR-0017; obtain separate approval and green CI before implementation.
+7. Implement P0-M012 only within the approved plan boundary and record exact CI evidence.
 8. Never bypass repository hooks or gates.
 9. Classify failures before repair.
 
