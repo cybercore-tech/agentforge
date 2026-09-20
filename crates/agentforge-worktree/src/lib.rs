@@ -209,7 +209,7 @@ impl WorktreeManager {
         }
 
         let base = self.resolve_base(spec.base_ref())?;
-        let path_text = path.to_string_lossy().into_owned();
+        let path_text = git_path_text(&path);
         git_text(
             &self.project_root,
             ["worktree", "add", "-b", &branch, &path_text, &base],
@@ -355,7 +355,7 @@ impl WorktreeManager {
         }
 
         self.ensure_target_beneath_managed_root(status.path())?;
-        let path_text = status.path().to_string_lossy().into_owned();
+        let path_text = git_path_text(status.path());
         git_text(&self.project_root, ["worktree", "remove", &path_text])?;
 
         if self.inspect(task_id)?.is_some() {
@@ -523,6 +523,23 @@ fn path_prefix(root: &str) -> String {
     } else {
         format!("{root}/")
     }
+}
+
+#[cfg(windows)]
+fn git_path_text(path: &Path) -> String {
+    let value = path.to_string_lossy();
+    if let Some(unc) = value.strip_prefix(r"\\?\UNC\") {
+        format!(r"\\{unc}")
+    } else if let Some(device) = value.strip_prefix(r"\\?\") {
+        device.to_owned()
+    } else {
+        value.into_owned()
+    }
+}
+
+#[cfg(not(windows))]
+fn git_path_text(path: &Path) -> String {
+    path.to_string_lossy().into_owned()
 }
 
 #[cfg(windows)]
