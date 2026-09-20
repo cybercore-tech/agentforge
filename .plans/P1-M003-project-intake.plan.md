@@ -1,6 +1,6 @@
 # Plan: P1-M003 — Project blueprint and task intake
 
-Status: Draft
+Status: Approved
 Milestone: P1-M003
 Created: 2026-09-19
 

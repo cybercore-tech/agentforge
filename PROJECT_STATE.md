@@ -11,7 +11,7 @@ Phase 1 — multi-agent scheduling and integration.
 
 ## Active milestone
 
-No implementation milestone is active. `P1-M003` is planned; its draft plan is not yet approved.
+`P1-M003` — Project blueprint and task intake (approved plan; implementation may begin).
 
 ## Completed milestones
 
@@ -89,7 +89,7 @@ audit events, and deployment orchestration remain intentionally unimplemented.
 
 ## Known blockers
 
-P1-M002 is complete. P1-M003 requires a separate plan-approval checkpoint before implementation.
+P1-M002 is complete. P1-M003 is approved and active within its declared file boundary.
 
 ## P1-M002 completion evidence
 
