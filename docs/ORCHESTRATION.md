@@ -5,9 +5,15 @@ are durable task selection, policy, managed worktree, bounded adapter execution,
 review handoff. Each stage stops on failure; task acceptance and protected integration remain explicit
 human-controlled decisions.
 
-The first operator entry point is `forge run <root> <task-id> <absolute-executable>`. It reads
+The direct operator entry point is `forge run <root> <task-id> <absolute-executable>`. It reads
 `.forge/state/tasks.snapshot`, writes `.forge/audit.log`, requires a pre-created managed worktree,
 and leaves successful tasks in `Running` until independently accepted.
+
+P2-M005 adds the optional `forged` local daemon. Start it with `forged serve --root <root>` and
+use `forge daemon status|run|stop` for the same bounded process path through a loopback-only,
+versioned protocol. The daemon serializes one mutating execution at a time and records failures,
+timeouts, and interruption evidence before returning an error. It never accepts tasks or performs
+forced worktree cleanup.
 
 Project intake precedes execution. `forge init <root>` creates non-overwriting blueprint and
 guideline templates; `forge blueprint validate <root>` validates them read-only; and

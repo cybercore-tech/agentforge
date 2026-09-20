@@ -47,6 +47,7 @@ dependencies = [
  "agentforge-operator",
  "agentforge-orchestrator",
  "agentforge-state",
+ "agentforge-worktree",
 ]
 
 [[package]]

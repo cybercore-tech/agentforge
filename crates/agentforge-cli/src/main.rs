@@ -3,6 +3,9 @@
 use agentforge_adapter::{ProcessAdapter, ProcessAdapterConfig};
 use agentforge_audit::FileAuditStore;
 use agentforge_core::task::{TaskGraph, TaskId, TaskRecord};
+use agentforge_daemon::{
+    run_task as daemon_run_task, status as daemon_status, stop as daemon_stop,
+};
 use agentforge_intake::{
     IntakeError, TaskDraft, approval_from_name, build_task, capability_from_name, initialize, load,
     role_from_name,
@@ -42,6 +45,7 @@ fn main() -> ExitCode {
         Some("blueprint") => blueprint_command(args.collect()),
         Some("task") => task_command(args.collect()),
         Some("run") => run_command(args.collect()),
+        Some("daemon") => daemon_command(args.collect()),
         Some("hud") => hud_command(args.collect()),
         Some(other) => {
             eprintln!("unknown command: {other}");
@@ -57,8 +61,62 @@ fn main() -> ExitCode {
 
 fn print_usage() {
     println!(
-        "usage: forge <version|doctor|status|init <root>|blueprint validate <root>|task create|inspect|approve|accept|cancel|retry ...|run <root> <task-id> <absolute-executable>|hud <root> [--watch [--interval-ms <milliseconds>]]>"
+        "usage: forge <version|doctor|status|init <root>|blueprint validate <root>|task create|inspect|approve|accept|cancel|retry ...|run <root> <task-id> <absolute-executable>|daemon status|run|stop ...|hud <root> [--watch [--interval-ms <milliseconds>]]>"
     );
+}
+
+fn daemon_command(arguments: Vec<String>) -> ExitCode {
+    match arguments.first().map(String::as_str) {
+        Some("status") if arguments.len() == 2 => match daemon_status(&arguments[1]) {
+            Ok(status) => {
+                println!(
+                    "daemon running at {} (pid {})",
+                    status.endpoint.address, status.endpoint.pid
+                );
+                ExitCode::SUCCESS
+            }
+            Err(error) => {
+                eprintln!("daemon status failed: {error}");
+                ExitCode::from(1)
+            }
+        },
+        Some("run") if arguments.len() == 4 => {
+            let task_id = match TaskId::parse(arguments[2].clone()) {
+                Ok(value) => value,
+                Err(error) => {
+                    eprintln!("invalid task ID: {error}");
+                    return ExitCode::from(2);
+                }
+            };
+            match daemon_run_task(&arguments[1], &task_id, &arguments[3]) {
+                Ok(message) => {
+                    println!("{message}");
+                    ExitCode::SUCCESS
+                }
+                Err(error) => {
+                    eprintln!("daemon run failed: {error}");
+                    ExitCode::from(1)
+                }
+            }
+        }
+        Some("stop") if arguments.len() == 2 => match daemon_stop(&arguments[1]) {
+            Ok(()) => {
+                println!("daemon stopped");
+                ExitCode::SUCCESS
+            }
+            Err(error) => {
+                eprintln!("daemon stop failed: {error}");
+                ExitCode::from(1)
+            }
+        },
+        _ => {
+            eprintln!(
+                "daemon requires: status <root>, run <root> <task-id> <absolute-executable>, or stop <root>"
+            );
+            print_usage();
+            ExitCode::from(2)
+        }
+    }
 }
 
 fn init_command(arguments: Vec<String>) -> ExitCode {

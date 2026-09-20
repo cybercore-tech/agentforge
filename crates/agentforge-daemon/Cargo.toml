@@ -17,6 +17,7 @@ agentforge-audit = { path = "../agentforge-audit" }
 agentforge-orchestrator = { path = "../agentforge-orchestrator" }
 agentforge-operator = { path = "../agentforge-operator" }
 agentforge-state = { path = "../agentforge-state" }
+agentforge-worktree = { path = "../agentforge-worktree" }
 
 [lints]
 workspace = true

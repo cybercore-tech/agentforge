@@ -125,16 +125,46 @@ pub fn execute_process_persisted<A: AgentAdapter>(
         .load()
         .map_err(|e| SliceError::Preflight(e.to_string()))?
         .ok_or_else(|| SliceError::Preflight("task state snapshot is missing".into()))?;
-    let execution = execute_process_once(root, &mut graph, task_id, adapter, approvals)?;
+    let sequence_start = audit_store
+        .records()
+        .last()
+        .map_or(1, |record| record.event().sequence().saturating_add(1));
+    match execute_process_attempt(
+        root,
+        &mut graph,
+        task_id,
+        adapter,
+        approvals,
+        sequence_start,
+    ) {
+        Ok(execution) => {
+            persist_execution(task_store, audit_store, &graph, &execution.audit)?;
+            Ok(execution)
+        }
+        Err((error, audit)) => {
+            if !audit.records().is_empty() {
+                persist_execution(task_store, audit_store, &graph, &audit)?;
+            }
+            Err(error)
+        }
+    }
+}
+
+fn persist_execution(
+    task_store: &FileTaskStore,
+    audit_store: &mut FileAuditStore,
+    graph: &TaskGraph,
+    audit: &AuditLog,
+) -> Result<(), SliceError> {
     task_store
-        .save(&graph)
-        .map_err(|e| SliceError::Preflight(e.to_string()))?;
-    for record in execution.audit.records() {
+        .save(graph)
+        .map_err(|error| SliceError::Preflight(error.to_string()))?;
+    for record in audit.records() {
         audit_store
             .append(record.event().clone())
-            .map_err(|e| SliceError::Preflight(e.to_string()))?;
+            .map_err(|error| SliceError::Preflight(error.to_string()))?;
     }
-    Ok(execution)
+    Ok(())
 }
 
 /// Runs a prepared task through the concrete process adapter and durable in-memory state/audit.
@@ -148,37 +178,56 @@ pub fn execute_process_once<A: AgentAdapter>(
     adapter: &A,
     approvals: &[agentforge_core::agent::ApprovalBoundary],
 ) -> Result<ProcessExecution, SliceError> {
+    execute_process_attempt(root, graph, task_id, adapter, approvals, 1).map_err(|(error, _)| error)
+}
+
+fn execute_process_attempt<A: AgentAdapter>(
+    root: impl AsRef<Path>,
+    graph: &mut TaskGraph,
+    task_id: &TaskId,
+    adapter: &A,
+    approvals: &[agentforge_core::agent::ApprovalBoundary],
+    sequence_start: u64,
+) -> Result<ProcessExecution, (SliceError, AuditLog)> {
     let root = root.as_ref().to_path_buf();
+    let mut audit = AuditLog::new();
     let task = graph
         .records()
         .find(|record| record.id() == task_id)
-        .ok_or_else(|| SliceError::Preflight("task not found".into()))?
+        .ok_or_else(|| {
+            (
+                SliceError::Preflight("task not found".into()),
+                audit.clone(),
+            )
+        })?
         .task()
         .clone();
-    preflight_repository(&root, &task)?;
+    preflight_repository(&root, &task).map_err(|error| (error, audit.clone()))?;
     graph
         .transition(task_id, TaskState::Running)
-        .map_err(|e| SliceError::Preflight(e.to_string()))?;
-    let mut audit = AuditLog::new();
+        .map_err(|error| (SliceError::Preflight(error.to_string()), audit.clone()))?;
     append_event(
         &mut audit,
-        1,
+        sequence_start,
         "task-running",
         AuditEventKind::TaskTransition,
         &task,
         "state",
         "running",
-    )?;
+    )
+    .map_err(|error| (error, audit.clone()))?;
     append_event(
         &mut audit,
-        2,
+        sequence_start.saturating_add(1),
         "agent-started",
         AuditEventKind::AgentStarted,
         &task,
         "adapter",
         adapter.id(),
-    )?;
-    let manager = WorktreeManager::new(&root).map_err(|e| SliceError::Preflight(e.to_string()))?;
+    )
+    .map_err(|error| (error, audit.clone()))?;
+    let manager = WorktreeManager::new(&root)
+        .map_err(|error| (SliceError::Preflight(error.to_string()), audit.clone()))?;
     let result = adapter.execute(AdapterRequest {
         task: &task,
         worktrees: &manager,
@@ -188,27 +237,29 @@ pub fn execute_process_once<A: AgentAdapter>(
         Ok(report) => {
             append_event(
                 &mut audit,
-                3,
+                sequence_start.saturating_add(2),
                 "agent-finished",
                 AuditEventKind::AgentFinished,
                 &task,
                 "termination",
                 "observed",
-            )?;
+            )
+            .map_err(|error| (error, audit.clone()))?;
             Ok(ProcessExecution { report, audit })
         }
         Err(error) => {
             let _ = graph.transition(task_id, TaskState::Failed);
             append_event(
                 &mut audit,
-                3,
+                sequence_start.saturating_add(2),
                 "agent-failed",
                 AuditEventKind::FailureClassified,
                 &task,
                 "error",
                 &error.to_string(),
-            )?;
-            Err(SliceError::Policy(error.to_string()))
+            )
+            .map_err(|append_error| (append_error, audit.clone()))?;
+            Err((SliceError::Policy(error.to_string()), audit))
         }
     }
 }

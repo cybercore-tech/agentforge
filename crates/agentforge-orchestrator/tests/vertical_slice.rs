@@ -1,5 +1,7 @@
 //! End-to-end ordering checks for the bounded vertical slice.
-use agentforge_adapter::{ProcessAdapter, ProcessAdapterConfig};
+use agentforge_adapter::{
+    AdapterError, AdapterRequest, AgentAdapter, ProcessAdapter, ProcessAdapterConfig,
+};
 use agentforge_audit::AuditStore;
 use agentforge_audit::FileAuditStore;
 use agentforge_core::agent::{AgentRole, AgentTask, Capability};
@@ -12,6 +14,21 @@ use agentforge_worktree::{WorktreeManager, WorktreeSpec};
 use std::path::PathBuf;
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+struct FailingAdapter;
+
+impl AgentAdapter for FailingAdapter {
+    fn id(&self) -> &str {
+        "failing-fixture"
+    }
+
+    fn execute(
+        &self,
+        _request: AdapterRequest<'_>,
+    ) -> Result<agentforge_adapter::ExecutionReport, AdapterError> {
+        Err(AdapterError::CapturePoisoned)
+    }
+}
 
 #[test]
 fn missing_policy_authority_prevents_execution() {
@@ -102,6 +119,62 @@ fn real_process_adapter_updates_state_and_audit_in_isolated_repo() {
     assert_eq!(execution.audit.records().len(), 3);
     assert_eq!(audit_store.records().len(), 3);
     assert_eq!(execution.report.task_id().as_str(), task.task_id);
+    let _ = manager.retire(&task_id);
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn adapter_failure_persists_failed_state_and_audit_before_returning() {
+    let root = unique_temp_repo();
+    git(&root, &["init", "-q"]);
+    git(
+        &root,
+        &["config", "user.email", "agentforge@example.invalid"],
+    );
+    git(&root, &["config", "user.name", "AgentForge Test"]);
+    std::fs::write(root.join("README.md"), "fixture\n").unwrap();
+    git(&root, &["add", "README.md"]);
+    git(&root, &["commit", "-qm", "fixture"]);
+    let mut task = AgentTask::new(
+        "P2-M005-T0001",
+        "P2-M005",
+        AgentRole::Implementer,
+        "fail fixture",
+    );
+    task.capabilities = vec![Capability::RunLocalCommands];
+    task.allowed_paths = vec!["README.md".into()];
+    let task_id = TaskId::parse(task.task_id.clone()).unwrap();
+    let graph = TaskGraph::from_tasks([task]).unwrap();
+    let task_store = FileTaskStore::from_path(root.join("tasks.snapshot"));
+    task_store.save(&graph).unwrap();
+    let manager = WorktreeManager::new(&root).unwrap();
+    manager
+        .create(&WorktreeSpec::new(task_id.clone(), "HEAD"))
+        .unwrap();
+    let mut audit_store = FileAuditStore::open(root.join("audit.log")).unwrap();
+
+    let error = execute_process_persisted(
+        &root,
+        &task_store,
+        &mut audit_store,
+        &task_id,
+        &FailingAdapter,
+        &[],
+    )
+    .unwrap_err();
+    assert!(matches!(error, SliceError::Policy(_)));
+    assert_eq!(
+        task_store
+            .load()
+            .unwrap()
+            .unwrap()
+            .get(&task_id)
+            .unwrap()
+            .state(),
+        TaskState::Failed
+    );
+    assert_eq!(audit_store.records().len(), 3);
+    assert_eq!(audit_store.records()[2].event().event_id(), "agent-failed");
     let _ = manager.retire(&task_id);
     std::fs::remove_dir_all(root).unwrap();
 }

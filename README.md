@@ -7,7 +7,7 @@ It treats models as replaceable workers—not as the source of truth. The durabl
 the repository: plans, task contracts, permissions, isolated worktrees, quality-gate evidence,
 CI observations, audit records, and human decisions. 🧭
 
-> **Status:** `0.0.1` · P2-M004 release-readiness tooling complete · experimental and
+> **Status:** `0.0.1` · P2-M005 local daemon and dogfooding in progress · experimental and
 > under active development
 
 [![CI](https://github.com/darkstardevx/agentforge/actions/workflows/ci.yml/badge.svg)](https://github.com/darkstardevx/agentforge/actions/workflows/ci.yml)
@@ -45,10 +45,11 @@ The current repository provides:
 - Read-only one-shot and watch-mode operator HUD. 👀
 - Explicit task inspection, approval, accept, cancel, and retry commands. 🧑‍💻
 - A persisted `forge run` path that consumes only verified, task-linked approval evidence.
+- An optional loopback-only `forged` runtime with bounded `forge daemon` lifecycle commands. ⚙️
 
 The repository also contains reusable Rust crates for scheduling, policy, orchestration, intake,
-state, worktrees, gates, audit, HUD, and operator actions. The `forged` binary is currently an
-identity/placeholder daemon; the most complete interface today is the `forge` CLI plus the crate
+state, worktrees, gates, audit, HUD, and operator actions. The `forged` binary now provides an
+optional bounded local runtime; the most complete interface remains the `forge` CLI plus the crate
 APIs.
 
 ## Quick start 🚀
@@ -221,7 +222,7 @@ Important boundaries:
 | `crates/agentforge-hud` | Bounded read-only operator projections |
 | `crates/agentforge-operator` | Explicit task inspection, approvals, and lifecycle actions |
 | `crates/agentforge-cli` | `forge` command-line interface |
-| `crates/agentforge-daemon` | `forged` daemon entry point (currently a placeholder) |
+| `crates/agentforge-daemon` | `forged` loopback-only local daemon and protocol |
 | `.plans/` | Plan and milestone control records |
 | `docs/` | Contracts, architecture notes, ADRs, and operator guidance |
 | `scripts/gate.sh` | Required local validation gate |
@@ -253,6 +254,7 @@ Clippy, tests, and documentation tests. Do not bypass hooks or validation with `
 - [Policy and capabilities](docs/POLICY.md)
 - [Worktree isolation](docs/WORKTREE_ISOLATION.md)
 - [Orchestration loop](docs/ORCHESTRATION.md)
+- [Local daemon](docs/DAEMON.md)
 - [Operator HUD](docs/HUD.md)
 - [Audit log](docs/AUDIT.md)
 - [Gate engine](docs/GATES.md)
@@ -267,8 +269,9 @@ Clippy, tests, and documentation tests. Do not bypass hooks or validation with `
 ## Roadmap 🗺️
 
 Completed foundations include durable task state, worktree isolation, adapters, gates, CI
-classification, audit history, scheduling primitives, orchestration, project intake, and the
-operator experience milestones through P2-M003.
+classification, audit history, scheduling primitives, orchestration, project intake, release
+readiness, and the operator experience milestones through P2-M004. P2-M005 is wiring the optional
+local daemon and validating the workflow against a real temporary project.
 
 The next increment is intentionally not pre-approved. Future work should be driven by real operator
 usage and may expand daemon-driven orchestration, richer integration surfaces, or additional provider
