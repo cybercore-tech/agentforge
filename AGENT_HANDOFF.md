@@ -2,8 +2,8 @@
 
 ## Repository state
 
-- Active milestone: None; P2-M004 — Release readiness is complete.
-- Active plan: None; `.plans/ACTIVE` is intentionally absent between milestones.
+- Active milestone: P2-M005 — Local daemon and dogfooding.
+- Active plan: `.plans/P2-M005-daemon-dogfooding.plan.md` — Approved.
 - P0-M001 status: Complete.
 - P0-M002 status: Complete.
 - P0-M003 status: Complete.
@@ -55,6 +55,8 @@
   publishing correctly skipped.
 - P2-M004 closure: `fca7b057bb7422e3bc9ab3e94621bbe797a08aa1`; CI `35499689853` green for the
   exact closure SHA.
+- P2-M005 plan: `.plans/P2-M005-daemon-dogfooding.plan.md` — Approved; implementation begins after
+  the activation checkpoint CI is green.
 - P0-M012 implementation: `fcf3809c9f5c099833cb07862e626ca3f1764cff`; CI `35493160857` green.
 - P0-M011 implementation: `bd1aaf24800dde73f1dc707519f5d1ed710a6b0e`; CI `35492790507` green.
 - P0-M011 closure: `62911373015ed8e94d7e8883b955c078a175cf48`; CI `35492882542` green.
@@ -69,7 +71,8 @@
 4. Read `docs/WORKTREE_ISOLATION.md`.
 5. Read ADR-0002 and ADR-0010.
 6. Run `./scripts/project-status`.
-7. Confirm no active plan before drafting the next milestone; P2-M004 is complete.
+7. Implement P2-M005 only within the approved local daemon and dogfooding plan boundary after its
+   activation checkpoint CI is green.
 8. Never bypass repository hooks or gates.
 9. Classify failures before repair.
 

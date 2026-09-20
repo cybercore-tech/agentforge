@@ -11,7 +11,7 @@ Phase 2 — operator experience.
 
 ## Active milestone
 
-None. P2-M004 is complete; no plan is active.
+`P2-M005` — Local daemon and dogfooding (approved plan; implementation begins after checkpoint CI).
 
 ## Completed milestones
 
@@ -42,6 +42,11 @@ None. P2-M004 is complete; no plan is active.
   publishing was skipped as expected for a manual run.
 - Closure commit: `fca7b057bb7422e3bc9ab3e94621bbe797a08aa1`.
 - Closure/mainline CI: `35499689853` — all jobs green for that exact closure SHA.
+
+## P2-M005 activation
+
+- Approved plan: `.plans/P2-M005-daemon-dogfooding.plan.md`.
+- Activation checkpoint and exact-head CI evidence will be recorded before implementation.
 
 ## P0-M005 completion evidence
 
@@ -116,13 +121,12 @@ Windows.
 
 ## Next planned milestone
 
-No next milestone is approved. The next increment should be planned explicitly from release usage,
-daemon requirements, and real-world dogfooding.
+P2-M005 is active within its approved local daemon and dogfooding file boundary.
 
 ## Known blockers
 
-P2-M004 is complete. The `forged` daemon remains a placeholder and daemon-driven orchestration,
-artifact signing, and provenance attestations remain future work.
+P2-M005 addresses the `forged` placeholder and failed-state persistence gap. Artifact signing and
+provenance attestations remain future work.
 
 ## P2-M002 completion evidence
 
