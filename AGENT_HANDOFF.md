@@ -7,8 +7,11 @@
 - P2-M010 implementation commit: `5533454d0d1fb75129b675e61569931a685b934a`; exact CI
   `35528652736` is green across repository policy, stable, MSRV, CLI smoke, Linux, macOS, and
   Windows.
-- P2-M010 plan: `.plans/P2-M010-guided-project-intake.plan.md` — implementation complete; closure
-  evidence is being finalized.
+- P2-M010 closure commit: `4ad32620c9a8b3c1e54e7b96a858bd0f746b5bf2`; exact closure CI
+  `35528764835` is green across repository policy, stable, MSRV, CLI smoke, Linux, macOS, and
+  Windows.
+- P2-M010 plan: `.plans/P2-M010-guided-project-intake.plan.md` — completed with implementation and
+  closure evidence.
 - P2-M008 implementation commits: `f6ee2e4`, `4b2f1f4`; exact CI `35520394000` is green across
   repository policy, stable, MSRV, CLI smoke, Linux, macOS, and Windows.
 - P2-M008 plan amendment: `4750814` bound the portable Rust fixture file boundary.

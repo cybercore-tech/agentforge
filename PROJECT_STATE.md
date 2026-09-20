@@ -45,6 +45,8 @@ identifies the next bounded need.
 - Implementation commit: `5533454d0d1fb75129b675e61569931a685b934a`.
 - Exact implementation CI: `35528652736` — green across repository policy, stable, MSRV, CLI
   smoke, Ubuntu, macOS, and Windows.
+- Closure commit: `4ad32620c9a8b3c1e54e7b96a858bd0f746b5bf2`; exact closure CI `35528764835` is
+  green across repository policy, stable, MSRV, CLI smoke, Ubuntu, macOS, and Windows.
 - The guided `forge intake` flow now previews and confirms bounded blueprint/guideline edits,
   detects concurrent source changes, and can persist an explicit task draft through existing task
   validation and snapshot boundaries.

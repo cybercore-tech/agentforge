@@ -189,4 +189,4 @@ CI result: Green across repository policy, stable, MSRV, CLI smoke, Ubuntu, macO
 Completed: 2026-09-20
 Notes: Added the guided `forge intake` and `forge intake --task` workflows with bounded prompts,
 preview/confirmation, source-conflict detection, atomic document writes, task snapshot rollback,
-and scripted integration coverage. Closure and post-closure CI evidence are recorded separately.
+and scripted integration coverage. Closure commit `4ad3262` passed exact CI `35528764835`.
