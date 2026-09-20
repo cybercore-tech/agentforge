@@ -1,6 +1,6 @@
 //! Bounded, local-only orchestration daemon protocol and lifecycle.
 
-use agentforge_adapter::{ProcessAdapter, ProcessAdapterConfig};
+use agentforge_adapter::{AgentProfileStore, ProcessAdapter, ProcessAdapterConfig};
 use agentforge_audit::FileAuditStore;
 use agentforge_core::task::TaskId;
 use agentforge_operator::approved_boundaries;
@@ -10,12 +10,15 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::net::{IpAddr, SocketAddr, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::process::{Child, Command, Stdio};
+use std::time::{Duration, Instant};
+use std::{ffi::OsStr, thread};
 
 const PROTOCOL: &str = "AFD1";
 const MAX_FRAME_BYTES: usize = 16 * 1024;
 const MAX_RESPONSE_BYTES: usize = 16 * 1024;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
+const START_TIMEOUT: Duration = Duration::from_secs(5);
 const DAEMON_DIR: &str = ".forge/daemon";
 const ENDPOINT_FILE: &str = "endpoint";
 const LOCK_FILE: &str = "lock";
@@ -54,6 +57,8 @@ pub enum DaemonError {
     StaleInstance(PathBuf),
     /// Existing orchestration code rejected the request.
     Execution(String),
+    /// A spawned daemon did not become ready within the bounded startup window.
+    StartTimeout(PathBuf),
 }
 
 impl fmt::Display for DaemonError {
@@ -71,6 +76,11 @@ impl fmt::Display for DaemonError {
                 path.display()
             ),
             Self::Execution(reason) => write!(formatter, "daemon execution failed: {reason}"),
+            Self::StartTimeout(root) => write!(
+                formatter,
+                "daemon did not become ready within the startup timeout for {}",
+                root.display()
+            ),
         }
     }
 }
@@ -87,6 +97,77 @@ impl From<io::Error> for DaemonError {
 pub fn serve(root: impl AsRef<Path>, bind: SocketAddr) -> Result<(), DaemonError> {
     let server = Server::start(root.as_ref(), bind)?;
     server.run()
+}
+
+/// Starts the installed forged executable and waits for its loopback endpoint.
+pub fn start(root: impl AsRef<Path>, bind: SocketAddr) -> Result<DaemonStatus, DaemonError> {
+    start_with_program(root, bind, OsStr::new("forged"))
+}
+
+/// Starts a specific daemon executable and waits for bounded readiness.
+pub fn start_with_program(
+    root: impl AsRef<Path>,
+    bind: SocketAddr,
+    program: impl AsRef<OsStr>,
+) -> Result<DaemonStatus, DaemonError> {
+    let root = root.as_ref();
+    if let Ok(existing) = status(root) {
+        return Err(DaemonError::AlreadyRunning(existing.endpoint));
+    }
+    let mut child = Command::new(program)
+        .arg("serve")
+        .arg("--root")
+        .arg(root)
+        .arg("--bind")
+        .arg(bind.to_string())
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(DaemonError::Io)?;
+    let deadline = Instant::now() + START_TIMEOUT;
+    loop {
+        match status(root) {
+            Ok(status) => return Ok(status),
+            Err(DaemonError::NotRunning) | Err(DaemonError::StaleInstance(_)) => {}
+            Err(error) => {
+                terminate_owned_child(&mut child);
+                return Err(error);
+            }
+        }
+        if let Some(status) = child.try_wait()? {
+            let output = child.wait_with_output()?;
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_owned();
+            return Err(DaemonError::Execution(format!(
+                "forged exited during startup with {status}: {stderr}"
+            )));
+        }
+        if Instant::now() >= deadline {
+            terminate_owned_child(&mut child);
+            return Err(DaemonError::StartTimeout(root.to_path_buf()));
+        }
+        thread::sleep(Duration::from_millis(25));
+    }
+}
+
+/// Cooperatively stops and starts the project daemon.
+pub fn restart(root: impl AsRef<Path>, bind: SocketAddr) -> Result<DaemonStatus, DaemonError> {
+    restart_with_program(root, bind, OsStr::new("forged"))
+}
+
+/// Cooperatively stops and starts a specific daemon executable.
+pub fn restart_with_program(
+    root: impl AsRef<Path>,
+    bind: SocketAddr,
+    program: impl AsRef<OsStr>,
+) -> Result<DaemonStatus, DaemonError> {
+    stop(root.as_ref())?;
+    start_with_program(root, bind, program)
+}
+
+fn terminate_owned_child(child: &mut Child) {
+    let _ = child.kill();
+    let _ = child.wait();
 }
 
 /// Queries the daemon endpoint for one project.
@@ -116,6 +197,34 @@ pub fn run_task(
         Request::Run {
             task_id: task_id.clone(),
             executable: executable.to_path_buf(),
+        },
+    )? {
+        Response::Run(message) => Ok(message),
+        Response::Status => Err(DaemonError::Protocol("unexpected run response".into())),
+        Response::Stop => Err(DaemonError::Protocol("unexpected run response".into())),
+        Response::Error(message) => Err(DaemonError::Execution(message)),
+    }
+}
+
+/// Submits one project-local agent profile to the daemon.
+pub fn run_profile(
+    root: impl AsRef<Path>,
+    task_id: &TaskId,
+    profile: &str,
+) -> Result<String, DaemonError> {
+    if profile.is_empty()
+        || profile.len() > 64
+        || !profile
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
+    {
+        return Err(DaemonError::Protocol("daemon profile ID is invalid".into()));
+    }
+    match send_request(
+        root.as_ref(),
+        Request::RunProfile {
+            task_id: task_id.clone(),
+            profile: profile.to_owned(),
         },
     )? {
         Response::Run(message) => Ok(message),
@@ -280,6 +389,12 @@ impl Server {
                 Ok(message) => Response::Run(message),
                 Err(error) => Response::Error(error.to_string()),
             },
+            Request::RunProfile { task_id, profile } => {
+                match execute_profile(&self.root, &task_id, &profile) {
+                    Ok(message) => Response::Run(message),
+                    Err(error) => Response::Error(error.to_string()),
+                }
+            }
         }
     }
 }
@@ -318,6 +433,43 @@ fn execute_task(root: &Path, task_id: &TaskId, executable: &Path) -> Result<Stri
     ))
 }
 
+fn execute_profile(root: &Path, task_id: &TaskId, profile: &str) -> Result<String, DaemonError> {
+    let profile = AgentProfileStore::new(root)
+        .load(profile)
+        .map_err(|error| DaemonError::Execution(error.to_string()))?;
+    execute_with_config(root, task_id, profile.adapter_config())
+}
+
+fn execute_with_config(
+    root: &Path,
+    task_id: &TaskId,
+    config: ProcessAdapterConfig,
+) -> Result<String, DaemonError> {
+    let task_store = agentforge_state::FileTaskStore::for_project_root(root);
+    let audit_directory = root.join(".forge");
+    fs::create_dir_all(&audit_directory)?;
+    let mut audit_store = FileAuditStore::open(audit_directory.join("audit.log"))
+        .map_err(|error| DaemonError::Execution(error.to_string()))?;
+    let approvals = approved_boundaries(root, task_id)
+        .map_err(|error| DaemonError::Execution(error.to_string()))?;
+    let adapter =
+        ProcessAdapter::new(config).map_err(|error| DaemonError::Execution(error.to_string()))?;
+    let execution = execute_process_persisted(
+        root,
+        &task_store,
+        &mut audit_store,
+        task_id,
+        &adapter,
+        &approvals,
+    )
+    .map_err(|error| DaemonError::Execution(error.to_string()))?;
+    Ok(format!(
+        "task={} termination={:?}",
+        execution.report.task_id(),
+        execution.report.termination()
+    ))
+}
+
 #[derive(Debug)]
 enum Request {
     Status,
@@ -325,6 +477,10 @@ enum Request {
     Run {
         task_id: TaskId,
         executable: PathBuf,
+    },
+    RunProfile {
+        task_id: TaskId,
+        profile: String,
     },
 }
 
@@ -337,6 +493,9 @@ impl Request {
                 task_id,
                 executable,
             } => format!("{PROTOCOL}\tRUN\t{task_id}\t{}\n", executable.display()),
+            Self::RunProfile { task_id, profile } => {
+                format!("{PROTOCOL}\tRUN_PROFILE\t{task_id}\t{profile}\n")
+            }
         }
     }
 }
@@ -393,6 +552,22 @@ fn parse_request(frame: &[u8]) -> Result<Request, String> {
             Ok(Request::Run {
                 task_id,
                 executable,
+            })
+        }
+        Some("RUN_PROFILE") if fields.len() == 4 => {
+            if fields[3].is_empty()
+                || fields[3].len() > 64
+                || !fields[3]
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
+            {
+                return Err("profile ID is invalid".into());
+            }
+            let task_id =
+                TaskId::parse(fields[2].to_string()).map_err(|error| error.to_string())?;
+            Ok(Request::RunProfile {
+                task_id,
+                profile: fields[3].to_owned(),
             })
         }
         Some(command) => Err(format!("invalid {command} request")),

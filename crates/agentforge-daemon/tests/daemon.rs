@@ -1,6 +1,8 @@
 #![allow(missing_docs)]
 
-use agentforge_daemon::{DEFAULT_BIND, DaemonError, serve, status, stop};
+use agentforge_daemon::{
+    DEFAULT_BIND, DaemonError, restart_with_program, serve, start_with_program, status, stop,
+};
 use std::fs;
 use std::net::{Shutdown, TcpStream};
 use std::path::{Path, PathBuf};
@@ -146,6 +148,27 @@ fn disconnected_client_does_not_stop_daemon() {
 
     stop(&root).expect("cooperative stop");
     assert!(server.join().expect("server thread").is_ok());
+    fs::remove_dir_all(root).expect("cleanup");
+}
+
+#[test]
+fn spawned_daemon_start_and_restart_are_bounded_and_cooperative() {
+    let root = temporary_repo();
+    let forged = env!("CARGO_BIN_EXE_forged");
+    let running = match start_with_program(&root, DEFAULT_BIND, forged) {
+        Ok(value) => value,
+        Err(DaemonError::Execution(message)) if message.contains("Operation not permitted") => {
+            fs::remove_dir_all(root).expect("cleanup");
+            return;
+        }
+        Err(error) => panic!("spawn daemon: {error}"),
+    };
+    assert!(running.endpoint.address.ip().is_loopback());
+    let restarted =
+        restart_with_program(&root, DEFAULT_BIND, forged).expect("restart daemon cooperatively");
+    assert!(restarted.endpoint.address.ip().is_loopback());
+    stop(&root).expect("stop restarted daemon");
+    assert!(matches!(status(&root), Err(DaemonError::NotRunning)));
     fs::remove_dir_all(root).expect("cleanup");
 }
 

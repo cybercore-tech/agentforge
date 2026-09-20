@@ -1,10 +1,12 @@
 //! `forge` command-line entry point.
 
-use agentforge_adapter::{ProcessAdapter, ProcessAdapterConfig};
+use agentforge_adapter::{AgentProfileStore, ProcessAdapter, ProcessAdapterConfig};
 use agentforge_audit::FileAuditStore;
 use agentforge_core::task::{TaskGraph, TaskId, TaskRecord};
 use agentforge_daemon::{
-    run_task as daemon_run_task, status as daemon_status, stop as daemon_stop,
+    restart_with_program as daemon_restart_with_program, run_profile as daemon_run_profile,
+    run_task as daemon_run_task, start_with_program as daemon_start_with_program,
+    status as daemon_status, stop as daemon_stop,
 };
 use agentforge_intake::{
     IntakeError, TaskDraft, approval_from_name, build_task, capability_from_name, initialize, load,
@@ -17,6 +19,7 @@ use agentforge_orchestrator::execute_process_persisted;
 use agentforge_state::{FileTaskStore, TaskStore};
 use agentforge_worktree::{GitOperation, WorktreeManager, WorktreeSpec};
 use std::io::{self, Read, Write};
+use std::net::SocketAddr;
 use std::path::Path;
 use std::process::ExitCode;
 use std::sync::mpsc::{self, RecvTimeoutError};
@@ -45,6 +48,7 @@ fn main() -> ExitCode {
         Some("init") => init_command(args.collect()),
         Some("blueprint") => blueprint_command(args.collect()),
         Some("task") => task_command(args.collect()),
+        Some("agent") => agent_command(args.collect()),
         Some("run") => run_command(args.collect()),
         Some("daemon") => daemon_command(args.collect()),
         Some("worktree") => worktree_command(args.collect()),
@@ -63,8 +67,77 @@ fn main() -> ExitCode {
 
 fn print_usage() {
     println!(
-        "usage: forge <version|doctor|status|init <root>|blueprint validate <root>|task create|inspect|approve|accept|cancel|retry ...|run <root> <task-id> <absolute-executable>|daemon status|run|stop ...|worktree create|inspect|list|retire ...|hud <root> [--watch [--interval-ms <milliseconds>]]>"
+        "usage: forge <version|doctor|status|init <root>|blueprint validate <root>|task create|inspect|approve|accept|cancel|retry ...|agent list|validate|inspect <root> [<profile>]|run <root> <task-id> <absolute-executable>|run <root> <task-id> --profile <profile>|daemon start|restart|status|run|stop ...|worktree create|inspect|list|retire ...|hud <root> [--watch [--interval-ms <milliseconds>]]>"
     );
+}
+
+fn agent_command(arguments: Vec<String>) -> ExitCode {
+    match arguments.first().map(String::as_str) {
+        Some("list") if arguments.len() == 2 => {
+            let store = AgentProfileStore::new(&arguments[1]);
+            match store.list() {
+                Ok(profiles) => {
+                    if profiles.is_empty() {
+                        println!("no agent profiles");
+                    } else {
+                        for profile in profiles {
+                            print_agent_profile("profile", &profile);
+                        }
+                    }
+                    ExitCode::SUCCESS
+                }
+                Err(error) => agent_profile_error("list", error),
+            }
+        }
+        Some("validate") if arguments.len() == 3 => {
+            let store = AgentProfileStore::new(&arguments[1]);
+            match store.load(&arguments[2]) {
+                Ok(profile) => {
+                    println!(
+                        "agent profile valid id={} executable={}",
+                        profile.id(),
+                        profile.executable().display()
+                    );
+                    ExitCode::SUCCESS
+                }
+                Err(error) => agent_profile_error("validate", error),
+            }
+        }
+        Some("inspect") if arguments.len() == 3 => {
+            let store = AgentProfileStore::new(&arguments[1]);
+            match store.load(&arguments[2]) {
+                Ok(profile) => {
+                    print_agent_profile("inspected", &profile);
+                    ExitCode::SUCCESS
+                }
+                Err(error) => agent_profile_error("inspect", error),
+            }
+        }
+        _ => {
+            eprintln!(
+                "agent requires: list <root>, validate <root> <profile>, or inspect <root> <profile>"
+            );
+            print_usage();
+            ExitCode::from(2)
+        }
+    }
+}
+
+fn print_agent_profile(label: &str, profile: &agentforge_adapter::AgentProfile) {
+    println!(
+        "{label} agent id={} executable={} arguments={} environment={} timeout_ms={} max_output_bytes={}",
+        profile.id(),
+        profile.executable().display(),
+        profile.arguments().len(),
+        profile.environment().len(),
+        profile.timeout().as_millis(),
+        profile.max_output_bytes()
+    );
+}
+
+fn agent_profile_error(operation: &str, error: agentforge_adapter::AdapterError) -> ExitCode {
+    eprintln!("agent profile {operation} failed: {error}");
+    ExitCode::from(1)
 }
 
 fn worktree_command(arguments: Vec<String>) -> ExitCode {
@@ -191,6 +264,34 @@ fn worktree_error(operation: &str, error: agentforge_worktree::WorktreeError) ->
 
 fn daemon_command(arguments: Vec<String>) -> ExitCode {
     match arguments.first().map(String::as_str) {
+        Some("start" | "restart") if arguments.len() == 2 || arguments.len() == 4 => {
+            let root = &arguments[1];
+            let bind = match parse_daemon_bind(&arguments) {
+                Ok(bind) => bind,
+                Err(error) => {
+                    eprintln!("{error}");
+                    return ExitCode::from(2);
+                }
+            };
+            let result = if arguments[0] == "start" {
+                daemon_start_with_program(root, bind, forged_program())
+            } else {
+                daemon_restart_with_program(root, bind, forged_program())
+            };
+            match result {
+                Ok(status) => {
+                    println!(
+                        "daemon running at {} (pid {})",
+                        status.endpoint.address, status.endpoint.pid
+                    );
+                    ExitCode::SUCCESS
+                }
+                Err(error) => {
+                    eprintln!("daemon {} failed: {error}", arguments[0]);
+                    ExitCode::from(1)
+                }
+            }
+        }
         Some("status") if arguments.len() == 2 => match daemon_status(&arguments[1]) {
             Ok(status) => {
                 println!(
@@ -204,7 +305,7 @@ fn daemon_command(arguments: Vec<String>) -> ExitCode {
                 ExitCode::from(1)
             }
         },
-        Some("run") if arguments.len() == 4 => {
+        Some("run") if arguments.len() == 4 || arguments.len() == 5 => {
             let task_id = match TaskId::parse(arguments[2].clone()) {
                 Ok(value) => value,
                 Err(error) => {
@@ -212,7 +313,16 @@ fn daemon_command(arguments: Vec<String>) -> ExitCode {
                     return ExitCode::from(2);
                 }
             };
-            match daemon_run_task(&arguments[1], &task_id, &arguments[3]) {
+            let result = if arguments.len() == 5 {
+                if arguments[3] != "--profile" {
+                    eprintln!("daemon run requires --profile before a profile ID");
+                    return ExitCode::from(2);
+                }
+                daemon_run_profile(&arguments[1], &task_id, &arguments[4])
+            } else {
+                daemon_run_task(&arguments[1], &task_id, &arguments[3])
+            };
+            match result {
                 Ok(message) => {
                     println!("{message}");
                     ExitCode::SUCCESS
@@ -235,11 +345,46 @@ fn daemon_command(arguments: Vec<String>) -> ExitCode {
         },
         _ => {
             eprintln!(
-                "daemon requires: status <root>, run <root> <task-id> <absolute-executable>, or stop <root>"
+                "daemon requires: status <root>, run <root> <task-id> <absolute-executable>, run <root> <task-id> --profile <profile>, or stop <root>"
             );
             print_usage();
             ExitCode::from(2)
         }
+    }
+}
+
+fn parse_daemon_bind(arguments: &[String]) -> Result<SocketAddr, String> {
+    if arguments.len() == 2 {
+        return Ok(agentforge_daemon::DEFAULT_BIND);
+    }
+    if arguments.len() != 4 || arguments[2] != "--bind" {
+        return Err("daemon start/restart accepts [--bind <loopback-address>]".to_owned());
+    }
+    let bind = arguments[3]
+        .parse::<SocketAddr>()
+        .map_err(|_| "daemon bind must be a socket address".to_owned())?;
+    if !bind.ip().is_loopback() {
+        return Err("daemon bind address must be loopback".to_owned());
+    }
+    Ok(bind)
+}
+
+fn forged_program() -> std::path::PathBuf {
+    let current = std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("forge"));
+    let candidate = current.parent().map(|parent| {
+        parent.join(if cfg!(windows) {
+            "forged.exe"
+        } else {
+            "forged"
+        })
+    });
+    match candidate {
+        Some(path) if path.is_file() => path,
+        _ => std::path::PathBuf::from(if cfg!(windows) {
+            "forged.exe"
+        } else {
+            "forged"
+        }),
     }
 }
 
@@ -557,8 +702,10 @@ fn print_intake_error(error: &IntakeError) {
 }
 
 fn run_command(arguments: Vec<String>) -> ExitCode {
-    if arguments.len() != 3 {
-        eprintln!("run requires: <root> <task-id> <absolute-executable>");
+    if arguments.len() != 3
+        && !(arguments.len() == 4 && arguments.get(2).map(String::as_str) == Some("--profile"))
+    {
+        eprintln!("run requires: <root> <task-id> <absolute-executable> or --profile <profile>");
         print_usage();
         return ExitCode::from(2);
     }
@@ -583,10 +730,18 @@ fn run_command(arguments: Vec<String>) -> ExitCode {
             return ExitCode::from(1);
         }
     };
-    let adapter = match ProcessAdapter::new(ProcessAdapterConfig::new(
-        "cli-process",
-        arguments[2].clone(),
-    )) {
+    let config = if arguments.len() == 4 {
+        match AgentProfileStore::new(&root).load(&arguments[3]) {
+            Ok(profile) => profile.adapter_config(),
+            Err(error) => {
+                eprintln!("cannot load agent profile: {error}");
+                return ExitCode::from(2);
+            }
+        }
+    } else {
+        ProcessAdapterConfig::new("cli-process", arguments[2].clone())
+    };
+    let adapter = match ProcessAdapter::new(config) {
         Ok(value) => value,
         Err(error) => {
             eprintln!("invalid adapter configuration: {error}");

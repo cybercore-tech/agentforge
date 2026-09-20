@@ -10,6 +10,7 @@ use agentforge_core::task::{TaskId, TaskIdError};
 use agentforge_worktree::{WorktreeError, WorktreeManager, WorktreeStatus};
 use std::collections::BTreeMap;
 use std::fmt;
+use std::fs;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -52,6 +53,304 @@ pub struct ProcessAdapterConfig {
     environment: BTreeMap<String, String>,
     timeout: Duration,
     max_output_bytes: usize,
+}
+
+/// Project-local directory containing versioned agent profiles.
+pub const AGENT_PROFILE_RELATIVE_PATH: &str = ".forge/agents";
+
+const MAX_PROFILE_BYTES: u64 = 64 * 1024;
+const MAX_PROFILE_ARGUMENTS: usize = 64;
+const MAX_PROFILE_ENVIRONMENT: usize = 64;
+
+/// A bounded, project-local process profile for an agent.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AgentProfile {
+    id: String,
+    config: ProcessAdapterConfig,
+}
+
+impl AgentProfile {
+    /// Returns the stable profile identifier.
+    #[must_use]
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+
+    /// Returns the configured executable.
+    #[must_use]
+    pub fn executable(&self) -> &Path {
+        &self.config.executable
+    }
+
+    /// Returns literal child-process arguments.
+    #[must_use]
+    pub fn arguments(&self) -> &[String] {
+        &self.config.arguments
+    }
+
+    /// Returns explicit child-process environment values.
+    #[must_use]
+    pub fn environment(&self) -> &BTreeMap<String, String> {
+        &self.config.environment
+    }
+
+    /// Returns the configured execution deadline.
+    #[must_use]
+    pub fn timeout(&self) -> Duration {
+        self.config.timeout
+    }
+
+    /// Returns the configured output limit.
+    #[must_use]
+    pub fn max_output_bytes(&self) -> usize {
+        self.config.max_output_bytes
+    }
+
+    /// Converts this profile into an executable adapter configuration.
+    #[must_use]
+    pub fn adapter_config(&self) -> ProcessAdapterConfig {
+        self.config.clone()
+    }
+}
+
+/// Loads project-local agent profiles from .forge/agents.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AgentProfileStore {
+    project_root: PathBuf,
+}
+
+impl AgentProfileStore {
+    /// Creates a profile store rooted at a project directory.
+    #[must_use]
+    pub fn new(project_root: impl Into<PathBuf>) -> Self {
+        Self {
+            project_root: project_root.into(),
+        }
+    }
+
+    /// Returns the profile directory.
+    #[must_use]
+    pub fn directory(&self) -> PathBuf {
+        self.project_root.join(AGENT_PROFILE_RELATIVE_PATH)
+    }
+
+    /// Loads one named profile.
+    ///
+    /// Profiles are UTF-8 key=value documents. Supported keys are version, executable, repeated
+    /// argument, repeated env.<KEY>, timeout_ms, and max_output_bytes.
+    pub fn load(&self, id: &str) -> Result<AgentProfile, AdapterError> {
+        validate_profile_id(id)?;
+        let path = self.directory().join(format!("{id}.conf"));
+        let metadata = fs::symlink_metadata(&path).map_err(|error| {
+            if error.kind() == io::ErrorKind::NotFound {
+                AdapterError::Profile(format!("profile not found: {id}"))
+            } else {
+                AdapterError::Io(error)
+            }
+        })?;
+        if metadata.file_type().is_symlink() || !metadata.is_file() {
+            return Err(AdapterError::Profile(format!(
+                "profile path is not a regular file: {}",
+                path.display()
+            )));
+        }
+        let metadata = fs::metadata(&path)?;
+        if metadata.len() > MAX_PROFILE_BYTES {
+            return Err(AdapterError::Profile(format!(
+                "profile exceeds {MAX_PROFILE_BYTES} bytes: {id}"
+            )));
+        }
+        let text = fs::read_to_string(&path)?;
+        parse_profile(id, &text)
+    }
+
+    /// Lists all valid profiles in deterministic identifier order.
+    pub fn list(&self) -> Result<Vec<AgentProfile>, AdapterError> {
+        let directory = self.directory();
+        let entries = match fs::read_dir(&directory) {
+            Ok(entries) => entries,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(error) => return Err(AdapterError::Io(error)),
+        };
+        let mut ids = Vec::new();
+        for entry in entries {
+            let entry = entry?;
+            let path = entry.path();
+            if path.extension().and_then(|value| value.to_str()) != Some("conf") {
+                continue;
+            }
+            let Some(id) = path.file_stem().and_then(|value| value.to_str()) else {
+                return Err(AdapterError::Profile(format!(
+                    "profile filename is not UTF-8: {}",
+                    path.display()
+                )));
+            };
+            ids.push(id.to_owned());
+        }
+        ids.sort();
+        ids.into_iter().map(|id| self.load(&id)).collect()
+    }
+}
+
+fn validate_profile_id(id: &str) -> Result<(), AdapterError> {
+    if id.is_empty() || id == "." || id == ".." || id.len() > 64 {
+        return Err(AdapterError::Profile(format!(
+            "profile ID must be 1-64 characters: {id:?}"
+        )));
+    }
+    if !id
+        .bytes()
+        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
+    {
+        return Err(AdapterError::Profile(format!(
+            "profile ID contains unsupported characters: {id}"
+        )));
+    }
+    Ok(())
+}
+
+fn parse_profile(id: &str, text: &str) -> Result<AgentProfile, AdapterError> {
+    let mut version = None;
+    let mut executable = None;
+    let mut arguments = Vec::new();
+    let mut environment = BTreeMap::new();
+    let mut timeout_ms = None;
+    let mut max_output_bytes = None;
+
+    for (line_index, line) in text.lines().enumerate() {
+        let line_number = line_index + 1;
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let Some((key, value)) = line.split_once('=') else {
+            return Err(AdapterError::Profile(format!(
+                "profile {id} line {line_number} must use key=value"
+            )));
+        };
+        if value.contains('\0') {
+            return Err(AdapterError::Profile(format!(
+                "profile {id} line {line_number} contains NUL"
+            )));
+        }
+        match key {
+            "version" => {
+                let parsed = value.parse::<u32>().map_err(|_| {
+                    AdapterError::Profile(format!(
+                        "profile {id} line {line_number} has invalid version"
+                    ))
+                })?;
+                set_once(&mut version, parsed, id, line_number, "version")?;
+            }
+            "executable" => {
+                set_once(
+                    &mut executable,
+                    value.to_owned(),
+                    id,
+                    line_number,
+                    "executable",
+                )?;
+            }
+            "argument" => {
+                if arguments.len() == MAX_PROFILE_ARGUMENTS {
+                    return Err(AdapterError::Profile(format!(
+                        "profile {id} has more than {MAX_PROFILE_ARGUMENTS} arguments"
+                    )));
+                }
+                arguments.push(value.to_owned());
+            }
+            "timeout_ms" => {
+                let parsed = value.parse::<u64>().map_err(|_| {
+                    AdapterError::Profile(format!(
+                        "profile {id} line {line_number} has invalid timeout_ms"
+                    ))
+                })?;
+                set_once(&mut timeout_ms, parsed, id, line_number, "timeout_ms")?;
+            }
+            "max_output_bytes" => {
+                let parsed = value.parse::<usize>().map_err(|_| {
+                    AdapterError::Profile(format!(
+                        "profile {id} line {line_number} has invalid max_output_bytes"
+                    ))
+                })?;
+                set_once(
+                    &mut max_output_bytes,
+                    parsed,
+                    id,
+                    line_number,
+                    "max_output_bytes",
+                )?;
+            }
+            key if key.starts_with("env.") => {
+                let env_key = &key["env.".len()..];
+                if env_key.is_empty() || env_key.contains('=') || env_key.contains('\0') {
+                    return Err(AdapterError::Profile(format!(
+                        "profile {id} line {line_number} has invalid environment key"
+                    )));
+                }
+                if environment.len() == MAX_PROFILE_ENVIRONMENT
+                    && !environment.contains_key(env_key)
+                {
+                    return Err(AdapterError::Profile(format!(
+                        "profile {id} has more than {MAX_PROFILE_ENVIRONMENT} environment values"
+                    )));
+                }
+                if environment
+                    .insert(env_key.to_owned(), value.to_owned())
+                    .is_some()
+                {
+                    return Err(AdapterError::Profile(format!(
+                        "profile {id} repeats environment key {env_key}"
+                    )));
+                }
+            }
+            _ => {
+                return Err(AdapterError::Profile(format!(
+                    "profile {id} line {line_number} has unknown key {key}"
+                )));
+            }
+        }
+    }
+
+    if version != Some(1) {
+        return Err(AdapterError::Profile(format!(
+            "profile {id} requires version=1"
+        )));
+    }
+    let executable = executable
+        .ok_or_else(|| AdapterError::Profile(format!("profile {id} is missing executable")))?;
+    let timeout = Duration::from_millis(timeout_ms.unwrap_or(60_000));
+    let max_output_bytes = max_output_bytes.unwrap_or(1024 * 1024);
+    let mut config = ProcessAdapterConfig::new(id, executable)
+        .with_timeout(timeout)
+        .with_max_output_bytes(max_output_bytes);
+    for argument in arguments {
+        config = config.with_argument(argument);
+    }
+    for (key, value) in environment {
+        config = config.with_environment(key, value);
+    }
+    ProcessAdapter::new(config.clone())?;
+    Ok(AgentProfile {
+        id: id.to_owned(),
+        config,
+    })
+}
+
+fn set_once<T>(
+    slot: &mut Option<T>,
+    value: T,
+    id: &str,
+    line_number: usize,
+    key: &str,
+) -> Result<(), AdapterError> {
+    if slot.is_some() {
+        return Err(AdapterError::Profile(format!(
+            "profile {id} line {line_number} repeats {key}"
+        )));
+    }
+    *slot = Some(value);
+    Ok(())
 }
 
 impl ProcessAdapterConfig {
@@ -246,6 +545,8 @@ impl ExecutionReport {
 pub enum AdapterError {
     /// Process configuration was invalid.
     InvalidConfiguration(&'static str),
+    /// A project-local agent profile is missing or malformed.
+    Profile(String),
     /// The task contract is structurally invalid.
     InvalidTask(TaskContractError),
     /// Task ID parsing failed.
@@ -283,6 +584,7 @@ impl fmt::Display for AdapterError {
             Self::InvalidConfiguration(message) => {
                 write!(formatter, "invalid adapter configuration: {message}")
             }
+            Self::Profile(message) => write!(formatter, "invalid agent profile: {message}"),
             Self::InvalidTask(error) => write!(formatter, "invalid agent task: {error}"),
             Self::InvalidTaskId(error) => write!(formatter, "invalid agent task ID: {error}"),
             Self::TaskMilestoneMismatch {
@@ -614,10 +916,12 @@ fn write_values<'a>(output: &mut Vec<u8>, name: &str, values: impl Iterator<Item
 #[cfg(test)]
 mod tests {
     use super::{
-        AdapterError, AdapterRequest, AgentAdapter, ExecutionReport, render_task_prompt,
-        validate_result_binding,
+        AdapterError, AdapterRequest, AgentAdapter, AgentProfileStore, ExecutionReport,
+        render_task_prompt, validate_result_binding,
     };
     use agentforge_core::agent::{AgentResult, AgentRole, AgentTask, TaskOutcome};
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
     fn prompt_preserves_multiline_unicode_contract_data() {
@@ -649,6 +953,41 @@ mod tests {
         let task = AgentTask::new("P0-M006-T0001", "P0-M006", AgentRole::Implementer, "work");
         let result = AgentResult::new("P0-M006-T0001", TaskOutcome::Completed, "claimed");
         assert!(validate_result_binding(&task, &result).is_ok());
+    }
+
+    #[test]
+    fn profile_store_loads_bounded_literal_configuration() {
+        let suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "agentforge-profile-test-{}-{suffix}",
+            std::process::id()
+        ));
+        let directory = root.join(".forge/agents");
+        fs::create_dir_all(&directory).unwrap();
+        let executable = std::env::current_exe().unwrap();
+        fs::write(
+            directory.join("fixture.conf"),
+            format!(
+                "version=1\nexecutable={}\nargument=literal value\nenv.FORGE_TEST=value=still-literal\ntimeout_ms=250\nmax_output_bytes=2048\n",
+                executable.display()
+            ),
+        )
+        .unwrap();
+
+        let profile = AgentProfileStore::new(&root).load("fixture").unwrap();
+        assert_eq!(profile.id(), "fixture");
+        assert_eq!(profile.arguments(), &["literal value".to_owned()]);
+        assert_eq!(
+            profile.environment().get("FORGE_TEST"),
+            Some(&"value=still-literal".to_owned())
+        );
+        assert_eq!(profile.timeout(), std::time::Duration::from_millis(250));
+        assert_eq!(profile.max_output_bytes(), 2048);
+
+        fs::remove_dir_all(root).unwrap();
     }
 
     struct FakeAdapter;
