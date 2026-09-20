@@ -15,7 +15,10 @@
 - P0-M005 main merge: `069c058f7d39ab39a3267f5893d20b963d4f5397`; CI `35481855409` green.
 - P0-M006 implementation head: `d277a9191421ae5f4018a4aaacf69f349e2b7974`.
 - P0-M006 implementation CI: `35482922234` — all four jobs green.
-- P0-M006 closure is pending; implementation is complete.
+- P0-M006 closure: `bfad41192a4376e1f36d7f2791ddba1e0dabeb2b`; CI `35483034282` green.
+- P0-M006 main merge: `023a74969826f1de1bfb80c49e0dda125942336b`; CI `35483102850` green.
+- Current planning branch: `feat/p0-m007-gate-engine`.
+- P0-M007 plan: `.plans/P0-M007-gate-engine.plan.md` — Draft.
 
 ## Resume checklist
 
@@ -25,8 +28,8 @@
 4. Read `docs/WORKTREE_ISOLATION.md`.
 5. Read ADR-0002 and ADR-0010.
 6. Run `./scripts/project-status`.
-7. Confirm P0-M006 closure CI and post-merge `main` CI completed successfully.
-8. Confirm there is no active plan before starting P0-M007.
+7. Read the P0-M007 Draft plan and proposed ADR-0012.
+8. Require plan approval and green CI for the committed Approved plan before implementation.
 9. Never bypass repository hooks or gates.
 10. Classify failures before repair.
 
@@ -57,7 +60,5 @@ The next planned milestone is:
 
 `P0-M007 — Gate engine`
 
-P0-M006 established provider-neutral local-process adapter execution over verified task worktrees.
-It validates task identity, local-command capability, approval acknowledgement, and worktree state;
-uses explicit process configuration with bounded capture; and keeps execution evidence separate from
-task acceptance. Do not start P0-M007 until P0-M006 closure and post-merge checks are green.
+P0-M006 closure and post-merge checks are verified green. P0-M007 will add explicit bounded gate
+execution before later CI classification, audit, policy, diagnostics, and vertical-slice work.

@@ -49,7 +49,12 @@ P0-M005 closure and integration checks are complete.
 - Validated implementation head: `d277a9191421ae5f4018a4aaacf69f349e2b7974`.
 - Exact implementation CI: `35482922234` — all four jobs green.
 
-Closure CI and post-merge `main` CI remain required before P0-M007 begins.
+- Closure commit: `bfad41192a4376e1f36d7f2791ddba1e0dabeb2b`.
+- Closure CI: `35483034282` — all four jobs green.
+- Merge commit: `023a74969826f1de1bfb80c49e0dda125942336b`.
+- Post-merge main CI: `35483102850` — all four jobs green for that exact merge commit.
+
+P0-M006 closure and integration checks are complete.
 
 ## Current capability
 
@@ -76,10 +81,10 @@ deployment orchestration remain intentionally unimplemented.
 
 ## Next planned milestone
 
-`P0-M007` — Gate engine.
+`P0-M007` — Gate engine. Draft plan: `.plans/P0-M007-gate-engine.plan.md`.
 
-P0-M006 is complete pending closure CI and post-merge main CI.
+Implementation awaits plan approval and validation.
 
 ## Known blockers
 
-No technical blocker beyond completing the P0-M006 closure/merge validation sequence.
+No technical blocker. P0-M007 implementation awaits plan approval and validation.
