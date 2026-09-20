@@ -14,7 +14,7 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 | P0-M004 | complete | Task graph and durable state | Tasks and dependencies persist locally with deterministic IDs. |
 | P0-M005 | complete | Worktree isolation manager | Tasks can create, inspect, and retire isolated Git worktrees safely. |
 | P0-M006 | complete | Agent adapter interface | External coding agents can run behind one stable adapter contract. |
-| P0-M007 | planned | Gate engine | Project format, lint, test, build, docs, and policy gates run uniformly. |
+| P0-M007 | complete | Gate engine | Explicit local checks run with bounded, structured evidence. |
 | P0-M008 | planned | CI monitor and failure classifier | Exact runs are observed and failures are classified before repair. |
 | P0-M009 | planned | Event and audit log | Orchestration decisions and task transitions are durably recorded. |
 | P0-M010 | planned | Capability and permission policy | Agents receive explicit least-privilege capabilities. |

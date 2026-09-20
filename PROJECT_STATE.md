@@ -11,9 +11,7 @@ Phase 0 — reliable local orchestration foundation.
 
 ## Active milestone
 
-No implementation milestone is currently active.
-
-`.plans/ACTIVE` is intentionally absent.
+None. P0-M007 closure CI is pending before merge.
 
 ## Completed milestones
 
@@ -23,6 +21,7 @@ No implementation milestone is currently active.
 - `P0-M004` — Task graph and durable state.
 - `P0-M005` — Worktree isolation manager.
 - `P0-M006` — Agent adapter interface.
+- `P0-M007` — Gate engine.
 
 ## P0-M005 completion evidence
 
@@ -49,7 +48,12 @@ P0-M005 closure and integration checks are complete.
 - Validated implementation head: `d277a9191421ae5f4018a4aaacf69f349e2b7974`.
 - Exact implementation CI: `35482922234` — all four jobs green.
 
-Closure CI and post-merge `main` CI remain required before P0-M007 begins.
+- Closure commit: `bfad41192a4376e1f36d7f2791ddba1e0dabeb2b`.
+- Closure CI: `35483034282` — all four jobs green.
+- Merge commit: `023a74969826f1de1bfb80c49e0dda125942336b`.
+- Post-merge main CI: `35483102850` — all four jobs green for that exact merge commit.
+
+P0-M006 closure and integration checks are complete.
 
 ## Current capability
 
@@ -71,15 +75,21 @@ AgentForge now has:
 
 AgentForge can now invoke an explicitly configured local coding-agent executable in a verified task
 worktree through a provider-neutral interface. Execution evidence is bounded and remains separate
-from task acceptance. Scheduling, gate automation, CI failure automation, audit events, and
-deployment orchestration remain intentionally unimplemented.
+from task acceptance. It can also run direct, explicit local gates with cleared child environments,
+bounded raw evidence, deadlines, and ordered batch reports. Scheduling, CI failure automation,
+audit events, and deployment orchestration remain intentionally unimplemented.
 
 ## Next planned milestone
 
-`P0-M007` — Gate engine.
-
-P0-M006 is complete pending closure CI and post-merge main CI.
+`P0-M008` — CI monitor and failure classifier.
 
 ## Known blockers
 
-No technical blocker beyond completing the P0-M006 closure/merge validation sequence.
+No technical blocker. P0-M007 closure CI is pending before merge.
+
+## P0-M007 completion evidence
+
+- Approved plan checkpoint: `216f5269e6186274f22bfa974f54cead4326ecb5`.
+- Plan CI: `35483669377` — all four jobs green.
+- Validated implementation head: `bc115e2c8f12d3459287661e554f02f7adb7b3e4`.
+- Exact implementation CI: `35483980498` — all four jobs green.
