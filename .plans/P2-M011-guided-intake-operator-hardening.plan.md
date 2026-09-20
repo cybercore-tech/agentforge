@@ -1,6 +1,6 @@
 # Plan: P2-M011 — Guided intake operator hardening
 
-Status: Draft
+Status: Approved
 Milestone: P2-M011
 Created: 2026-09-20
 
