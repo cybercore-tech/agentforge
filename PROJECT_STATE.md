@@ -11,7 +11,7 @@ Phase 0 — reliable local orchestration foundation.
 
 ## Active milestone
 
-`P1-M001` — Multi-agent scheduling and serialized integration (approved plan; implementation not yet started).
+No implementation milestone is active. P1-M001 closure is in progress.
 
 ## Completed milestones
 
@@ -87,7 +87,14 @@ audit events, and deployment orchestration remain intentionally unimplemented.
 
 ## Known blockers
 
-P0-M012 is complete. P1-M001 implementation is authorized within the approved plan boundary.
+P1-M001 implementation is complete; closure and merge verification remain.
+
+## P1-M001 completion evidence
+
+- Approved plan checkpoint: `f6d0beec1bd40d14496cd97629b21d42bf1d5667`.
+- Plan CI: `35493471046` — all four jobs green.
+- Validated implementation head: `f71e4b15af3e5eb09c172ea11d3464d946415847`.
+- Exact implementation CI: `35493600837` — all four jobs green.
 
 ## P0-M012 completion evidence
 

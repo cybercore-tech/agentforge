@@ -2,8 +2,8 @@
 
 ## Repository state
 
-- Active milestone: P1-M001 — Multi-agent scheduling and serialized integration.
-- Active plan: `.plans/P1-M001-scheduling-integration.plan.md` — Approved.
+- Active milestone: none; P1-M001 closure is in progress.
+- Active plan: none.
 - Active plan: none.
 - P0-M001 status: Complete.
 - P0-M002 status: Complete.
@@ -36,7 +36,8 @@
 - P0-M010 plan: `.plans/P0-M010-capability-policy.plan.md` — Completed; merged and post-merge CI green.
 - P0-M011 plan: `.plans/P0-M011-doctor-status.plan.md` — Completed; merged and post-merge CI green.
 - P0-M012 plan: `.plans/P0-M012-single-agent-vertical-slice.plan.md` — Completed; merged and post-merge CI green.
-- P1-M001 plan: `.plans/P1-M001-scheduling-integration.plan.md` — Approved; implementation may begin within the declared boundary.
+- P1-M001 plan: `.plans/P1-M001-scheduling-integration.plan.md` — Completed; closure and merge verification remain.
+- P1-M001 implementation: `f71e4b15af3e5eb09c172ea11d3464d946415847`; CI `35493600837` green.
 - P0-M012 implementation: `fcf3809c9f5c099833cb07862e626ca3f1764cff`; CI `35493160857` green.
 - P0-M011 implementation: `bd1aaf24800dde73f1dc707519f5d1ed710a6b0e`; CI `35492790507` green.
 - P0-M011 closure: `62911373015ed8e94d7e8883b955c078a175cf48`; CI `35492882542` green.
@@ -51,7 +52,7 @@
 4. Read `docs/WORKTREE_ISOLATION.md`.
 5. Read ADR-0002 and ADR-0010.
 6. Run `./scripts/project-status`.
-7. Implement P1-M001 only within the approved plan boundary and record exact CI evidence.
+7. Verify P1-M001 closure CI, merge, and post-merge main CI.
 8. Never bypass repository hooks or gates.
 9. Classify failures before repair.
 

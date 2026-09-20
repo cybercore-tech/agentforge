@@ -1,6 +1,6 @@
 # Plan: P1-M001 — Multi-agent scheduling and serialized integration
 
-Status: Approved
+Status: Completed
 Milestone: P1-M001
 Created: 2026-09-19
 
@@ -46,3 +46,6 @@ an explicit store boundary; workers receive immutable task snapshots and cannot 
 
 Approve this plan separately, implement the scheduler with deterministic isolated tests, run full gate
 and exact CI, then close, merge, and verify post-merge CI.
+
+Implementation commit: `f71e4b15af3e5eb09c172ea11d3464d946415847`
+Implementation CI: `35493600837` — all four jobs green
