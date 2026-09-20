@@ -6,6 +6,7 @@ members = [
     "crates/agentforge-adapter",
     "crates/agentforge-gate",
     "crates/agentforge-ci",
+    "crates/agentforge-audit",
     "crates/agentforge-cli",
     "crates/agentforge-daemon",
     "tools/xtask",
