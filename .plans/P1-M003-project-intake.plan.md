@@ -1,6 +1,6 @@
 # Plan: P1-M003 — Project blueprint and task intake
 
-Status: Approved
+Status: Completed
 Milestone: P1-M003
 Created: 2026-09-19
 
@@ -179,18 +179,19 @@ milestone and handoff records only when the plan is activated or closed.
 
 ## Acceptance criteria
 
-- [ ] An operator can initialize a project-local intake directory without overwriting files.
-- [ ] An operator can edit and validate a versioned blueprint and guideline document.
-- [ ] Validation is deterministic, bounded, read-only, and fail-closed.
-- [ ] An operator can create an explicit task contract and durable task snapshot through the CLI.
-- [ ] Generated tasks run through the existing orchestration path without authority expansion.
-- [ ] Tests cover malformed input, conflicts, state preservation, and successful integration.
-- [ ] Exact implementation, closure, merge, and post-merge CI evidence is recorded.
+- [x] An operator can initialize a project-local intake directory without overwriting files.
+- [x] An operator can edit and validate a versioned blueprint and guideline document.
+- [x] Validation is deterministic, bounded, read-only, and fail-closed.
+- [x] An operator can create an explicit task contract and durable task snapshot through the CLI.
+- [x] Generated tasks run through the existing orchestration path without authority expansion.
+- [x] Tests cover malformed input, conflicts, state preservation, and successful integration.
+- [x] Exact implementation, closure, merge, and post-merge CI evidence is recorded.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
-Notes:
+Implementation commit: `987b971a05ae7ef74b4e9da8cb486b9f0b597260`
+CI run: `35495846139`
+CI result: all four jobs green
+Completed: 2026-09-20
+Notes: Added dependency-free blueprint/guideline intake, explicit CLI task creation, durable
+snapshot integration, documentation, ADR-0020, and CLI integration coverage.

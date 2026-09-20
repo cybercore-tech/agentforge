@@ -11,7 +11,7 @@ Phase 1 — multi-agent scheduling and integration.
 
 ## Active milestone
 
-`P1-M003` — Project blueprint and task intake (approved plan; implementation may begin).
+No implementation milestone is active. P1-M003 is complete; no subsequent plan is approved.
 
 ## Completed milestones
 
@@ -26,6 +26,7 @@ Phase 1 — multi-agent scheduling and integration.
 - `P0-M009` — Event and audit log.
 - `P1-M001` — Multi-agent scheduling and serialized integration.
 - `P1-M002` — Single-task orchestration loop.
+- `P1-M003` — Project blueprint and task intake.
 
 ## P0-M005 completion evidence
 
@@ -85,11 +86,20 @@ audit events, and deployment orchestration remain intentionally unimplemented.
 
 ## Next planned milestone
 
-`P1-M003` — Project blueprint and task intake.
+No next milestone is approved. P2 TUI/HUD operator experience remains the next reserved product area.
 
 ## Known blockers
 
-P1-M002 is complete. P1-M003 is approved and active within its declared file boundary.
+P1-M003 is complete. A future plan is required before implementing the TUI/HUD or additional
+orchestration gaps.
+
+## P1-M003 completion evidence
+
+- Approved plan: `.plans/P1-M003-project-intake.plan.md`.
+- Implementation head: `987b971a05ae7ef74b4e9da8cb486b9f0b597260`.
+- Exact implementation CI: `35495846139` — all four jobs green.
+- The intake path now provides non-overwriting initialization, bounded versioned blueprint and
+  guideline validation, explicit task creation, durable snapshot writes, and CLI integration tests.
 
 ## P1-M002 completion evidence
 
