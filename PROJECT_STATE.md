@@ -67,6 +67,8 @@ identifies the next bounded need.
   `542d80a1cbf654a9b19bb01b8166c4880cf9b5f1`.
 - Exact implementation CI: `35505389584` — all stable, MSRV, policy, CLI smoke, Ubuntu, macOS,
   and Windows jobs green for the exact implementation head.
+- Closure commit: `58c12f6309acaa3510e1aab4a27d52abb8390dcf`.
+- Closure CI: `35505514028` — all jobs green for the exact closure SHA.
 - Local full gate: `CARGO_TARGET_DIR=/tmp/agentforge-cargo-target ./scripts/gate.sh full` — passed.
 - The CLI now exposes deterministic managed worktree create/inspect/list/retire commands; daemon
   dogfooding runs a real configured executable fixture with durable state and bounded recovery

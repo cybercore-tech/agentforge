@@ -65,8 +65,10 @@
 - P2-M006 implementation commits: `1fd2d705d685e503d96e8f91b78d2edee777d219`,
   `541d317fbd4e6038a3bcdb36fcc507fe037250ca`, and
   `542d80a1cbf654a9b19bb01b8166c4880cf9b5f1`; exact CI `35505389584` is green across all jobs.
-- P2-M006 plan: `.plans/P2-M006-real-agent-dogfooding.plan.md` — Completed; closure checkpoint is
-  being recorded separately.
+- P2-M006 closure: `58c12f6309acaa3510e1aab4a27d52abb8390dcf`; closure CI `35505514028` is green
+  for the exact closure SHA.
+- P2-M006 plan: `.plans/P2-M006-real-agent-dogfooding.plan.md` — Completed; final closure evidence
+  is recorded.
 - P0-M012 implementation: `fcf3809c9f5c099833cb07862e626ca3f1764cff`; CI `35493160857` green.
 - P0-M011 implementation: `bd1aaf24800dde73f1dc707519f5d1ed710a6b0e`; CI `35492790507` green.
 - P0-M011 closure: `62911373015ed8e94d7e8883b955c078a175cf48`; CI `35492882542` green.

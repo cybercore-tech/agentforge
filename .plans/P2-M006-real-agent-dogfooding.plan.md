@@ -187,3 +187,5 @@ commands, runs a real configured executable fixture through the daemon, and cove
 disconnect, stale metadata, timeout, and cooperative-stop recovery evidence. Unix worktree-backed
 dogfooding remains the supported path; the known Windows Git verbatim temporary-path limitation
 and artifact signing remain separately scoped.
+Closure commit: `58c12f6309acaa3510e1aab4a27d52abb8390dcf`.
+Closure CI: `35505514028` — all jobs green for the exact closure SHA.
