@@ -2,7 +2,7 @@
 
 ## Repository state
 
-- Active milestone: none; P0-M007 closure CI is pending before merge.
+- Active milestone: none; P0-M008 is in Draft planning.
 - Active plan: none.
 - P0-M001 status: Complete.
 - P0-M002 status: Complete.
@@ -19,8 +19,10 @@
 - P0-M006 main merge: `023a74969826f1de1bfb80c49e0dda125942336b`; CI `35483102850` green.
 - P0-M007 implementation head: `bc115e2c8f12d3459287661e554f02f7adb7b3e4`.
 - P0-M007 implementation CI: `35483980498` — all four jobs green.
-- Current closure branch: `feat/p0-m007-gate-engine`.
-- P0-M007 plan: `.plans/P0-M007-gate-engine.plan.md` — Completed; closure CI remains required.
+- P0-M007 closure: `02242b2f3fe7eb82239e2dca43b1bd85aa239a86`; CI `35484071505` green.
+- P0-M007 main merge: `741cf58caa6fca38c4693c4359816f4721a2b126`; CI `35484138853` green.
+- Current planning branch: `feat/p0-m008-ci-monitor-classifier`.
+- P0-M008 plan: `.plans/P0-M008-ci-monitor-failure-classifier.plan.md` — Draft.
 
 ## Resume checklist
 
@@ -30,9 +32,10 @@
 4. Read `docs/WORKTREE_ISOLATION.md`.
 5. Read ADR-0002 and ADR-0010.
 6. Run `./scripts/project-status`.
-7. Verify CI for the P0-M007 closure commit, then merge and verify the resulting main commit.
-8. Never bypass repository hooks or gates.
-9. Classify failures before repair.
+7. Read the P0-M008 Draft plan and proposed ADR-0013.
+8. Require plan approval and green CI for the committed Approved plan before implementation.
+9. Never bypass repository hooks or gates.
+10. Classify failures before repair.
 
 ## Completed P0-M005 work
 
@@ -59,5 +62,6 @@ Exact implementation CI run `35481590769` passed all four jobs for
 
 P0-M007 added a standard-library-only gate engine with direct explicit executable/argument
 configuration, cleared child environments, bounded concurrent raw output capture, timeout and
-output-limit termination, ordered batch reports, and duplicate-name rejection. Its exact
-implementation CI is green; closure, merge, and post-merge evidence remain to be recorded.
+output-limit termination, ordered batch reports, and duplicate-name rejection. Its implementation,
+closure, and post-merge CI are green. P0-M008 will add exact-SHA CI observation and conservative
+failure classification before later audit and policy milestones.
