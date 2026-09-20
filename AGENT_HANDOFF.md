@@ -2,41 +2,54 @@
 
 ## Repository state
 
-- Active milestone: `P0-M005`.
-- Active plan: `.plans/P0-M005-worktree-isolation-manager.plan.md`.
-- Plan status: Approved.
-- Implementation status: not started.
-- Base main commit: `93f88b1af2f129c63b95bb0d9f7ca72677c847af`.
-- P0-M004 post-repair main CI: `35477705487` — success.
+- Active milestone: none.
+- Active plan: none.
+- P0-M001 status: Complete.
+- P0-M002 status: Complete.
+- P0-M003 status: Complete.
+- P0-M004 status: Complete.
+- P0-M005 status: Complete.
+- P0-M005 validated implementation head: `e302cdae8a6610be04ec244bcefa2eab7c768864`.
+- P0-M005 implementation CI: `35481590769` — all four jobs green.
 
 ## Resume checklist
 
 1. Read `PROJECT_SPEC.md`.
 2. Read `PROJECT_STATE.md`.
 3. Read `AGENTS.md`.
-4. Read `docs/TASK_STATE.md`.
-5. Read `docs/WORKTREE_ISOLATION.md`.
-6. Read ADR-0002 and ADR-0010.
-7. Run `./scripts/project-status`.
-8. Confirm `.plans/ACTIVE` points to the Approved P0-M005 plan.
-9. Never bypass hooks or gates.
+4. Read `docs/WORKTREE_ISOLATION.md`.
+5. Read ADR-0002 and ADR-0010.
+6. Run `./scripts/project-status`.
+7. Confirm P0-M005 closure CI and post-merge `main` CI completed successfully.
+8. Confirm there is no active plan before starting P0-M006.
+9. Never bypass repository hooks or gates.
 10. Classify failures before repair.
-11. Never use destructive Git cleanup as routine recovery.
 
-## P0-M005 objective
+## Completed P0-M005 work
 
-Establish a safe task-owned Git worktree lifecycle:
+P0-M005 established the task-owned Git worktree lifecycle:
 
-- deterministic task branch;
-- deterministic managed path;
-- exact base commit;
-- ownership verification;
-- porcelain inspection;
-- dirty-state detection;
-- non-destructive retirement;
-- preserved task branch.
+- deterministic `agentforge/task/<task-id>` branches;
+- deterministic `.forge/worktrees/<task-id>` paths;
+- exact base commit resolution;
+- authoritative `git worktree list --porcelain -z` inspection;
+- task, path, and branch ownership checks;
+- managed-only deterministic listing;
+- tracked and untracked dirty-state detection;
+- unresolved merge, rebase, cherry-pick, and revert detection;
+- conservative non-forced retirement;
+- task-branch preservation;
+- no shell interpolation or routine destructive cleanup;
+- isolated concurrent integration fixtures;
+- ambient `GIT_INDEX_FILE` isolation for Git subprocesses.
 
-## Next exact action
+Exact implementation CI run `35481590769` passed all four jobs for
+`e302cdae8a6610be04ec244bcefa2eab7c768864`.
 
-Commit this plan-only checkpoint and require the exact plan head to pass local and remote gates
-before implementation begins.
+## Next milestone
+
+The next planned milestone is:
+
+`P0-M006 — Agent adapter interface`
+
+Do not start it until the P0-M005 closure and post-merge `main` checks are green.

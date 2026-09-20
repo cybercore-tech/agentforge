@@ -11,11 +11,9 @@ Phase 0 — reliable local orchestration foundation.
 
 ## Active milestone
 
-- `P0-M005` — Worktree isolation manager.
-- Active plan: `.plans/P0-M005-worktree-isolation-manager.plan.md`.
-- Plan status: Approved.
-- Implementation status: not started.
-- Base main commit: `93f88b1af2f129c63b95bb0d9f7ca72677c847af`.
+No implementation milestone is currently active.
+
+`.plans/ACTIVE` is intentionally absent.
 
 ## Completed milestones
 
@@ -23,37 +21,48 @@ Phase 0 — reliable local orchestration foundation.
 - `P0-M002` — Governance and agent contract.
 - `P0-M003` — Plan-first workflow enforcement.
 - `P0-M004` — Task graph and durable state.
+- `P0-M005` — Worktree isolation manager.
 
-## P0-M004 final integration evidence
+## P0-M005 completion evidence
 
-- Post-merge executable-mode repair implementation: `f3fa50f31f5cbc368e6a51e09acc7a2e106509da`.
-- Post-repair main CI: `35477705487` — success.
+- Approved plan checkpoint: `5f109357f3bdcadff3328622a26e7bc69aacd10b`.
+- Plan CI: `35478127108` — all four jobs green.
+- CI maintenance plan amendment: `bb5791ca59b3006115f3732b02b26b035d243adb`.
+- Plan-amendment CI: `35478252595` — all four jobs green.
+- CI runtime maintenance: `68e985b96ad9a77195851abe9f88b8b6dd3a496f`.
+- CI-maintenance run: `35478294955` — all four jobs green.
+- Validated implementation head: `e302cdae8a6610be04ec244bcefa2eab7c768864`.
+- Exact implementation CI: `35481590769` — all four jobs green.
 
-P0-M004 is fully closed.
+Closure CI and post-merge `main` CI remain required before P0-M006 begins.
 
 ## Current capability
 
-AgentForge has provider-neutral governance, deterministic task IDs, validated dependency graphs,
-explicit lifecycle transitions, durable task-state persistence, plan-first enforcement, and green
-post-merge CI.
+AgentForge now has:
 
-P0-M005 is defining the Git worktree isolation boundary required before external coding agents can
-execute tasks.
+- provider-neutral governance and durable task-state foundations;
+- deterministic task-owned branches and managed worktree paths;
+- exact base-commit resolution;
+- Git porcelain-based worktree discovery;
+- task, path, and branch ownership verification;
+- deterministic managed-only listing;
+- dirty-state and unresolved-operation detection;
+- safe non-forced worktree creation and retirement;
+- preserved task branches after retirement;
+- direct Git argument passing without shell interpolation;
+- no routine forced removal, `git clean`, or `git reset --hard`;
+- isolated temporary-repository integration coverage;
+- Rust 1.85.0 compatibility without external Rust dependencies.
 
-## P0-M005 architecture boundary
+External coding-agent execution, scheduling, automated gates, CI failure automation, audit events,
+and deployment orchestration remain intentionally unimplemented.
 
-P0-M005 owns deterministic task branches, managed worktree paths, Git worktree inspection,
-ownership validation, dirty-state detection, and conservative retirement.
+## Next planned milestone
 
-It does not execute coding agents, schedule tasks, merge branches, monitor CI, deploy, or perform
-destructive cleanup.
+`P0-M006` — Agent adapter interface.
 
-## Next exact action
-
-Commit and validate this Approved P0-M005 plan-only checkpoint.
-
-Do not begin Rust implementation until the exact plan checkpoint is green.
+P0-M006 must not begin until P0-M005 closure CI and post-merge `main` CI are green.
 
 ## Known blockers
 
-None.
+None beyond completing the P0-M005 closure/merge validation sequence.

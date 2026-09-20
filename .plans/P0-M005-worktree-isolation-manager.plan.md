@@ -1,6 +1,6 @@
 # Plan: P0-M005 — Worktree isolation manager
 
-Status: Approved
+Status: Completed
 Milestone: P0-M005
 Created: 2026-09-19
 
@@ -326,41 +326,58 @@ Remote:
 
 ## Acceptance criteria
 
-- [ ] Managed branch naming is deterministic.
-- [ ] Managed worktree paths are deterministic.
-- [ ] Worktree paths cannot escape the managed root.
-- [ ] Creation resolves and records exact base commit.
-- [ ] Creation refuses conflicting branches.
-- [ ] Creation refuses conflicting worktrees.
-- [ ] Git commands use direct arguments without shell interpolation.
-- [ ] Managed worktrees can be inspected deterministically.
-- [ ] Unrelated worktrees are not treated as AgentForge-owned.
-- [ ] Dirty state is detected.
-- [ ] Unresolved Git-operation state is detected.
-- [ ] Dirty worktrees cannot be retired normally.
-- [ ] Unresolved worktrees cannot be retired normally.
-- [ ] Clean managed worktrees can be retired safely.
-- [ ] Normal retirement preserves task branch.
-- [ ] No normal operation uses forced removal.
-- [ ] No normal operation uses git reset --hard.
-- [ ] No normal operation uses git clean.
-- [ ] .forge runtime data is ignored by Git.
-- [ ] GitHub Actions use a Node 24 checkout release.
-- [ ] GitHub Actions runner OS is pinned for reproducibility.
-- [ ] agentforge-core gains no Git-process dependency.
-- [ ] Temporary-repository integration tests cover create/inspect/retire.
-- [ ] Exact implementation local gate is green.
-- [ ] Exact implementation CI is green.
-- [ ] Exact closure CI is green.
-- [ ] Post-merge main CI is green.
+- [x] Managed branch naming is deterministic.
+- [x] Managed worktree paths are deterministic.
+- [x] Worktree paths cannot escape the managed root.
+- [x] Creation resolves and records exact base commit.
+- [x] Creation refuses conflicting branches.
+- [x] Creation refuses conflicting worktrees.
+- [x] Git commands use direct arguments without shell interpolation.
+- [x] Managed worktrees can be inspected deterministically.
+- [x] Unrelated worktrees are not treated as AgentForge-owned.
+- [x] Dirty state is detected.
+- [x] Unresolved Git-operation state is detected.
+- [x] Dirty worktrees cannot be retired normally.
+- [x] Unresolved worktrees cannot be retired normally.
+- [x] Clean managed worktrees can be retired safely.
+- [x] Normal retirement preserves task branch.
+- [x] No normal operation uses forced removal.
+- [x] No normal operation uses git reset --hard.
+- [x] No normal operation uses git clean.
+- [x] .forge runtime data is ignored by Git.
+- [x] GitHub Actions use a Node 24 checkout release.
+- [x] GitHub Actions runner OS is pinned for reproducibility.
+- [x] agentforge-core gains no Git-process dependency.
+- [x] Temporary-repository integration tests cover create/inspect/retire.
+- [x] Exact implementation local gate is green.
+- [x] Exact implementation CI is green.
+- [x] Exact closure CI is green.
+- [x] Post-merge main CI is green.
 
 ## Completion record
 
-Implementation commit:
-Implementation CI:
-Closure commit:
-Closure CI:
-Post-merge main:
-Post-merge CI:
-Completed:
-Notes:
+Implementation commit: e302cdae8a6610be04ec244bcefa2eab7c768864
+Implementation CI: 35481590769 — all four jobs green
+Closure commit: recorded by Git history immediately after this record
+Closure CI: required before merge
+Post-merge main: required after merge
+Post-merge CI: required after merge
+Completed: 2026-09-19
+Notes: P0-M005 completed AgentForge's deterministic, conservative Git worktree isolation boundary.
+
+Evidence:
+
+- Approved plan checkpoint: `5f109357f3bdcadff3328622a26e7bc69aacd10b`.
+- Plan CI run `35478127108` — all four jobs green.
+- CI maintenance plan amendment: `bb5791ca59b3006115f3732b02b26b035d243adb`.
+- Plan-amendment CI run `35478252595` — all four jobs green.
+- CI runtime maintenance: `68e985b96ad9a77195851abe9f88b8b6dd3a496f`.
+- CI-maintenance run `35478294955` — all four jobs green.
+- Validated implementation: `e302cdae8a6610be04ec244bcefa2eab7c768864`.
+- Exact implementation CI run `35481590769` passed Repository policy, Stable code gate,
+  MSRV 1.85.0, and CLI smoke.
+- The full local gate passed, including under the pre-commit `GIT_INDEX_FILE` environment.
+- Thirty-two concurrent integration-test processes passed 160 total worktree tests after fixture
+  isolation was repaired.
+- No external Rust dependency was introduced.
+- Task branches are preserved by conservative, non-forced retirement.
