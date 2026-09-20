@@ -1,6 +1,6 @@
 # Plan: P2-M007 — Cross-platform agent operations
 
-Status: Completed
+Status: Approved
 Milestone: P2-M007
 Created: 2026-09-20
 
@@ -141,8 +141,8 @@ Profiles grant no task capability and cannot bypass task approval or worktree ve
 
 Implementation commits: `0153810`, `11c6b32`, `11ea7e7`, `4c33f2f`.
 CI run: `35506798008` (exact `4c33f2f`, all matrix jobs green).
-Closure commit: recorded in the final closure checkpoint.
-Closure CI: recorded in the final closure checkpoint.
+Closure commit: pending after bounded daemon-test teardown repair.
+Closure CI: pending after bounded daemon-test teardown repair.
 Completed: 2026-09-20.
 Notes: Windows Git arguments now use native paths while comparison remains canonical and
 case-insensitive. Profiles are bounded, versioned, direct-argument configurations with cleared
