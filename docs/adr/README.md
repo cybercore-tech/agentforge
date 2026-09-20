@@ -29,3 +29,5 @@ ADRs are permanent numbered records of consequential design decisions.
 | ADR-0021 | Accepted | Read-only operator HUD |
 | ADR-0022 | Accepted | Cooked-mode interactive HUD watch |
 | ADR-0023 | Accepted | Controlled operator actions |
+| ADR-0024 | Accepted | Cooked-mode interactive foreground agent sessions |
+| ADR-0025 | Accepted | PTY-backed foreground agent sessions |

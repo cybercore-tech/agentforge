@@ -70,7 +70,7 @@ fn main() -> ExitCode {
 
 fn print_usage() {
     println!(
-        "usage: forge <version|doctor|status|init <root>|intake <root> [--task] [--input-file <path>]|blueprint validate <root>|task create|inspect|approve|accept|cancel|retry ...|agent list|validate|inspect <root> [<profile>]|run <root> <task-id> <absolute-executable> [--interactive]|run <root> <task-id> --profile <profile> [--interactive]|daemon start|restart|status|run|stop ...|worktree create|inspect|list|retire ...|hud <root> [--watch [--interval-ms <milliseconds>]]>"
+        "usage: forge <version|doctor|status|init <root>|intake <root> [--task] [--input-file <path>]|blueprint validate <root>|task create|inspect|approve|accept|cancel|retry ...|agent list|validate|inspect <root> [<profile>]|run <root> <task-id> <absolute-executable> [--interactive] [--pty]|run <root> <task-id> --profile <profile> [--interactive] [--pty]|daemon start|restart|status|run|stop ...|worktree create|inspect|list|retire ...|hud <root> [--watch [--interval-ms <milliseconds>]]>"
     );
 }
 
@@ -1289,9 +1289,27 @@ fn run_command(arguments: Vec<String>) -> ExitCode {
         return ExitCode::from(2);
     }
     let interactive = interactive_count == 1;
+    let pty_count = arguments
+        .iter()
+        .filter(|argument| argument.as_str() == "--pty")
+        .count();
+    if pty_count > 1 {
+        eprintln!("run accepts --pty at most once");
+        print_usage();
+        return ExitCode::from(2);
+    }
+    let pty = pty_count == 1;
+    if pty && !interactive {
+        eprintln!("run requires --interactive when --pty is selected");
+        print_usage();
+        return ExitCode::from(2);
+    }
     let mut command_arguments = arguments;
     if interactive {
         command_arguments.retain(|argument| argument != "--interactive");
+    }
+    if pty {
+        command_arguments.retain(|argument| argument != "--pty");
     }
     if command_arguments.len() != 3
         && !(command_arguments.len() == 4
@@ -1336,6 +1354,9 @@ fn run_command(arguments: Vec<String>) -> ExitCode {
     if interactive {
         config = config.with_interactive();
     };
+    if pty {
+        config = config.with_pty();
+    }
     let adapter = match ProcessAdapter::new(config) {
         Ok(value) => value,
         Err(error) => {

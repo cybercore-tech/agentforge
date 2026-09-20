@@ -20,9 +20,10 @@ complete product or a release-ready tool**. There is no stable API, compatibilit
 production-support guarantee yet. Treat project state and agent output as reviewable work in
 progress, use disposable test projects when possible, and keep an independent human in the loop.
 
-The current interactive mode is cooked and line-oriented; raw PTY/full-screen agent behavior and
-daemon attachment are intentionally not implemented. Interfaces, configuration formats, and
-operator workflows may change before the first stable release. 🌱
+The direct interactive path now has two explicit modes: cooked line-oriented `--interactive` and
+native-terminal `--interactive --pty` for full-screen/raw-mode agents. PTY mode requires a real
+terminal and is not available through pipes or the detached daemon. Interfaces, configuration
+formats, and operator workflows may change before the first stable release. 🌱
 
 ## Why AgentForge? 🎯
 
@@ -179,6 +180,8 @@ forge run <project-root> <task-id> <absolute-executable>
 forge run <project-root> <task-id> --profile <profile-id>
 forge run <project-root> <task-id> <absolute-executable> --interactive
 forge run <project-root> <task-id> --profile <profile-id> --interactive
+forge run <project-root> <task-id> <absolute-executable> --interactive --pty
+forge run <project-root> <task-id> --profile <profile-id> --interactive --pty
 ```
 
 The run path performs policy, task-state, worktree, adapter, gate, audit, and handoff checks around
@@ -189,6 +192,11 @@ until an independent operator decision is recorded.
 Use `--interactive` for a foreground, cooked line-oriented session when the agent may ask questions
 during the build. Output is shown live and bounded evidence is retained. This does not change the
 approval or acceptance boundaries, and it does not apply to detached `forge daemon run` sessions.
+
+Use `--interactive --pty` when the agent requires a full-screen or raw-mode terminal UI. AgentForge
+allocates a native PTY, forwards keyboard input and resize events, restores terminal mode on exit,
+and retains bounded output evidence. PTY mode fails closed unless stdin and stdout are real
+terminals; it is not supported by pipes, CI capture, or `forge daemon run`.
 
 Define and inspect a project-local profile in `.forge/agents/<profile-id>.conf`, then
 validate it before use:
@@ -351,8 +359,8 @@ Clippy, tests, and documentation tests. Do not bypass hooks or validation with `
 Completed foundations include durable task state, worktree isolation, adapters, gates, CI
 classification, audit history, scheduling primitives, orchestration, project intake, release
 readiness, and the operator experience milestones through P2-M012. The optional loopback daemon,
-guided intake, and cooked interactive foreground sessions are covered by the supported Linux,
-macOS, and Windows CI matrix, but remain pre-release capabilities.
+guided intake, cooked interactive foreground sessions, and PTY-backed foreground sessions are
+covered by the supported Linux, macOS, and Windows CI matrix, but remain pre-release capabilities.
 
 The next increment is intentionally not pre-approved. Future work should be driven by real operator
 usage and may expand daemon-driven orchestration, richer integration surfaces, or additional provider

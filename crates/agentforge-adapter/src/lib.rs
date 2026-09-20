@@ -8,10 +8,13 @@ use agentforge_core::agent::{
 };
 use agentforge_core::task::{TaskId, TaskIdError};
 use agentforge_worktree::{WorktreeError, WorktreeManager, WorktreeStatus};
+use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use crossterm::terminal;
+use portable_pty::{Child as PtyChild, CommandBuilder, MasterPty, PtySize, native_pty_system};
 use std::collections::BTreeMap;
 use std::fmt;
 use std::fs;
-use std::io::{self, Read, Write};
+use std::io::{self, IsTerminal, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -54,6 +57,7 @@ pub struct ProcessAdapterConfig {
     timeout: Duration,
     max_output_bytes: usize,
     interactive: bool,
+    pty: bool,
 }
 
 /// Project-local directory containing versioned agent profiles.
@@ -390,6 +394,7 @@ impl ProcessAdapterConfig {
             timeout: Duration::from_secs(60),
             max_output_bytes: 1024 * 1024,
             interactive: false,
+            pty: false,
         }
     }
 
@@ -428,6 +433,14 @@ impl ProcessAdapterConfig {
         self
     }
 
+    /// Enables terminal-native PTY interaction for this direct foreground adapter.
+    #[must_use]
+    pub fn with_pty(mut self) -> Self {
+        self.interactive = true;
+        self.pty = true;
+        self
+    }
+
     fn validate(&self) -> Result<(), AdapterError> {
         if self.adapter_id.trim().is_empty() {
             return Err(AdapterError::InvalidConfiguration(
@@ -447,6 +460,11 @@ impl ProcessAdapterConfig {
         if self.max_output_bytes == 0 {
             return Err(AdapterError::InvalidConfiguration(
                 "adapter output limit must be nonzero",
+            ));
+        }
+        if self.pty && !self.interactive {
+            return Err(AdapterError::InvalidConfiguration(
+                "PTY mode requires interactive mode",
             ));
         }
         if self
@@ -488,7 +506,9 @@ impl AgentAdapter for ProcessAdapter {
     fn execute(&self, request: AdapterRequest<'_>) -> Result<ExecutionReport, AdapterError> {
         let status = preflight(request)?;
         let prompt = render_task_prompt(request.task);
-        if self.config.interactive {
+        if self.config.pty {
+            execute_pty_process(&self.config, request.task, status, prompt)
+        } else if self.config.interactive {
             execute_interactive_process(&self.config, request.task, status, prompt)
         } else {
             execute_process(&self.config, request.task, status, prompt)
@@ -609,6 +629,8 @@ pub enum AdapterError {
     UnresolvedGitOperation(TaskId),
     /// Process I/O or synchronization failed.
     Io(io::Error),
+    /// The requested PTY session cannot run in the current terminal context.
+    TerminalUnavailable(&'static str),
     /// An internal output-capture mutex was poisoned.
     CapturePoisoned,
     /// An output-draining or stdin-delivery thread panicked.
@@ -651,6 +673,9 @@ impl fmt::Display for AdapterError {
                 "managed worktree has an unresolved Git operation: {task_id}"
             ),
             Self::Io(error) => write!(formatter, "adapter process I/O failed: {error}"),
+            Self::TerminalUnavailable(message) => {
+                write!(formatter, "terminal unavailable: {message}")
+            }
             Self::CapturePoisoned => {
                 formatter.write_str("adapter output capture mutex was poisoned")
             }
@@ -950,6 +975,252 @@ fn execute_interactive_process(
     })
 }
 
+fn execute_pty_process(
+    config: &ProcessAdapterConfig,
+    task: &AgentTask,
+    status: WorktreeStatus,
+    prompt: Vec<u8>,
+) -> Result<ExecutionReport, AdapterError> {
+    if !io::stdin().is_terminal() || !io::stdout().is_terminal() {
+        return Err(AdapterError::TerminalUnavailable(
+            "PTY mode requires terminal stdin and stdout",
+        ));
+    }
+    let (cols, rows) = terminal::size().map_err(AdapterError::Io)?;
+    let size = PtySize {
+        rows: rows.max(1),
+        cols: cols.max(1),
+        pixel_width: 0,
+        pixel_height: 0,
+    };
+    let _raw_mode = RawModeGuard::enable()?;
+    let pty_system = native_pty_system();
+    let pair = pty_system
+        .openpty(size)
+        .map_err(|error| pty_error("opening PTY", error))?;
+    let mut command = CommandBuilder::new(&config.executable);
+    command.args(&config.arguments);
+    command.cwd(status.path());
+    command.env_clear();
+    for (key, value) in &config.environment {
+        command.env(key, value);
+    }
+    let mut child = pair
+        .slave
+        .spawn_command(command)
+        .map_err(|error| pty_error("spawning PTY child", error))?;
+    let reader = pair
+        .master
+        .try_clone_reader()
+        .map_err(|error| pty_error("opening PTY reader", error))?;
+    let mut writer = pair
+        .master
+        .take_writer()
+        .map_err(|error| pty_error("opening PTY writer", error))?;
+    let capture = Arc::new(Mutex::new(Capture::default()));
+    let output_limited = Arc::new(AtomicBool::new(false));
+    let output_thread = drain_pty(
+        reader,
+        Arc::clone(&capture),
+        Arc::clone(&output_limited),
+        config.max_output_bytes,
+    );
+    let session_result = run_pty_loop(
+        &mut child,
+        pair.master.as_ref(),
+        &mut writer,
+        &prompt,
+        config.timeout,
+        &output_limited,
+    );
+    if session_result.is_err() {
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+    drop(writer);
+    let output_result = output_thread
+        .join()
+        .map_err(|_| AdapterError::WorkerThreadPanicked)?;
+    let (termination, exit_code) = session_result?;
+    output_result?;
+    let capture = capture.lock().map_err(|_| AdapterError::CapturePoisoned)?;
+    Ok(ExecutionReport {
+        task_id: TaskId::parse(task.task_id.clone()).map_err(AdapterError::InvalidTaskId)?,
+        adapter_id: config.adapter_id.clone(),
+        worktree_path: status.path().to_path_buf(),
+        worktree_head: status.head().to_owned(),
+        termination,
+        exit_code,
+        stdout: capture.stdout.clone(),
+        stderr: capture.stderr.clone(),
+        output_truncated: output_limited.load(Ordering::Acquire),
+    })
+}
+
+fn pty_error(context: &'static str, error: impl fmt::Display) -> AdapterError {
+    AdapterError::Io(io::Error::other(format!("{context}: {error}")))
+}
+
+fn run_pty_loop(
+    child: &mut Box<dyn PtyChild + Send + Sync>,
+    master: &dyn MasterPty,
+    writer: &mut dyn Write,
+    prompt: &[u8],
+    timeout: Duration,
+    output_limited: &AtomicBool,
+) -> Result<(ExecutionTermination, Option<i32>), AdapterError> {
+    writer.write_all(prompt)?;
+    writer.flush()?;
+    let started = Instant::now();
+    loop {
+        if let Some(status) = child.try_wait()? {
+            return Ok((
+                ExecutionTermination::Exited,
+                i32::try_from(status.exit_code()).ok(),
+            ));
+        }
+        let termination = if output_limited.load(Ordering::Acquire) {
+            Some(ExecutionTermination::OutputLimitExceeded)
+        } else if started.elapsed() >= timeout {
+            Some(ExecutionTermination::TimedOut)
+        } else {
+            None
+        };
+        if let Some(termination) = termination {
+            let _ = child.kill();
+            let status = child.wait()?;
+            return Ok((termination, i32::try_from(status.exit_code()).ok()));
+        }
+        if event::poll(Duration::from_millis(10)).map_err(AdapterError::Io)? {
+            match event::read().map_err(AdapterError::Io)? {
+                Event::Key(key) => {
+                    if let Some(bytes) = key_event_bytes(key) {
+                        writer.write_all(&bytes)?;
+                        writer.flush()?;
+                    }
+                }
+                Event::Resize(cols, rows) => {
+                    master
+                        .resize(PtySize {
+                            rows: rows.max(1),
+                            cols: cols.max(1),
+                            pixel_width: 0,
+                            pixel_height: 0,
+                        })
+                        .map_err(|error| pty_error("resizing PTY", error))?;
+                }
+                Event::FocusGained | Event::FocusLost | Event::Mouse(_) => {}
+            }
+        }
+    }
+}
+
+fn key_event_bytes(key: KeyEvent) -> Option<Vec<u8>> {
+    if key.kind == KeyEventKind::Release {
+        return None;
+    }
+    let control = key.modifiers.contains(KeyModifiers::CONTROL);
+    let alt = key.modifiers.contains(KeyModifiers::ALT);
+    let mut bytes = match key.code {
+        KeyCode::Char(character) if control => vec![control_byte(character)?],
+        KeyCode::Char(character) => character.to_string().into_bytes(),
+        KeyCode::Enter => vec![b'\r'],
+        KeyCode::Backspace => vec![0x7f],
+        KeyCode::Tab if key.modifiers.contains(KeyModifiers::SHIFT) => b"\x1b[Z".to_vec(),
+        KeyCode::Tab => vec![b'\t'],
+        KeyCode::Esc => vec![0x1b],
+        KeyCode::Up => b"\x1b[A".to_vec(),
+        KeyCode::Down => b"\x1b[B".to_vec(),
+        KeyCode::Right => b"\x1b[C".to_vec(),
+        KeyCode::Left => b"\x1b[D".to_vec(),
+        KeyCode::Home => b"\x1b[H".to_vec(),
+        KeyCode::End => b"\x1b[F".to_vec(),
+        KeyCode::PageUp => b"\x1b[5~".to_vec(),
+        KeyCode::PageDown => b"\x1b[6~".to_vec(),
+        KeyCode::Insert => b"\x1b[2~".to_vec(),
+        KeyCode::Delete => b"\x1b[3~".to_vec(),
+        KeyCode::F(number) if (1..=12).contains(&number) => {
+            let sequence = match number {
+                1 => "\x1bOP",
+                2 => "\x1bOQ",
+                3 => "\x1bOR",
+                4 => "\x1bOS",
+                5 => "\x1b[15~",
+                6 => "\x1b[17~",
+                7 => "\x1b[18~",
+                8 => "\x1b[19~",
+                9 => "\x1b[20~",
+                10 => "\x1b[21~",
+                11 => "\x1b[23~",
+                12 => "\x1b[24~",
+                _ => unreachable!(),
+            };
+            sequence.as_bytes().to_vec()
+        }
+        _ => return None,
+    };
+    if alt && !matches!(key.code, KeyCode::Esc) {
+        bytes.insert(0, 0x1b);
+    }
+    Some(bytes)
+}
+
+fn control_byte(character: char) -> Option<u8> {
+    match character.to_ascii_lowercase() {
+        '@' | ' ' => Some(0),
+        'a'..='z' => Some(character.to_ascii_lowercase() as u8 - b'a' + 1),
+        '[' => Some(27),
+        '\\' => Some(28),
+        ']' => Some(29),
+        '^' => Some(30),
+        '_' => Some(31),
+        _ => None,
+    }
+}
+
+struct RawModeGuard;
+
+impl RawModeGuard {
+    fn enable() -> Result<Self, AdapterError> {
+        terminal::enable_raw_mode().map_err(AdapterError::Io)?;
+        Ok(Self)
+    }
+}
+
+impl Drop for RawModeGuard {
+    fn drop(&mut self) {
+        let _ = terminal::disable_raw_mode();
+    }
+}
+
+fn drain_pty<R: Read + Send + 'static>(
+    mut reader: R,
+    capture: Arc<Mutex<Capture>>,
+    output_limited: Arc<AtomicBool>,
+    limit: usize,
+) -> thread::JoinHandle<Result<(), AdapterError>> {
+    thread::spawn(move || {
+        let mut buffer = [0_u8; 8192];
+        let mut terminal = io::stdout();
+        loop {
+            let length = reader.read(&mut buffer)?;
+            if length == 0 {
+                return Ok(());
+            }
+            terminal.write_all(&buffer[..length])?;
+            terminal.flush()?;
+            let mut capture = capture.lock().map_err(|_| AdapterError::CapturePoisoned)?;
+            let used = capture.stdout.len() + capture.stderr.len();
+            let remaining = limit.saturating_sub(used);
+            let accepted = length.min(remaining);
+            capture.stdout.extend_from_slice(&buffer[..accepted]);
+            if accepted < length {
+                output_limited.store(true, Ordering::Release);
+            }
+        }
+    })
+}
+
 fn wait_for_child(
     child: &mut Child,
     timeout: Duration,
@@ -1080,9 +1351,10 @@ fn write_values<'a>(output: &mut Vec<u8>, name: &str, values: impl Iterator<Item
 mod tests {
     use super::{
         AdapterError, AdapterRequest, AgentAdapter, AgentProfileStore, ExecutionReport,
-        render_task_prompt, validate_result_binding,
+        ProcessAdapterConfig, key_event_bytes, render_task_prompt, validate_result_binding,
     };
     use agentforge_core::agent::{AgentResult, AgentRole, AgentTask, TaskOutcome};
+    use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -1151,6 +1423,29 @@ mod tests {
         assert_eq!(profile.max_output_bytes(), 2048);
 
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn pty_key_encoding_preserves_terminal_controls() {
+        let control_c = key_event_bytes(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL));
+        assert_eq!(control_c, Some(vec![3]));
+        let arrow = key_event_bytes(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
+        assert_eq!(arrow, Some(b"\x1b[A".to_vec()));
+        let released = key_event_bytes(KeyEvent {
+            code: KeyCode::Char('x'),
+            modifiers: KeyModifiers::NONE,
+            kind: KeyEventKind::Release,
+            state: crossterm::event::KeyEventState::NONE,
+        });
+        assert_eq!(released, None);
+    }
+
+    #[test]
+    fn pty_configuration_is_explicitly_interactive() {
+        let config = ProcessAdapterConfig::new("fixture", "/absolute/fixture").with_pty();
+        assert!(config.interactive);
+        assert!(config.pty);
+        assert!(config.validate().is_ok());
     }
 
     struct FakeAdapter;

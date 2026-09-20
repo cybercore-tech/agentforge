@@ -43,5 +43,10 @@ For a direct foreground session where the operator must answer line-oriented age
 `--interactive` to `forge run`. The profile's literal executable, arguments, explicit environment,
 timeouts, and evidence bounds remain in force; `forge daemon run` does not attach a terminal.
 
+For a full-screen or raw-mode agent, add `--interactive --pty` instead. This allocates a native
+pseudo-terminal, forwards keyboard input and terminal resize events, and restores the operator's
+terminal mode when the child exits. PTY mode is intentionally direct-foreground only and requires
+both stdin and stdout to be terminals; it fails closed in CI pipes and daemon execution.
+
 The normal task preflight still applies: the task must exist, its managed worktree must be clean
 and verified, and required approvals and capabilities must already be present.

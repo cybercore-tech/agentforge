@@ -9,19 +9,23 @@ The direct operator entry point is `forge run <root> <task-id> <absolute-executa
 `.forge/state/tasks.snapshot`, writes `.forge/audit.log`, requires a pre-created managed worktree,
 and leaves successful tasks in `Running` until independently accepted.
 
-P2-M012 adds an opt-in foreground interaction mode:
+P2-M012 adds an opt-in cooked foreground interaction mode, and P2-M013 adds an explicit PTY mode:
 
 ```text
 forge run <root> <task-id> <absolute-executable> --interactive
 forge run <root> <task-id> --profile <profile-id> --interactive
+forge run <root> <task-id> <absolute-executable> --interactive --pty
+forge run <root> <task-id> --profile <profile-id> --interactive --pty
 ```
 
-Interactive runs keep the current terminal attached through a cooked, line-oriented bridge. The
+Cooked interactive runs keep the current terminal attached through a line-oriented bridge. The
 initial task prompt is delivered automatically, subsequent operator input is forwarded live, and
-child output is displayed as it arrives while bounded copies remain execution evidence. The same
-preflight, capability, approval, worktree, timeout, audit, and acceptance boundaries apply. This
-mode is direct-foreground only; `forge daemon run` remains detached and captured, and full-screen
-or raw-mode PTY behavior is intentionally outside this milestone.
+child output is displayed as it arrives while bounded copies remain execution evidence. Adding
+`--pty` allocates a native pseudo-terminal, enables raw input, forwards terminal resize events,
+and supports full-screen/raw-mode agents such as terminal UIs. PTY mode requires a real terminal
+on stdin and stdout and fails closed when invoked through a pipe or detached service. Both modes
+retain the same preflight, capability, approval, worktree, timeout, audit, and acceptance
+boundaries. `forge daemon run` remains detached and captured.
 
 P2-M005 adds the optional `forged` local daemon. Start it with `forged serve --root <root>` and
 use `forge daemon status|run|stop` for the same bounded process path through a loopback-only,
