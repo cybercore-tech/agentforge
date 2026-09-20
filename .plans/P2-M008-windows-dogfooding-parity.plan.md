@@ -1,6 +1,6 @@
 # Plan: P2-M008 — Windows dogfooding parity
 
-Status: Draft
+Status: Approved
 Milestone: P2-M008
 Created: 2026-09-20
 
