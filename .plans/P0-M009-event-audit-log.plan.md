@@ -1,6 +1,6 @@
 # Plan: P0-M009 — Event and audit log
 
-Status: Draft
+Status: Approved
 Milestone: P0-M009
 Created: 2026-09-19
 
@@ -71,8 +71,8 @@ event kinds decode as an explicit compatibility error rather than being discarde
 
 ## ADRs
 
-Proposed ADR-0014 records the append-only audit boundary, canonical framing, and integrity-chain
-decision. It follows ADR-0003, ADR-0004, ADR-0005, and ADR-0009.
+ADR-0014 records the append-only audit boundary, canonical framing, and integrity-chain decision.
+It follows ADR-0003, ADR-0004, ADR-0005, and ADR-0009.
 
 ## Public API / CLI
 

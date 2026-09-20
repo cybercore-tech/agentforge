@@ -1,6 +1,6 @@
 # ADR-0014: Append-only event audit log with integrity chaining
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-19
 - Decision owners: AgentForge project
 
