@@ -88,10 +88,11 @@ The smoke job verifies:
 
 ## Platform matrix
 
-The `Platform matrix` job runs stable workspace checks, portable tests, and CLI version smoke on
-Ubuntu 24.04, macOS 14, and Windows 2022. Unix-specific integration fixtures remain in the Linux
-stable gate because they exercise `/usr/bin` process and Git-worktree behavior; the matrix still
-compiles the complete workspace on every supported host.
+The `Platform matrix` job runs stable workspace checks, portable worktree and daemon dogfooding
+tests, and CLI version smoke on Ubuntu 24.04, macOS 14, and Windows 2022. These fixtures invoke
+Git and the agent executable directly, so the same managed-worktree workflow is exercised on every
+supported host. Any remaining Unix-specific integration fixture stays in the Linux stable gate
+with its platform dependency documented beside the test.
 
 ## Release workflow
 

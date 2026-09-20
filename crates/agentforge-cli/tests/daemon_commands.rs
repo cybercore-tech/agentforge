@@ -7,11 +7,6 @@ use std::process::Command;
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-// The Windows portable CI job intentionally excludes the worktree crate: Git for Windows
-// rejects the verbatim temporary paths returned by `std::fs::canonicalize`. The daemon's
-// worktree-backed dogfooding flow therefore runs on the Unix platform matrix where that
-// isolation boundary is exercised directly.
-#[cfg(not(windows))]
 #[test]
 fn daemon_status_and_stop_are_operator_commands() {
     let root = temporary_repo();
@@ -156,22 +151,8 @@ fn temporary_repo() -> PathBuf {
 }
 
 fn agent_fixture(root: &Path) -> PathBuf {
-    let executable = root.join("agentforge-fixture.sh");
-    fs::write(
-        &executable,
-        "#!/bin/sh\nprintf 'fixture executed\\n' > agentforge-fixture-output.txt\nprintf 'fixture executed\\n'\n",
-    )
-    .expect("fixture script");
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let mut permissions = fs::metadata(&executable)
-            .expect("fixture metadata")
-            .permissions();
-        permissions.set_mode(0o755);
-        fs::set_permissions(&executable, permissions).expect("fixture permissions");
-    }
-    executable
+    let _ = root;
+    PathBuf::from(env!("CARGO_BIN_EXE_agentforge-cli-fixture"))
 }
 
 fn git(root: &Path, arguments: &[&str]) {

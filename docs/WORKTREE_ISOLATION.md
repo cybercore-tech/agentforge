@@ -28,6 +28,9 @@ state.
 On Windows, Git may report a normal path while the filesystem returns a verbatim canonical path.
 The manager compares normalized case-insensitive path keys and accepts only equivalent forms; it
 still requires every managed entry to remain directly beneath the deterministic managed root.
+The managed lifecycle integration suite runs in the Linux, macOS, and Windows CI matrix so this
+path-equivalence behavior is exercised through the same create, inspect, dirty-state, and retire
+workflow on each supported host.
 
 ## Retirement
 

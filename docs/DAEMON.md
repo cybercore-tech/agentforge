@@ -65,6 +65,10 @@ accepts it:
 forge task accept /path/to/project P2-M005-T0001 --actor operator
 ```
 
+The daemon-backed CLI dogfooding path uses a direct executable fixture and is covered by the
+Linux, macOS, and Windows platform matrix. It does not depend on shell syntax or ambient process
+environment behavior.
+
 After an accepted task is no longer needed, retire its clean managed worktree explicitly:
 
 ```bash

@@ -310,8 +310,9 @@ Clippy, tests, and documentation tests. Do not bypass hooks or validation with `
 
 Completed foundations include durable task state, worktree isolation, adapters, gates, CI
 classification, audit history, scheduling primitives, orchestration, project intake, release
-readiness, and the operator experience milestones through P2-M006. The optional loopback daemon
-and its real temporary-project dogfooding flow are complete.
+readiness, and the operator experience milestones through P2-M008. The optional loopback daemon
+and its real temporary-project dogfooding flow are covered across the supported Linux, macOS, and
+Windows CI matrix.
 
 The next increment is intentionally not pre-approved. Future work should be driven by real operator
 usage and may expand daemon-driven orchestration, richer integration surfaces, or additional provider

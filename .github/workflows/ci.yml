@@ -136,7 +136,6 @@ jobs:
           --exclude agentforge-ci
           --exclude agentforge-gate
           --exclude agentforge-orchestrator
-          --exclude agentforge-worktree
 
       - name: forge smoke on ${{ matrix.os }}
         run: cargo run -p agentforge-cli --locked -- version
