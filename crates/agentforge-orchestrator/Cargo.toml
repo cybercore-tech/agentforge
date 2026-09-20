@@ -10,6 +10,8 @@ publish = false
 agentforge-core = { path = "../agentforge-core" }
 agentforge-policy = { path = "../agentforge-policy" }
 agentforge-worktree = { path = "../agentforge-worktree" }
+agentforge-adapter = { path = "../agentforge-adapter" }
+agentforge-audit = { path = "../agentforge-audit" }
 
 [lints]
 workspace = true

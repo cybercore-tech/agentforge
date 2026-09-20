@@ -1,6 +1,9 @@
 //! A bounded, provider-neutral single-agent orchestration flow.
 
+use agentforge_adapter::{AdapterRequest, AgentAdapter, ExecutionReport};
+use agentforge_audit::{AuditEvent, AuditEventKind, AuditLog};
 use agentforge_core::agent::{AgentTask, Capability};
+use agentforge_core::task::{TaskGraph, TaskId, TaskState};
 use agentforge_policy::{PolicyDecision, PolicyEngine, PolicyRequest};
 use agentforge_worktree::WorktreeManager;
 use std::fmt;
@@ -96,6 +99,108 @@ pub fn preflight_repository(root: impl AsRef<Path>, task: &AgentTask) -> Result<
     }
     let _ = manager.project_root();
     Ok(())
+}
+
+/// Evidence returned after launching one concrete process adapter.
+#[derive(Debug)]
+pub struct ProcessExecution {
+    /// Bounded adapter evidence; successful exit is not task acceptance.
+    pub report: ExecutionReport,
+    /// Durable audit log containing ordered stage evidence.
+    pub audit: AuditLog,
+}
+
+/// Runs a prepared task through the concrete process adapter and durable in-memory state/audit.
+///
+/// The task is transitioned to `Running` before launch. A successful process remains `Running`
+/// until an independent caller records acceptance; adapter failure transitions it to `Failed`.
+pub fn execute_process_once<A: AgentAdapter>(
+    root: impl AsRef<Path>,
+    graph: &mut TaskGraph,
+    task_id: &TaskId,
+    adapter: &A,
+    approvals: &[agentforge_core::agent::ApprovalBoundary],
+) -> Result<ProcessExecution, SliceError> {
+    let root = root.as_ref().to_path_buf();
+    let task = graph
+        .records()
+        .find(|record| record.id() == task_id)
+        .ok_or_else(|| SliceError::Preflight("task not found".into()))?
+        .task()
+        .clone();
+    preflight_repository(&root, &task)?;
+    graph
+        .transition(task_id, TaskState::Running)
+        .map_err(|e| SliceError::Preflight(e.to_string()))?;
+    let mut audit = AuditLog::new();
+    append_event(
+        &mut audit,
+        1,
+        "task-running",
+        AuditEventKind::TaskTransition,
+        &task,
+        "state",
+        "running",
+    )?;
+    append_event(
+        &mut audit,
+        2,
+        "agent-started",
+        AuditEventKind::AgentStarted,
+        &task,
+        "adapter",
+        adapter.id(),
+    )?;
+    let manager = WorktreeManager::new(&root).map_err(|e| SliceError::Preflight(e.to_string()))?;
+    let result = adapter.execute(AdapterRequest {
+        task: &task,
+        worktrees: &manager,
+        acknowledged_approvals: approvals,
+    });
+    match result {
+        Ok(report) => {
+            append_event(
+                &mut audit,
+                3,
+                "agent-finished",
+                AuditEventKind::AgentFinished,
+                &task,
+                "termination",
+                "observed",
+            )?;
+            Ok(ProcessExecution { report, audit })
+        }
+        Err(error) => {
+            let _ = graph.transition(task_id, TaskState::Failed);
+            append_event(
+                &mut audit,
+                3,
+                "agent-failed",
+                AuditEventKind::FailureClassified,
+                &task,
+                "error",
+                &error.to_string(),
+            )?;
+            Err(SliceError::Policy(error.to_string()))
+        }
+    }
+}
+
+fn append_event(
+    log: &mut AuditLog,
+    sequence: u64,
+    id: &str,
+    kind: AuditEventKind,
+    task: &AgentTask,
+    key: &str,
+    value: &str,
+) -> Result<(), SliceError> {
+    let event = AuditEvent::new(sequence, id, kind, "orchestrator", 1)
+        .with_task_id(task.task_id.clone())
+        .with_field(key, value);
+    log.append(event)
+        .map(|_| ())
+        .map_err(|e| SliceError::Preflight(e.to_string()))
 }
 
 /// Runs the ordered, single-agent flow using caller-owned evidence and no ambient state.

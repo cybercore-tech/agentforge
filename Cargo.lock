@@ -44,6 +44,8 @@ version = "0.0.1"
 name = "agentforge-orchestrator"
 version = "0.0.1"
 dependencies = [
+ "agentforge-adapter",
+ "agentforge-audit",
  "agentforge-core",
  "agentforge-policy",
  "agentforge-worktree",
