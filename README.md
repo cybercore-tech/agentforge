@@ -7,11 +7,22 @@ It treats models as replaceable workers—not as the source of truth. The durabl
 the repository: plans, task contracts, permissions, isolated worktrees, quality-gate evidence,
 CI observations, audit records, and human decisions. 🧭
 
-> **Status:** `0.0.1` · P2-M006 real-agent dogfooding and operator workflow complete · experimental and
-> under active development
+> **Status:** `0.0.1-alpha` · P2-M012 interactive foreground sessions complete · pre-release,
+> incomplete, and not release-ready
 
 [![CI](https://github.com/darkstardevx/agentforge/actions/workflows/ci.yml/badge.svg)](https://github.com/darkstardevx/agentforge/actions/workflows/ci.yml)
 [![Rust 1.85+](https://img.shields.io/badge/rust-1.85%2B-orange?logo=rust)](https://www.rust-lang.org/)
+
+## ⚠️ Pre-release warning
+
+AgentForge is usable for local experimentation and operator-led dogfooding, but it is **not a
+complete product or a release-ready tool**. There is no stable API, compatibility, migration, or
+production-support guarantee yet. Treat project state and agent output as reviewable work in
+progress, use disposable test projects when possible, and keep an independent human in the loop.
+
+The current interactive mode is cooked and line-oriented; raw PTY/full-screen agent behavior and
+daemon attachment are intentionally not implemented. Interfaces, configuration formats, and
+operator workflows may change before the first stable release. 🌱
 
 ## Why AgentForge? 🎯
 
@@ -52,7 +63,8 @@ The current repository provides:
 The repository also contains reusable Rust crates for scheduling, policy, orchestration, intake,
 state, worktrees, gates, audit, HUD, and operator actions. The `forged` binary now provides an
 optional bounded local runtime; the most complete interface remains the `forge` CLI plus the crate
-APIs.
+APIs. These capabilities are implemented and tested, but they should not be interpreted as a
+stable release contract. 🧪
 
 ## Quick start 🚀
 
@@ -338,9 +350,9 @@ Clippy, tests, and documentation tests. Do not bypass hooks or validation with `
 
 Completed foundations include durable task state, worktree isolation, adapters, gates, CI
 classification, audit history, scheduling primitives, orchestration, project intake, release
-readiness, and the operator experience milestones through P2-M008. The optional loopback daemon
-and its real temporary-project dogfooding flow are covered across the supported Linux, macOS, and
-Windows CI matrix.
+readiness, and the operator experience milestones through P2-M012. The optional loopback daemon,
+guided intake, and cooked interactive foreground sessions are covered by the supported Linux,
+macOS, and Windows CI matrix, but remain pre-release capabilities.
 
 The next increment is intentionally not pre-approved. Future work should be driven by real operator
 usage and may expand daemon-driven orchestration, richer integration surfaces, or additional provider
