@@ -45,6 +45,7 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 | P2-M010 | complete | Guided project intake surface | Operators can author validated blueprint/guideline documents and optional task drafts through a bounded preview-confirm workflow. |
 | P2-M011 | complete | Guided intake operator hardening | Operators can replay bounded intake sessions and verify intake-to-task/HUD handoff on disposable projects. |
 | P2-M012 | complete | Interactive foreground agent sessions | Operators can interact with a direct agent run in the current terminal while preserving AgentForge execution and acceptance boundaries. |
+| P2-M013 | complete | PTY-backed foreground agent sessions | Operators can run terminal-native full-screen agents through an explicit PTY mode with bounded evidence and restored terminal state. |
 
 ## Phase 1 — multi-agent scheduling and integration
 

@@ -2,8 +2,14 @@
 
 ## Repository state
 
-- Active milestone: none; P2-M012 — interactive foreground agent sessions are complete.
+- Active milestone: none; P2-M013 — PTY-backed foreground agent sessions are complete.
 - Active plan: none (`.plans/ACTIVE` is intentionally absent after closure).
+- P2-M013 implementation commit: `c9809205cf5f5851b00d957332a35f732392ab66`; exact CI
+  `35545010733` is green across repository policy, stable, MSRV, CLI smoke, Linux, macOS, and
+  Windows.
+- P2-M013 plan: `.plans/P2-M013-pty-foreground-agent-sessions.plan.md` — completed with explicit
+  PTY-backed foreground sessions, raw terminal restoration, resize forwarding, bounded evidence,
+  and fail-closed non-TTY behavior.
 - P2-M012 implementation commit: `4fa5c0d2c00887b5de70e6bcf43ed752e8202936`; exact CI
   `35530232141` is green across repository policy, stable, MSRV, CLI smoke, Linux, macOS, and
   Windows.

@@ -11,7 +11,7 @@ Phase 2 — operator experience.
 
 ## Active milestone
 
-None. P2-M012 is complete; the next increment is intentionally unplanned until real operator use
+None. P2-M013 is complete; the next increment is intentionally unplanned until real operator use
 identifies the next bounded need.
 
 ## Completed milestones
@@ -40,6 +40,18 @@ identifies the next bounded need.
 - `P2-M010` — Guided project intake surface.
 - `P2-M011` — Guided intake operator hardening.
 - `P2-M012` — Interactive foreground agent sessions.
+- `P2-M013` — PTY-backed foreground agent sessions.
+
+## P2-M013 completion evidence
+
+- Approved plan: `.plans/P2-M013-pty-foreground-agent-sessions.plan.md`.
+- Implementation commit: `c9809205cf5f5851b00d957332a35f732392ab66`.
+- Exact implementation CI: `35545010733` — all seven jobs green across repository policy, stable,
+  MSRV, CLI smoke, Ubuntu, macOS, and Windows.
+- The direct `forge run` path now offers explicit `--interactive --pty` sessions backed by a native
+  PTY, raw keyboard input, resize forwarding, bounded live evidence, fail-closed non-TTY checks,
+  and cooperative child cleanup. Captured, cooked-interactive, and detached daemon behavior remain
+  unchanged.
 
 ## P2-M012 completion evidence
 

@@ -1,6 +1,6 @@
 # Plan: P2-M013 — PTY-backed foreground agent sessions
 
-Status: Approved
+Status: Complete
 Milestone: P2-M013
 Created: 2026-09-20
 
@@ -176,20 +176,21 @@ terminal state, and does not create a daemon attachment or release guarantee.
 
 ## Acceptance criteria
 
-- [ ] A distinct `--interactive --pty` direct-run mode gives terminal-native agents a real PTY.
-- [ ] Existing captured, cooked-interactive, and daemon behavior remains compatible and bounded.
-- [ ] TTY detection, raw-mode restoration, EOF, timeout, output limits, child cleanup, and spawn
+- [x] A distinct `--interactive --pty` direct-run mode gives terminal-native agents a real PTY.
+- [x] Existing captured, cooked-interactive, and daemon behavior remains compatible and bounded.
+- [x] TTY detection, raw-mode restoration, EOF, timeout, output limits, child cleanup, and spawn
       failures are fail-closed and tested.
-- [ ] Literal arguments/environment, verified worktree cwd, prompt ordering, and authority checks
+- [x] Literal arguments/environment, verified worktree cwd, prompt ordering, and authority checks
       remain unchanged.
-- [ ] Linux, macOS, and Windows builds/tests cover the supported PTY path or clearly report an
+- [x] Linux, macOS, and Windows builds/tests cover the supported PTY path or clearly report an
       unsupported terminal condition.
-- [ ] Documentation distinguishes captured, cooked, and PTY foreground modes.
-- [ ] Local gate, exact implementation CI, closure commit, and exact closure CI are recorded.
+- [x] Documentation distinguishes captured, cooked, and PTY foreground modes.
+- [x] Local gate, exact implementation CI, closure commit, and exact closure CI are recorded.
 
 ## Completion record
 
-Implementation commit: pending.
-Exact implementation CI: pending.
+Implementation commit: `c9809205cf5f5851b00d957332a35f732392ab66`.
+Exact implementation CI: `35545010733` — all seven jobs green across repository policy, stable,
+MSRV, CLI smoke, Ubuntu, macOS, and Windows.
 Closure commit: pending.
 Exact closure CI: pending.
