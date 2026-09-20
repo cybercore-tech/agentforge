@@ -160,6 +160,9 @@ Implementation commit: `7b40c0a83cf022d66462270d4d4ca6fc66c40975`.
 CI run: `35529284464`.
 CI result: Green across repository policy, stable, MSRV, CLI smoke, Ubuntu, macOS, and Windows.
 Completed: 2026-09-20.
+Closure commit: `d359d53d3ab8bbcf17091be548e23409ffa971ad`.
+Closure CI: `35529438657` — green across repository policy, stable, MSRV, CLI smoke, Ubuntu,
+macOS, and Windows.
 Notes: Added bounded UTF-8 `--input-file` replay through the existing guided prompt engine,
 failure-side-effect coverage, and disposable intake → validate → inspect/HUD dogfooding. Preview
 and explicit confirmation remain mandatory; no input file is persisted into project state.

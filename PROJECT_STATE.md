@@ -46,6 +46,8 @@ identifies the next bounded need.
 - Implementation commit: `7b40c0a83cf022d66462270d4d4ca6fc66c40975`.
 - Exact implementation CI: `35529284464` — green across repository policy, stable, MSRV, CLI
   smoke, Ubuntu, macOS, and Windows.
+- Closure commit: `d359d53d3ab8bbcf17091be548e23409ffa971ad`; exact closure CI `35529438657` is
+  green across repository policy, stable, MSRV, CLI smoke, Ubuntu, macOS, and Windows.
 - The guided intake CLI now accepts bounded UTF-8 `--input-file` sessions through the same prompt,
   preview, confirmation, validation, and rollback engine as stdin; disposable tests verify the
   intake-to-task-inspect/HUD handoff and fail-closed malformed or oversized inputs.

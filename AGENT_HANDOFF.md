@@ -7,6 +7,9 @@
 - P2-M011 implementation commit: `7b40c0a83cf022d66462270d4d4ca6fc66c40975`; exact CI
   `35529284464` is green across repository policy, stable, MSRV, CLI smoke, Linux, macOS, and
   Windows.
+- P2-M011 closure commit: `d359d53d3ab8bbcf17091be548e23409ffa971ad`; exact closure CI
+  `35529438657` is green across repository policy, stable, MSRV, CLI smoke, Linux, macOS, and
+  Windows.
 - P2-M011 plan: `.plans/P2-M011-guided-intake-operator-hardening.plan.md` — completed with bounded
   `--input-file` replay, fail-closed input validation, and disposable intake-to-HUD dogfooding.
 - P2-M010 implementation commit: `5533454d0d1fb75129b675e61569931a685b934a`; exact CI
