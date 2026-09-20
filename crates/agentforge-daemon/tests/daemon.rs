@@ -5,8 +5,11 @@ use std::fs;
 use std::net::{Shutdown, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+static TEMPORARY_REPO_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 #[test]
 fn daemon_lifecycle_is_loopback_only_and_cooperative() {
@@ -151,7 +154,8 @@ fn temporary_repo() -> PathBuf {
         .duration_since(UNIX_EPOCH)
         .expect("clock")
         .as_nanos();
-    let root = std::env::temp_dir().join(format!("agentforge-daemon-{stamp}"));
+    let sequence = TEMPORARY_REPO_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let root = std::env::temp_dir().join(format!("agentforge-daemon-{stamp}-{sequence}"));
     fs::create_dir(&root).expect("temporary root");
     git(&root, &["init", "-q"]);
     fs::write(root.join("README.md"), "daemon fixture\n").expect("fixture");
