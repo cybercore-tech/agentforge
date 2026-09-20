@@ -1,6 +1,6 @@
 # Plan: P2-M010 — Guided project intake surface
 
-Status: Approved
+Status: Complete
 Milestone: P2-M010
 Created: 2026-09-20
 
@@ -183,8 +183,10 @@ between intake authoring and task approval. Record milestone evidence in the nor
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
-Notes:
+Implementation commit: `5533454d0d1fb75129b675e61569931a685b934a`
+CI run: `35528652736`
+CI result: Green across repository policy, stable, MSRV, CLI smoke, Ubuntu, macOS, and Windows.
+Completed: 2026-09-20
+Notes: Added the guided `forge intake` and `forge intake --task` workflows with bounded prompts,
+preview/confirmation, source-conflict detection, atomic document writes, task snapshot rollback,
+and scripted integration coverage. Closure and post-closure CI evidence are recorded separately.

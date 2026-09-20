@@ -2,8 +2,13 @@
 
 ## Repository state
 
-- Active milestone: none; P2-M009 — daemon audit-sequence continuation is complete.
+- Active milestone: none; P2-M010 — guided project intake surface is complete.
 - Active plan: none (`.plans/ACTIVE` is intentionally absent after closure).
+- P2-M010 implementation commit: `5533454d0d1fb75129b675e61569931a685b934a`; exact CI
+  `35528652736` is green across repository policy, stable, MSRV, CLI smoke, Linux, macOS, and
+  Windows.
+- P2-M010 plan: `.plans/P2-M010-guided-project-intake.plan.md` — implementation complete; closure
+  evidence is being finalized.
 - P2-M008 implementation commits: `f6ee2e4`, `4b2f1f4`; exact CI `35520394000` is green across
   repository policy, stable, MSRV, CLI smoke, Linux, macOS, and Windows.
 - P2-M008 plan amendment: `4750814` bound the portable Rust fixture file boundary.

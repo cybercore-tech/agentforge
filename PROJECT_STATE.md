@@ -11,7 +11,7 @@ Phase 2 — operator experience.
 
 ## Active milestone
 
-None. P2-M009 is complete; the next increment is intentionally unplanned until real operator use
+None. P2-M010 is complete; the next increment is intentionally unplanned until real operator use
 identifies the next bounded need.
 
 ## Completed milestones
@@ -37,6 +37,17 @@ identifies the next bounded need.
 - `P2-M007` — Cross-platform agent operations.
 - `P2-M008` — Windows dogfooding parity.
 - `P2-M009` — Daemon audit-sequence continuation.
+- `P2-M010` — Guided project intake surface.
+
+## P2-M010 completion evidence
+
+- Approved plan: `.plans/P2-M010-guided-project-intake.plan.md`.
+- Implementation commit: `5533454d0d1fb75129b675e61569931a685b934a`.
+- Exact implementation CI: `35528652736` — green across repository policy, stable, MSRV, CLI
+  smoke, Ubuntu, macOS, and Windows.
+- The guided `forge intake` flow now previews and confirms bounded blueprint/guideline edits,
+  detects concurrent source changes, and can persist an explicit task draft through existing task
+  validation and snapshot boundaries.
 
 ## P2-M008 completion evidence
 

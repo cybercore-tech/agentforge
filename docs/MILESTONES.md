@@ -42,6 +42,7 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 | P2-M007 | complete | Cross-platform agent operations | Windows worktrees, bounded local agent profiles, and cooperative daemon supervision are available with exact CI evidence. |
 | P2-M008 | complete | Windows dogfooding parity | Managed worktree and daemon CLI dogfooding suites pass on Linux, macOS, and Windows with direct portable fixtures. |
 | P2-M009 | complete | Daemon audit-sequence continuation | Persisted daemon runs append contiguous, integrity-linked audit events after existing project history. |
+| P2-M010 | complete | Guided project intake surface | Operators can author validated blueprint/guideline documents and optional task drafts through a bounded preview-confirm workflow. |
 
 ## Phase 1 — multi-agent scheduling and integration
 
