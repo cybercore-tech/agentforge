@@ -1,6 +1,6 @@
 # Plan: P2-M002 — Interactive operator HUD
 
-Status: Approved
+Status: Completed
 Milestone: P2-M002
 Created: 2026-09-20
 
@@ -170,17 +170,18 @@ P2-M002 is a live snapshot loop, not an editor or orchestration control surface.
 
 ## Acceptance criteria
 
-- [ ] `forge hud <root>` remains backward-compatible and deterministic.
-- [ ] An operator can run bounded watch mode and refresh or exit with documented line commands.
-- [ ] Source failures are explicit per frame and can recover on a later refresh.
-- [ ] Watch output remains bounded, plain text, and deterministic for equivalent frames.
-- [ ] Tests prove parsing, interval bounds, refresh/EOF behavior, recovery, and no mutation.
-- [ ] Exact implementation, closure, and mainline CI evidence is recorded.
+- [x] `forge hud <root>` remains backward-compatible and deterministic.
+- [x] An operator can run bounded watch mode and refresh or exit with documented line commands.
+- [x] Source failures are explicit per frame and can recover on a later refresh.
+- [x] Watch output remains bounded, plain text, and deterministic for equivalent frames.
+- [x] Tests prove parsing, interval bounds, refresh/EOF behavior, recovery, and no mutation.
+- [x] Exact implementation, closure, and mainline CI evidence is recorded.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
-Notes:
+Implementation commit: `11792769304f8042235146d670eb554b0bc0cde3`
+CI run: `35497283972`
+CI result: all four jobs green
+Completed: 2026-09-20
+Notes: Added bounded cooked-mode watch support with interval clamping, refresh/help/quit commands,
+recoverable frame diagnostics, read-only CLI coverage, and ADR-0022.
