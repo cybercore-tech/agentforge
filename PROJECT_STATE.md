@@ -11,7 +11,7 @@ Phase 2 — operator experience.
 
 ## Active milestone
 
-None. P2-M003 is complete; no plan is active.
+`P2-M004` — Release readiness (approved plan; implementation begins after checkpoint CI).
 
 ## Completed milestones
 
@@ -30,6 +30,11 @@ None. P2-M003 is complete; no plan is active.
 - `P2-M001` — Read-only operator HUD.
 - `P2-M002` — Interactive operator HUD.
 - `P2-M003` — Controlled operator actions.
+
+## P2-M004 activation
+
+- Approved plan: `.plans/P2-M004-release-readiness.plan.md`.
+- Activation checkpoint and exact-head CI evidence will be recorded before implementation.
 
 ## P0-M005 completion evidence
 
@@ -101,13 +106,12 @@ approval evidence; HUD and watch mode remain read-only.
 
 ## Next planned milestone
 
-No next milestone is approved. The next increment should be planned explicitly from operator usage
-feedback and the remaining orchestration gaps.
+P2-M004 is active within its approved release-readiness file boundary.
 
 ## Known blockers
 
-P2-M003 is complete. HUD-embedded mutation, editing, and uncontrolled automation remain out of
-scope. No known implementation blocker remains for the controlled operator-action boundary.
+P2-M003 is complete. P2-M004 covers release packaging, versioning, licensing, and cross-platform
+validation; daemon-driven orchestration remains outside this milestone.
 
 ## P2-M002 completion evidence
 
