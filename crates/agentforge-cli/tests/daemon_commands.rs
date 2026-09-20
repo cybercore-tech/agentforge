@@ -9,6 +9,11 @@ use std::process::Command;
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+// The Windows portable CI job intentionally excludes the worktree crate: Git for Windows
+// rejects the verbatim temporary paths returned by `std::fs::canonicalize`. The daemon's
+// worktree-backed dogfooding flow therefore runs on the Unix platform matrix where that
+// isolation boundary is exercised directly.
+#[cfg(not(windows))]
 #[test]
 fn daemon_status_and_stop_are_operator_commands() {
     let root = temporary_repo();
