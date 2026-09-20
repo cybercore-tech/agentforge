@@ -185,6 +185,9 @@ Record the exact implementation and closure CI evidence in the normal milestone 
 Implementation commit: `4fa5c0d2c00887b5de70e6bcf43ed752e8202936`.
 CI run: `35530232141`.
 CI result: Green across repository policy, stable, MSRV, CLI smoke, Ubuntu, macOS, and Windows.
+Closure commit: `3969de7a70b638dce6d4d4eddef0052e49a27f88`.
+Exact closure CI: `35530354301` — green across repository policy, stable, MSRV, CLI smoke, Ubuntu,
+macOS, and Windows.
 Completed: 2026-09-20.
 Notes: Added opt-in direct `forge run --interactive` cooked line forwarding with live stdout/stderr
 teeing and bounded evidence. Captured and daemon modes remain unchanged; raw PTY/full-screen

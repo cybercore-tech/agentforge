@@ -47,6 +47,8 @@ identifies the next bounded need.
 - Implementation commit: `4fa5c0d2c00887b5de70e6bcf43ed752e8202936`.
 - Exact implementation CI: `35530232141` — green across repository policy, stable, MSRV, CLI
   smoke, Ubuntu, macOS, and Windows.
+- Closure commit: `3969de7a70b638dce6d4d4eddef0052e49a27f88`; exact closure CI `35530354301` is
+  green across repository policy, stable, MSRV, CLI smoke, Ubuntu, macOS, and Windows.
 - `forge run` now supports opt-in cooked line-oriented `--interactive` sessions that stream child
   output while retaining bounded evidence; captured runs and detached daemon execution remain
   unchanged, and successful tasks still require independent acceptance.

@@ -7,6 +7,9 @@
 - P2-M012 implementation commit: `4fa5c0d2c00887b5de70e6bcf43ed752e8202936`; exact CI
   `35530232141` is green across repository policy, stable, MSRV, CLI smoke, Linux, macOS, and
   Windows.
+- P2-M012 closure commit: `3969de7a70b638dce6d4d4eddef0052e49a27f88`; exact closure CI
+  `35530354301` is green across repository policy, stable, MSRV, CLI smoke, Linux, macOS, and
+  Windows.
 - P2-M012 plan: `.plans/P2-M012-interactive-foreground-agent-sessions.plan.md` — completed with
   cooked line-oriented foreground interaction, bounded live evidence, and daemon compatibility.
 - P2-M011 implementation commit: `7b40c0a83cf022d66462270d4d4ca6fc66c40975`; exact CI
