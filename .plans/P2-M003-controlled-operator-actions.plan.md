@@ -201,5 +201,5 @@ CI result: all four jobs green for the exact implementation SHA
 Completed: 2026-09-20
 Notes: Added the standard-library-only operator service and explicit `forge task` inspect,
 approval, accept, cancel, and retry commands. Approval evidence is verified and task-linked before
-`forge run`; HUD and watch mode remain read-only. Closure and post-merge evidence will be recorded
-by the separate documentation closure commit.
+`forge run`; HUD and watch mode remain read-only. Documentation closure commit:
+`907913d424148506aa8f1a3704aa89b895ea7658`; closure CI `35498226882` is green for that exact SHA.

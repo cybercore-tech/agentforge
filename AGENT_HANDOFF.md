@@ -47,6 +47,7 @@
 - P2-M001 implementation: `ca741baeda2fd040e6df714f9d2c3af18d16ba76`; CI `35496675009` green.
 - P2-M002 implementation: `11792769304f8042235146d670eb554b0bc0cde3`; CI `35497283972` green.
 - P2-M003 implementation: `381afc6d0342ad12b36ce9574dd6ffb1a1c34a93`; CI `35498108446` green.
+- P2-M003 closure: `907913d424148506aa8f1a3704aa89b895ea7658`; CI `35498226882` green.
 - P0-M012 implementation: `fcf3809c9f5c099833cb07862e626ca3f1764cff`; CI `35493160857` green.
 - P0-M011 implementation: `bd1aaf24800dde73f1dc707519f5d1ed710a6b0e`; CI `35492790507` green.
 - P0-M011 closure: `62911373015ed8e94d7e8883b955c078a175cf48`; CI `35492882542` green.

@@ -96,7 +96,8 @@ approval evidence; HUD and watch mode remain read-only.
 - Approved plan: `.plans/P2-M003-controlled-operator-actions.plan.md`.
 - Implementation head: `381afc6d0342ad12b36ce9574dd6ffb1a1c34a93`.
 - Exact implementation CI: `35498108446` — all four jobs green.
-- Closure and post-merge evidence are recorded after the documentation closure commit.
+- Documentation closure commit: `907913d424148506aa8f1a3704aa89b895ea7658`.
+- Closure/mainline CI: `35498226882` — all four jobs green for that exact closure SHA.
 
 ## Next planned milestone
 
