@@ -1,8 +1,13 @@
 //! End-to-end ordering checks for the bounded vertical slice.
 use agentforge_adapter::{ProcessAdapter, ProcessAdapterConfig};
+use agentforge_audit::AuditStore;
+use agentforge_audit::FileAuditStore;
 use agentforge_core::agent::{AgentRole, AgentTask, Capability};
 use agentforge_core::task::{TaskGraph, TaskId, TaskState};
-use agentforge_orchestrator::{SliceError, SliceEvidence, SliceStage, execute_process_once, run};
+use agentforge_orchestrator::{
+    SliceError, SliceEvidence, SliceStage, execute_process_persisted, run,
+};
+use agentforge_state::{FileTaskStore, TaskStore};
 use agentforge_worktree::{WorktreeManager, WorktreeSpec};
 use std::path::PathBuf;
 use std::process::Command;
@@ -70,15 +75,32 @@ fn real_process_adapter_updates_state_and_audit_in_isolated_repo() {
     task.capabilities = vec![Capability::RunLocalCommands];
     task.allowed_paths = vec!["README.md".into()];
     let task_id = TaskId::parse(task.task_id.clone()).unwrap();
-    let mut graph = TaskGraph::from_tasks([task.clone()]).unwrap();
+    let graph = TaskGraph::from_tasks([task.clone()]).unwrap();
+    let task_store = FileTaskStore::from_path(root.join("tasks.snapshot"));
+    task_store.save(&graph).unwrap();
     let manager = WorktreeManager::new(&root).unwrap();
     manager
         .create(&WorktreeSpec::new(task_id.clone(), "HEAD"))
         .unwrap();
     let adapter = ProcessAdapter::new(ProcessAdapterConfig::new("true", "/usr/bin/true")).unwrap();
-    let execution = execute_process_once(&root, &mut graph, &task_id, &adapter, &[]).unwrap();
-    assert_eq!(graph.records().next().unwrap().state(), TaskState::Running);
+    let audit_path = root.join("audit.log");
+    let mut audit_store = FileAuditStore::open(&audit_path).unwrap();
+    let execution = execute_process_persisted(
+        &root,
+        &task_store,
+        &mut audit_store,
+        &task_id,
+        &adapter,
+        &[],
+    )
+    .unwrap();
+    let restored = task_store.load().unwrap().unwrap();
+    assert_eq!(
+        restored.records().next().unwrap().state(),
+        TaskState::Running
+    );
     assert_eq!(execution.audit.records().len(), 3);
+    assert_eq!(audit_store.records().len(), 3);
     assert_eq!(execution.report.task_id().as_str(), task.task_id);
     let _ = manager.retire(&task_id);
     std::fs::remove_dir_all(root).unwrap();

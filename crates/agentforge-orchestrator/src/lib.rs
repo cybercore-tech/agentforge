@@ -2,9 +2,11 @@
 
 use agentforge_adapter::{AdapterRequest, AgentAdapter, ExecutionReport};
 use agentforge_audit::{AuditEvent, AuditEventKind, AuditLog};
+use agentforge_audit::{AuditStore, FileAuditStore};
 use agentforge_core::agent::{AgentTask, Capability};
 use agentforge_core::task::{TaskGraph, TaskId, TaskState};
 use agentforge_policy::{PolicyDecision, PolicyEngine, PolicyRequest};
+use agentforge_state::{FileTaskStore, TaskStore};
 use agentforge_worktree::WorktreeManager;
 use std::fmt;
 use std::path::Path;
@@ -108,6 +110,31 @@ pub struct ProcessExecution {
     pub report: ExecutionReport,
     /// Durable audit log containing ordered stage evidence.
     pub audit: AuditLog,
+}
+
+/// Runs one task using file-backed task state and audit persistence.
+pub fn execute_process_persisted<A: AgentAdapter>(
+    root: impl AsRef<Path>,
+    task_store: &FileTaskStore,
+    audit_store: &mut FileAuditStore,
+    task_id: &TaskId,
+    adapter: &A,
+    approvals: &[agentforge_core::agent::ApprovalBoundary],
+) -> Result<ProcessExecution, SliceError> {
+    let mut graph = task_store
+        .load()
+        .map_err(|e| SliceError::Preflight(e.to_string()))?
+        .ok_or_else(|| SliceError::Preflight("task state snapshot is missing".into()))?;
+    let execution = execute_process_once(root, &mut graph, task_id, adapter, approvals)?;
+    task_store
+        .save(&graph)
+        .map_err(|e| SliceError::Preflight(e.to_string()))?;
+    for record in execution.audit.records() {
+        audit_store
+            .append(record.event().clone())
+            .map_err(|e| SliceError::Preflight(e.to_string()))?;
+    }
+    Ok(execution)
 }
 
 /// Runs a prepared task through the concrete process adapter and durable in-memory state/audit.

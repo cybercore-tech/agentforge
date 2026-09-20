@@ -12,6 +12,7 @@ agentforge-policy = { path = "../agentforge-policy" }
 agentforge-worktree = { path = "../agentforge-worktree" }
 agentforge-adapter = { path = "../agentforge-adapter" }
 agentforge-audit = { path = "../agentforge-audit" }
+agentforge-state = { path = "../agentforge-state" }
 
 [lints]
 workspace = true
