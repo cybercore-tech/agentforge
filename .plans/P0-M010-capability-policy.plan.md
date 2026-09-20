@@ -1,6 +1,6 @@
 # Plan: P0-M010 — Capability and permission policy
 
-Status: Draft
+Status: Approved
 Milestone: P0-M010
 Created: 2026-09-19
 

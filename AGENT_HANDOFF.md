@@ -2,8 +2,8 @@
 
 ## Repository state
 
-- Active milestone: none; P0-M010 is in Draft planning.
-- Active plan: none.
+- Active milestone: P0-M010 — Capability and permission policy.
+- Active plan: `.plans/P0-M010-capability-policy.plan.md` — Approved.
 - P0-M001 status: Complete.
 - P0-M002 status: Complete.
 - P0-M003 status: Complete.
@@ -32,7 +32,7 @@
 - P0-M009 implementation CI: `35489676966` — all four jobs green.
 - Current closure branch: `feat/p0-m009-event-audit-log`.
 - P0-M009 plan: `.plans/P0-M009-event-audit-log.plan.md` — Completed.
-- P0-M010 plan: `.plans/P0-M010-capability-policy.plan.md` — Draft; no implementation authority yet.
+- P0-M010 plan: `.plans/P0-M010-capability-policy.plan.md` — Approved; implementation may begin within the declared boundary.
 
 ## Resume checklist
 
@@ -42,7 +42,7 @@
 4. Read `docs/WORKTREE_ISOLATION.md`.
 5. Read ADR-0002 and ADR-0010.
 6. Run `./scripts/project-status`.
-7. Review P0-M010 plan and ADR-0015; obtain a separate approved-plan commit and green exact CI before implementation.
+7. Implement P0-M010 only within the approved plan boundary and record exact CI evidence.
 8. Never bypass repository hooks or gates.
 9. Classify failures before repair.
 

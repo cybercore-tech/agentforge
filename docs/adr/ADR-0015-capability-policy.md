@@ -1,6 +1,6 @@
 # ADR-0015: Explicit least-privilege capability policy
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-19
 - Decision owners: AgentForge project
 
