@@ -33,7 +33,7 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 
 | ID | Status | Milestone | Acceptance signal |
 | --- | --- | --- | --- |
-| P2-M001 | active | Read-only operator HUD | Operators can inspect blueprint, task, audit, and worktree state through a deterministic read-only report. |
+| P2-M001 | complete | Read-only operator HUD | Operators can inspect blueprint, task, audit, and worktree state through a deterministic read-only report. |
 
 ## Phase 1 — multi-agent scheduling and integration
 

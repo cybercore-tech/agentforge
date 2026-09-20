@@ -1,6 +1,6 @@
 # Plan: P2-M001 — Read-only operator HUD
 
-Status: Approved
+Status: Completed
 Milestone: P2-M001
 Created: 2026-09-20
 
@@ -163,16 +163,17 @@ the first HUD is a snapshot command rather than an interactive editor.
 
 ## Acceptance criteria
 
-- [ ] An operator can run `forge hud <root>` and see a deterministic project/task/audit/worktree snapshot.
-- [ ] HUD output is read-only, bounded, plain text, and stable across equivalent inputs.
-- [ ] Missing or corrupt sources fail closed with actionable diagnostics.
-- [ ] Tests prove source projection, bounded rendering, diagnostics, and no mutation.
-- [ ] Exact implementation, closure, merge, and post-merge CI evidence is recorded.
+- [x] An operator can run `forge hud <root>` and see a deterministic project/task/audit/worktree snapshot.
+- [x] HUD output is read-only, bounded, plain text, and stable across equivalent inputs.
+- [x] Missing or corrupt sources fail closed with actionable diagnostics.
+- [x] Tests prove source projection, bounded rendering, diagnostics, and no mutation.
+- [x] Exact implementation, closure, merge, and post-merge CI evidence is recorded.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
-Notes:
+Implementation commit: `ca741baeda2fd040e6df714f9d2c3af18d16ba76`
+CI run: `35496675009`
+CI result: all four jobs green
+Completed: 2026-09-20
+Notes: Added the dependency-free HUD snapshot/renderer, `forge hud <root>`, source-failure
+diagnostics, bounded deterministic output, ADR-0021, and read-only CLI/integration coverage.

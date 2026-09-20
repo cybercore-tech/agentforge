@@ -11,7 +11,7 @@ Phase 2 — operator experience.
 
 ## Active milestone
 
-`P2-M001` — Read-only operator HUD (approved plan; implementation may begin).
+No implementation milestone is active. P2-M001 is complete; no subsequent plan is approved.
 
 ## Completed milestones
 
@@ -27,7 +27,7 @@ Phase 2 — operator experience.
 - `P1-M001` — Multi-agent scheduling and serialized integration.
 - `P1-M002` — Single-task orchestration loop.
 - `P1-M003` — Project blueprint and task intake.
-- `P2-M001` — Read-only operator HUD (active).
+- `P2-M001` — Read-only operator HUD.
 
 ## P0-M005 completion evidence
 
@@ -83,16 +83,26 @@ AgentForge can now invoke an explicitly configured local coding-agent executable
 worktree through a provider-neutral interface. Execution evidence is bounded and remains separate
 from task acceptance. It can also run direct, explicit local gates with cleared child environments,
 bounded raw evidence, deadlines, and ordered batch reports. Scheduling, CI failure automation,
-audit events, and deployment orchestration remain intentionally unimplemented.
+audit events, and deployment orchestration remain intentionally unimplemented. Operators can now
+read a deterministic, bounded HUD snapshot of intake, task, audit, and managed worktree state.
 
 ## Next planned milestone
 
-P2-M001 is active within its approved file boundary.
+No next milestone is approved. P2-M001 is complete; the next operator-experience increment requires
+a new approved plan.
 
 ## Known blockers
 
-P1-M003 is complete. P2-M001 implementation is authorized; interactive editing remains out of
-scope until a later approved plan.
+P2-M001 is complete. Interactive editing, live refresh, and mutation remain out of scope until a
+later approved plan.
+
+## P2-M001 completion evidence
+
+- Approved plan: `.plans/P2-M001-operator-hud.plan.md`.
+- Implementation head: `ca741baeda2fd040e6df714f9d2c3af18d16ba76`.
+- Exact implementation CI: `35496675009` — all four jobs green.
+- The HUD now provides a read-only, bounded, deterministic report and fail-closed source diagnostics
+  through `forge hud <root>`.
 
 ## P1-M003 completion evidence
 
