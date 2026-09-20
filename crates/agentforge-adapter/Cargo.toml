@@ -1,0 +1,14 @@
+[package]
+name = "agentforge-adapter"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+agentforge-core = { path = "../agentforge-core" }
+agentforge-worktree = { path = "../agentforge-worktree" }
+
+[lints]
+workspace = true

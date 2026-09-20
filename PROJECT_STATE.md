@@ -22,6 +22,7 @@ No implementation milestone is currently active.
 - `P0-M003` — Plan-first workflow enforcement.
 - `P0-M004` — Task graph and durable state.
 - `P0-M005` — Worktree isolation manager.
+- `P0-M006` — Agent adapter interface.
 
 ## P0-M005 completion evidence
 
@@ -34,7 +35,21 @@ No implementation milestone is currently active.
 - Validated implementation head: `e302cdae8a6610be04ec244bcefa2eab7c768864`.
 - Exact implementation CI: `35481590769` — all four jobs green.
 
-Closure CI and post-merge `main` CI remain required before P0-M006 begins.
+- Closure commit: `259f4c06844898c7cd99aeb29b38f23f5688de3a`.
+- Closure CI: `35481797256` — all four jobs green.
+- Merge commit: `069c058f7d39ab39a3267f5893d20b963d4f5397`.
+- Post-merge main CI: `35481855409` — all four jobs green for that exact merge commit.
+
+P0-M005 closure and integration checks are complete.
+
+## P0-M006 completion evidence
+
+- Approved plan checkpoint: `ee61bd7bd6211e00613a233b111dbd960cc1f030`.
+- Plan CI: `35482559468` — all four jobs green.
+- Validated implementation head: `d277a9191421ae5f4018a4aaacf69f349e2b7974`.
+- Exact implementation CI: `35482922234` — all four jobs green.
+
+Closure CI and post-merge `main` CI remain required before P0-M007 begins.
 
 ## Current capability
 
@@ -54,15 +69,17 @@ AgentForge now has:
 - isolated temporary-repository integration coverage;
 - Rust 1.85.0 compatibility without external Rust dependencies.
 
-External coding-agent execution, scheduling, automated gates, CI failure automation, audit events,
-and deployment orchestration remain intentionally unimplemented.
+AgentForge can now invoke an explicitly configured local coding-agent executable in a verified task
+worktree through a provider-neutral interface. Execution evidence is bounded and remains separate
+from task acceptance. Scheduling, gate automation, CI failure automation, audit events, and
+deployment orchestration remain intentionally unimplemented.
 
 ## Next planned milestone
 
-`P0-M006` — Agent adapter interface.
+`P0-M007` — Gate engine.
 
-P0-M006 must not begin until P0-M005 closure CI and post-merge `main` CI are green.
+P0-M006 is complete pending closure CI and post-merge main CI.
 
 ## Known blockers
 
-None beyond completing the P0-M005 closure/merge validation sequence.
+No technical blocker beyond completing the P0-M006 closure/merge validation sequence.

@@ -14,6 +14,14 @@ name = "agentforge-core"
 version = "0.0.1"
 
 [[package]]
+name = "agentforge-adapter"
+version = "0.0.1"
+dependencies = [
+ "agentforge-core",
+ "agentforge-worktree",
+]
+
+[[package]]
 name = "agentforge-daemon"
 version = "0.0.1"
 dependencies = [
