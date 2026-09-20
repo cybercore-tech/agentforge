@@ -3,6 +3,10 @@
 P1-M003 adds a small, versioned intake surface before the future TUI. The durable files are the
 source of truth; the CLI and a later HUD are only interfaces over them.
 
+P2-M010 adds a guided, line-oriented authoring path for operators who do not want to hand-edit
+these files. It is an explicit mutation command, separate from the read-only HUD, and it uses the
+same parser, task contract, and snapshot boundaries as the lower-level commands.
+
 ## Initialize
 
 ```text
@@ -68,3 +72,36 @@ forge task create /path/to/project P1-M003-T0001 P1-M003 implementer \
 
 The task is validated and written through the existing versioned snapshot store. Failed validation,
 duplicate IDs, missing dependencies, or a failed write leave the previous snapshot unchanged.
+
+## Guided intake
+
+Use the guided command to create or revise both intake documents from a terminal:
+
+```text
+forge intake /path/to/project
+```
+
+The prompts run in a fixed order: project name, mission, default milestone, allowed paths,
+forbidden paths, capabilities, approvals, quality gates, and a multi-line guideline body. Enter a
+comma-separated list for repeated fields, press Enter to keep the displayed value, use `-` to
+clear a list, and finish guideline editing with a line containing only `.`. The command prints a
+complete bounded preview and requires `y`/`yes` confirmation before writing anything.
+
+To collect and persist an explicit task draft in the same preview/confirmation flow, add
+`--task`:
+
+```text
+forge intake /path/to/project --task
+```
+
+Task prompts use the existing role, milestone, goal, dependency, path, capability, approval, gate,
+output, and evidence names. Blank authority lists intentionally inherit structured blueprint
+defaults; guideline prose never grants authority. Task creation remains distinct from task
+approval, acceptance, cancellation, and execution.
+
+Input is ordinary line-oriented UTF-8 stdin, so scripted invocations and redirected input behave
+the same on supported platforms. EOF or a declined confirmation reports cancellation and leaves all
+documents and task state unchanged. Before commit, AgentForge compares the files shown in the
+preview with their original bytes and fails closed if another process edited them. Writes use
+same-directory temporary files and rename, and existing explicit commands remain available for
+automation that does not need prompts.

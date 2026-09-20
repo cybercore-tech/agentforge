@@ -2,6 +2,7 @@
 
 use agentforge_adapter::{AgentProfileStore, ProcessAdapter, ProcessAdapterConfig};
 use agentforge_audit::FileAuditStore;
+use agentforge_core::agent::{ApprovalBoundary, Capability};
 use agentforge_core::task::{TaskGraph, TaskId, TaskRecord};
 use agentforge_daemon::{
     restart_with_program as daemon_restart_with_program, run_profile as daemon_run_profile,
@@ -9,8 +10,9 @@ use agentforge_daemon::{
     status as daemon_status, stop as daemon_stop,
 };
 use agentforge_intake::{
-    IntakeError, TaskDraft, approval_from_name, build_task, capability_from_name, initialize, load,
-    role_from_name,
+    GuidelineDocument, IntakeError, ProjectBlueprint, TaskDraft, approval_from_name, build_task,
+    capability_from_name, commit_documents, initialize, load, restore_documents, role_from_name,
+    serialize_blueprint, serialize_guidelines, snapshot, starter_bundle,
 };
 use agentforge_operator::{
     approve_task, approved_boundaries, inspect_tasks, parse_approval_boundary, transition_task,
@@ -46,6 +48,7 @@ fn main() -> ExitCode {
             ExitCode::SUCCESS
         }
         Some("init") => init_command(args.collect()),
+        Some("intake") => intake_command(args.collect()),
         Some("blueprint") => blueprint_command(args.collect()),
         Some("task") => task_command(args.collect()),
         Some("agent") => agent_command(args.collect()),
@@ -67,7 +70,7 @@ fn main() -> ExitCode {
 
 fn print_usage() {
     println!(
-        "usage: forge <version|doctor|status|init <root>|blueprint validate <root>|task create|inspect|approve|accept|cancel|retry ...|agent list|validate|inspect <root> [<profile>]|run <root> <task-id> <absolute-executable>|run <root> <task-id> --profile <profile>|daemon start|restart|status|run|stop ...|worktree create|inspect|list|retire ...|hud <root> [--watch [--interval-ms <milliseconds>]]>"
+        "usage: forge <version|doctor|status|init <root>|intake <root> [--task]|blueprint validate <root>|task create|inspect|approve|accept|cancel|retry ...|agent list|validate|inspect <root> [<profile>]|run <root> <task-id> <absolute-executable>|run <root> <task-id> --profile <profile>|daemon start|restart|status|run|stop ...|worktree create|inspect|list|retire ...|hud <root> [--watch [--interval-ms <milliseconds>]]>"
     );
 }
 
@@ -405,6 +408,530 @@ fn init_command(arguments: Vec<String>) -> ExitCode {
             ExitCode::from(1)
         }
     }
+}
+
+const MAX_GUIDED_LINE_BYTES: usize = 4096;
+const MAX_GUIDED_LIST_ITEMS: usize = 128;
+
+fn intake_command(arguments: Vec<String>) -> ExitCode {
+    if arguments.len() != 1 && arguments.len() != 2 {
+        eprintln!("intake requires: <root> [--task]");
+        print_usage();
+        return ExitCode::from(2);
+    }
+    let with_task = arguments.get(1).map(String::as_str) == Some("--task");
+    if arguments.len() == 2 && !with_task {
+        eprintln!("intake accepts only --task after <root>");
+        print_usage();
+        return ExitCode::from(2);
+    }
+    let root = std::path::PathBuf::from(&arguments[0]);
+    let expected_sources = match snapshot(&root) {
+        Ok(value) => value,
+        Err(error) => {
+            print_intake_error(&error);
+            return ExitCode::from(1);
+        }
+    };
+    let bundle = match (&expected_sources.blueprint, &expected_sources.guidelines) {
+        (Some(_), Some(_)) => match load(&root) {
+            Ok(value) => value,
+            Err(error) => {
+                print_intake_error(&error);
+                return ExitCode::from(1);
+            }
+        },
+        (None, None) => starter_bundle(),
+        _ => {
+            eprintln!("intake requires both blueprint and guidelines, or neither");
+            return ExitCode::from(1);
+        }
+    };
+
+    let task_store = FileTaskStore::for_project_root(&root);
+    let expected_task_state = match read_optional_file(task_store.path()) {
+        Ok(value) => value,
+        Err(error) => {
+            eprintln!("cannot read task state: {error}");
+            return ExitCode::from(1);
+        }
+    };
+    let existing_graph = if with_task {
+        match task_store.load() {
+            Ok(Some(graph)) => graph,
+            Ok(None) => TaskGraph::new(),
+            Err(error) => {
+                eprintln!("cannot load task state: {error}");
+                return ExitCode::from(1);
+            }
+        }
+    } else {
+        TaskGraph::new()
+    };
+
+    let stdin = io::stdin();
+    let mut reader = stdin.lock();
+    let blueprint = match guided_blueprint(&mut reader, &bundle.blueprint) {
+        Ok(Some(value)) => value,
+        Ok(None) => return intake_cancelled(),
+        Err(error) => return guided_input_error(error),
+    };
+    let guidelines = match guided_guidelines(&mut reader, &bundle.guidelines) {
+        Ok(Some(value)) => value,
+        Ok(None) => return intake_cancelled(),
+        Err(error) => return guided_input_error(error),
+    };
+    let task = if with_task {
+        match guided_task(&mut reader, &blueprint) {
+            Ok(Some(value)) => Some(value),
+            Ok(None) => return intake_cancelled(),
+            Err(error) => return guided_input_error(error),
+        }
+    } else {
+        None
+    };
+    let next_graph = match task.as_ref() {
+        Some(task) => match build_guided_graph(&existing_graph, task, &blueprint) {
+            Ok(graph) => Some(graph),
+            Err(error) => {
+                print_intake_error(&error);
+                return ExitCode::from(1);
+            }
+        },
+        None => None,
+    };
+
+    if let Err(error) = print_guided_preview(&blueprint, &guidelines, task.as_ref()) {
+        eprintln!("cannot render intake preview: {error}");
+        return ExitCode::from(1);
+    }
+    let confirmed = match prompt_line(&mut reader, "Confirm changes? [y/N]: ") {
+        Ok(Some(value)) => matches!(value.trim().to_ascii_lowercase().as_str(), "y" | "yes"),
+        Ok(None) => return intake_cancelled(),
+        Err(error) => return guided_input_error(error),
+    };
+    if !confirmed {
+        return intake_cancelled();
+    }
+
+    if let Err(error) = verify_task_state(task_store.path(), &expected_task_state) {
+        eprintln!("intake commit failed: {error}");
+        return ExitCode::from(1);
+    }
+    if let Err(error) = commit_documents(&root, &blueprint, &guidelines, &expected_sources) {
+        print_intake_error(&error);
+        return ExitCode::from(1);
+    }
+    if let Some(graph) = next_graph {
+        if let Err(error) = task_store.save(&graph) {
+            if let Err(rollback) = restore_documents(&root, &expected_sources) {
+                eprintln!("cannot restore intake after task-state failure: {rollback}");
+            }
+            eprintln!("cannot save task state: {error}");
+            return ExitCode::from(1);
+        }
+        println!("created task {}", task.expect("task exists").task_id);
+    }
+    println!("updated {}", agentforge_intake::BLUEPRINT_RELATIVE_PATH);
+    println!("updated {}", agentforge_intake::GUIDELINES_RELATIVE_PATH);
+    ExitCode::SUCCESS
+}
+
+fn guided_blueprint(
+    reader: &mut impl Read,
+    current: &ProjectBlueprint,
+) -> Result<Option<ProjectBlueprint>, String> {
+    let name = match prompt_text(reader, "Project name", Some(&current.name), true)? {
+        Some(value) => value,
+        None => return Ok(None),
+    };
+    let mission = match prompt_text(reader, "Mission", Some(&current.mission), true)? {
+        Some(value) => value,
+        None => return Ok(None),
+    };
+    let default_milestone = match prompt_text(
+        reader,
+        "Default milestone (blank for none)",
+        current.default_milestone.as_deref(),
+        false,
+    )? {
+        Some(value) if value == "-" => None,
+        Some(value) if value.is_empty() => None,
+        Some(value) => Some(value),
+        None => return Ok(None),
+    };
+    let allowed_paths = match prompt_list(reader, "Allowed paths", &current.allowed_paths)? {
+        Some(value) => value,
+        None => return Ok(None),
+    };
+    let forbidden_paths = match prompt_list(reader, "Forbidden paths", &current.forbidden_paths)? {
+        Some(value) => value,
+        None => return Ok(None),
+    };
+    let capabilities = match prompt_capabilities(reader, "Capabilities", &current.capabilities)? {
+        Some(value) => value,
+        None => return Ok(None),
+    };
+    let approvals = match prompt_approvals(reader, "Approvals", &current.approvals)? {
+        Some(value) => value,
+        None => return Ok(None),
+    };
+    let gates = match prompt_list(reader, "Quality gates", &current.gates)? {
+        Some(value) => value,
+        None => return Ok(None),
+    };
+    Ok(Some(ProjectBlueprint {
+        version: agentforge_intake::BLUEPRINT_VERSION,
+        name,
+        mission,
+        default_milestone,
+        allowed_paths,
+        forbidden_paths,
+        capabilities,
+        approvals,
+        gates,
+    }))
+}
+
+fn guided_guidelines(
+    reader: &mut impl Read,
+    current: &GuidelineDocument,
+) -> Result<Option<GuidelineDocument>, String> {
+    println!("Guidelines body (finish with a single '.'; blank first line keeps current):");
+    let first = match bounded_line(reader, MAX_GUIDED_LINE_BYTES)? {
+        Some(value) => value,
+        None => return Ok(None),
+    };
+    if first.trim() == "." || first.trim().is_empty() {
+        return Ok(Some(current.clone()));
+    }
+    let mut lines = vec![first];
+    loop {
+        let line = match bounded_line(reader, MAX_GUIDED_LINE_BYTES)? {
+            Some(value) => value,
+            None => return Ok(None),
+        };
+        if line.trim() == "." {
+            break;
+        }
+        lines.push(line);
+        if lines.join("\n").len() > 256 * 1024 {
+            return Err("guidelines exceed 256 KiB".to_owned());
+        }
+    }
+    Ok(Some(GuidelineDocument {
+        version: agentforge_intake::GUIDELINES_VERSION,
+        body: lines.join("\n"),
+    }))
+}
+
+fn guided_task(
+    reader: &mut impl Read,
+    blueprint: &ProjectBlueprint,
+) -> Result<Option<TaskDraft>, String> {
+    let task_id = match prompt_text(reader, "Task ID", None, true)? {
+        Some(value) => value,
+        None => return Ok(None),
+    };
+    let milestone_id = match prompt_text(
+        reader,
+        "Task milestone",
+        blueprint.default_milestone.as_deref(),
+        true,
+    )? {
+        Some(value) => Some(value),
+        None => return Ok(None),
+    };
+    let role_name = match prompt_text(reader, "Task role", Some("implementer"), true)? {
+        Some(value) => value,
+        None => return Ok(None),
+    };
+    let primary_role =
+        role_from_name(&role_name).ok_or_else(|| format!("unknown task role: {role_name}"))?;
+    let goal = match prompt_text(reader, "Task goal", None, true)? {
+        Some(value) => value,
+        None => return Ok(None),
+    };
+    let non_goals = match prompt_list(reader, "Task non-goals", &[])? {
+        Some(value) => value,
+        None => return Ok(None),
+    };
+    let dependency_task_ids = match prompt_list(reader, "Task dependencies", &[])? {
+        Some(value) => value,
+        None => return Ok(None),
+    };
+    let allowed_paths = match prompt_list(reader, "Task allowed paths (blank uses blueprint)", &[])?
+    {
+        Some(value) => value,
+        None => return Ok(None),
+    };
+    let forbidden_paths =
+        match prompt_list(reader, "Task forbidden paths (blank uses blueprint)", &[])? {
+            Some(value) => value,
+            None => return Ok(None),
+        };
+    let capabilities =
+        match prompt_capabilities(reader, "Task capabilities (blank uses blueprint)", &[])? {
+            Some(value) => value,
+            None => return Ok(None),
+        };
+    let required_approvals =
+        match prompt_approvals(reader, "Task approvals (blank uses blueprint)", &[])? {
+            Some(value) => value,
+            None => return Ok(None),
+        };
+    let required_gates =
+        match prompt_list(reader, "Task quality gates (blank uses blueprint)", &[])? {
+            Some(value) => value,
+            None => return Ok(None),
+        };
+    let expected_outputs = match prompt_list(reader, "Task expected outputs", &[])? {
+        Some(value) => value,
+        None => return Ok(None),
+    };
+    let evidence_requirements = match prompt_list(reader, "Task evidence requirements", &[])? {
+        Some(value) => value,
+        None => return Ok(None),
+    };
+    Ok(Some(TaskDraft {
+        task_id,
+        milestone_id,
+        primary_role,
+        goal,
+        non_goals,
+        dependency_task_ids,
+        allowed_paths,
+        forbidden_paths,
+        capabilities,
+        required_approvals,
+        required_gates,
+        expected_outputs,
+        evidence_requirements,
+    }))
+}
+
+fn build_guided_graph(
+    graph: &TaskGraph,
+    draft: &TaskDraft,
+    blueprint: &ProjectBlueprint,
+) -> Result<TaskGraph, IntakeError> {
+    let task = build_task(draft, blueprint)?;
+    let task_id = TaskId::parse(task.task_id.clone())
+        .map_err(|error| IntakeError::Task(format!("invalid task ID: {error}")))?;
+    if graph.get(&task_id).is_some() {
+        return Err(IntakeError::Task(format!("task already exists: {task_id}")));
+    }
+    let record = TaskRecord::new(task).map_err(|error| IntakeError::Task(error.to_string()))?;
+    let mut records = graph.records().cloned().collect::<Vec<_>>();
+    records.push(record);
+    TaskGraph::from_records(records).map_err(|error| IntakeError::Task(error.to_string()))
+}
+
+fn print_guided_preview(
+    blueprint: &ProjectBlueprint,
+    guidelines: &GuidelineDocument,
+    task: Option<&TaskDraft>,
+) -> Result<(), IntakeError> {
+    let blueprint = serialize_blueprint(blueprint)?;
+    let guidelines = serialize_guidelines(guidelines)?;
+    println!("\nintake preview");
+    println!("blueprint:");
+    for line in String::from_utf8_lossy(&blueprint).lines() {
+        println!("  {line}");
+    }
+    println!("guidelines:");
+    for line in String::from_utf8_lossy(&guidelines).lines() {
+        println!("  {line}");
+    }
+    if let Some(task) = task {
+        println!("task draft:");
+        println!("  id={}", task.task_id);
+        println!(
+            "  milestone={}",
+            task.milestone_id
+                .as_deref()
+                .unwrap_or("<blueprint default>")
+        );
+        println!("  role={}", task.primary_role.as_str());
+        println!("  goal={}", task.goal);
+    }
+    Ok(())
+}
+
+fn prompt_text(
+    reader: &mut impl Read,
+    label: &str,
+    default: Option<&str>,
+    required: bool,
+) -> Result<Option<String>, String> {
+    let suffix = default
+        .map(|value| format!(" [{value}]"))
+        .unwrap_or_default();
+    let value = match prompt_line(reader, &format!("{label}{suffix}: "))? {
+        Some(value) => value.trim().to_owned(),
+        None => return Ok(None),
+    };
+    if value.is_empty() {
+        if let Some(default) = default {
+            return Ok(Some(default.to_owned()));
+        }
+        if required {
+            return Err(format!("{label} must not be empty"));
+        }
+    }
+    Ok(Some(value))
+}
+
+fn prompt_list(
+    reader: &mut impl Read,
+    label: &str,
+    defaults: &[String],
+) -> Result<Option<Vec<String>>, String> {
+    let default_text = if defaults.is_empty() {
+        None
+    } else {
+        Some(defaults.join(","))
+    };
+    let value = match prompt_text(reader, label, default_text.as_deref(), false)? {
+        Some(value) => value,
+        None => return Ok(None),
+    };
+    if value.is_empty() {
+        return Ok(Some(defaults.to_vec()));
+    }
+    if value == "-" {
+        return Ok(Some(Vec::new()));
+    }
+    let values = value
+        .split(',')
+        .map(str::trim)
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+    validate_list_values(label, &values)?;
+    Ok(Some(values))
+}
+
+fn prompt_capabilities(
+    reader: &mut impl Read,
+    label: &str,
+    defaults: &[Capability],
+) -> Result<Option<Vec<Capability>>, String> {
+    let names = defaults
+        .iter()
+        .map(|value| value.as_str().to_owned())
+        .collect::<Vec<_>>();
+    let values = match prompt_list(reader, label, &names)? {
+        Some(value) => value,
+        None => return Ok(None),
+    };
+    values
+        .into_iter()
+        .map(|value| {
+            capability_from_name(&value).ok_or_else(|| format!("unknown capability: {value}"))
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(Some)
+}
+
+fn prompt_approvals(
+    reader: &mut impl Read,
+    label: &str,
+    defaults: &[ApprovalBoundary],
+) -> Result<Option<Vec<ApprovalBoundary>>, String> {
+    let names = defaults
+        .iter()
+        .map(|value| value.as_str().to_owned())
+        .collect::<Vec<_>>();
+    let values = match prompt_list(reader, label, &names)? {
+        Some(value) => value,
+        None => return Ok(None),
+    };
+    values
+        .into_iter()
+        .map(|value| {
+            approval_from_name(&value).ok_or_else(|| format!("unknown approval boundary: {value}"))
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(Some)
+}
+
+fn validate_list_values(label: &str, values: &[String]) -> Result<(), String> {
+    if values.len() > MAX_GUIDED_LIST_ITEMS {
+        return Err(format!("{label} exceeds {MAX_GUIDED_LIST_ITEMS} items"));
+    }
+    if values.iter().any(|value| value.is_empty()) {
+        return Err(format!("{label} contains an empty item"));
+    }
+    if values
+        .iter()
+        .any(|value| value.len() > MAX_GUIDED_LINE_BYTES)
+    {
+        return Err(format!(
+            "{label} item exceeds {MAX_GUIDED_LINE_BYTES} bytes"
+        ));
+    }
+    Ok(())
+}
+
+fn prompt_line(reader: &mut impl Read, prompt: &str) -> Result<Option<String>, String> {
+    print!("{prompt}");
+    io::stdout().flush().map_err(|error| error.to_string())?;
+    bounded_line(reader, MAX_GUIDED_LINE_BYTES)
+}
+
+fn bounded_line(reader: &mut impl Read, limit: usize) -> Result<Option<String>, String> {
+    let mut bytes = Vec::new();
+    let mut buffer = [0_u8; 1];
+    let mut oversized = false;
+    loop {
+        match reader.read(&mut buffer) {
+            Ok(0) => {
+                if bytes.is_empty() && !oversized {
+                    return Ok(None);
+                }
+                break;
+            }
+            Ok(_) if buffer[0] == b'\n' => break,
+            Ok(_) if bytes.len() < limit => bytes.push(buffer[0]),
+            Ok(_) => oversized = true,
+            Err(error) => return Err(error.to_string()),
+        }
+    }
+    if oversized {
+        return Err(format!("input exceeds {limit} bytes"));
+    }
+    let value = String::from_utf8(bytes).map_err(|_| "input must be valid UTF-8".to_owned())?;
+    Ok(Some(value.trim_end_matches('\r').to_owned()))
+}
+
+fn read_optional_file(path: &Path) -> Result<Option<Vec<u8>>, std::io::Error> {
+    match std::fs::read(path) {
+        Ok(bytes) => Ok(Some(bytes)),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
+fn verify_task_state(path: &Path, expected: &Option<Vec<u8>>) -> Result<(), String> {
+    let current = read_optional_file(path).map_err(|error| error.to_string())?;
+    if &current == expected {
+        Ok(())
+    } else {
+        Err(format!(
+            "task state changed during edit: {}",
+            path.display()
+        ))
+    }
+}
+
+fn intake_cancelled() -> ExitCode {
+    println!("intake cancelled; no changes written");
+    ExitCode::SUCCESS
+}
+
+fn guided_input_error(error: String) -> ExitCode {
+    eprintln!("intake input failed: {error}");
+    ExitCode::from(1)
 }
 
 fn blueprint_command(arguments: Vec<String>) -> ExitCode {

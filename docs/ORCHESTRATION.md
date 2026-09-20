@@ -25,6 +25,14 @@ guideline templates; `forge blueprint validate <root>` validates them read-only;
 `forge task create ...` creates an explicit task contract in the durable snapshot. Guideline prose
 never grants authority, and task creation does not execute work.
 
+P2-M010 adds `forge intake <root> [--task]`, a bounded line-oriented guided authoring flow. It
+collects structured blueprint fields and a terminated Markdown guideline body, optionally compiles
+an explicit task draft, renders a deterministic preview, and waits for confirmation. It uses the
+same intake validation and task snapshot boundaries as the direct commands. EOF, cancellation,
+invalid input, duplicate task IDs, or a source edit detected after preview fail closed without
+silently granting authority or executing work. The command is an operator mutation surface, not a
+HUD mode; durable `.forge/` files remain the source of truth.
+
 The first operator projection is `forge hud <root>`. It reads the validated intake, durable task
 snapshot, verified audit log, and managed worktree state without creating files or changing Git.
 Missing or corrupt sources fail closed; the HUD is a bounded plain-text snapshot rather than an

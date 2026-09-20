@@ -103,6 +103,18 @@ Initialization creates, without overwriting existing files:
 - `.forge/blueprint.conf` — bounded, versioned project metadata and structured defaults
 - `.forge/guidelines.md` — human-readable project guidance; prose never grants authority
 
+For a guided terminal workflow, use the bounded intake prompts instead of editing both files by
+hand:
+
+```bash
+forge intake /path/to/project
+```
+
+The command previews the proposed blueprint and guidelines, then writes only after explicit
+confirmation. Add `--task` to collect and persist an explicit task draft in the same flow. EOF,
+declining confirmation, invalid input, or a concurrent source edit leaves durable state untouched;
+use `-` to clear a repeated list and finish the guideline body with a line containing only `.`.
+
 Create an explicit task contract:
 
 ```bash

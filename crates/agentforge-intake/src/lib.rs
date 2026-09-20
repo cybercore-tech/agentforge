@@ -9,6 +9,7 @@ use std::fmt;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Current supported project-blueprint document version.
 pub const BLUEPRINT_VERSION: u16 = 1;
@@ -22,6 +23,7 @@ const MAX_BLUEPRINT_BYTES: usize = 64 * 1024;
 const MAX_GUIDELINE_BYTES: usize = 256 * 1024;
 const MAX_FIELD_BYTES: usize = 4096;
 const MAX_LIST_ITEMS: usize = 128;
+static TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 /// A validated project blueprint with explicit structured defaults.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -62,6 +64,18 @@ pub struct IntakeBundle {
     pub blueprint: ProjectBlueprint,
     /// Human-readable guidelines.
     pub guidelines: GuidelineDocument,
+}
+
+/// File contents captured before a guided edit is presented to an operator.
+///
+/// The snapshot is compared immediately before commit so an unrelated editor cannot be
+/// overwritten after the preview was shown.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct IntakeSnapshot {
+    /// Bytes of the blueprint, or `None` when it did not exist.
+    pub blueprint: Option<Vec<u8>>,
+    /// Bytes of the guidelines, or `None` when they did not exist.
+    pub guidelines: Option<Vec<u8>>,
 }
 
 /// Explicit task fields supplied by an operator.
@@ -153,6 +167,8 @@ pub enum IntakeError {
     Task(String),
     /// An initialization target already exists.
     AlreadyExists(PathBuf),
+    /// A guided edit observed a newer source than the preview used.
+    Conflict(PathBuf),
 }
 
 impl fmt::Display for IntakeError {
@@ -174,6 +190,11 @@ impl fmt::Display for IntakeError {
                     path.display()
                 )
             }
+            Self::Conflict(path) => write!(
+                formatter,
+                "guided intake source changed during edit: {}",
+                path.display()
+            ),
         }
     }
 }
@@ -182,7 +203,9 @@ impl std::error::Error for IntakeError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Io(error) => Some(error),
-            Self::Validation(_) | Self::Task(_) | Self::AlreadyExists(_) => None,
+            Self::Validation(_) | Self::Task(_) | Self::AlreadyExists(_) | Self::Conflict(_) => {
+                None
+            }
         }
     }
 }
@@ -234,6 +257,140 @@ pub fn load(root: impl AsRef<Path>) -> Result<IntakeBundle, IntakeError> {
         blueprint,
         guidelines,
     })
+}
+
+/// Returns the starter values used by a guided intake on an empty project.
+#[must_use]
+pub fn starter_bundle() -> IntakeBundle {
+    IntakeBundle {
+        blueprint: ProjectBlueprint {
+            version: BLUEPRINT_VERSION,
+            name: "My Project".to_owned(),
+            mission: "Describe the project outcome.".to_owned(),
+            default_milestone: Some("P1-M003".to_owned()),
+            allowed_paths: vec!["src".to_owned()],
+            forbidden_paths: vec![".env".to_owned()],
+            capabilities: vec![Capability::ReadRepository, Capability::WriteOwnedPaths],
+            approvals: Vec::new(),
+            gates: vec!["full".to_owned()],
+        },
+        guidelines: GuidelineDocument {
+            version: GUIDELINES_VERSION,
+            body: "- Keep changes within the task contract.\n- Record evidence for every consequential boundary.\n- Ask for approval when authority is missing.".to_owned(),
+        },
+    }
+}
+
+/// Captures the current intake files without requiring either file to exist.
+pub fn snapshot(root: impl AsRef<Path>) -> Result<IntakeSnapshot, IntakeError> {
+    let (blueprint, guidelines) = project_paths(root);
+    Ok(IntakeSnapshot {
+        blueprint: read_optional(&blueprint)?,
+        guidelines: read_optional(&guidelines)?,
+    })
+}
+
+/// Serializes a validated blueprint using the canonical line-oriented format.
+pub fn serialize_blueprint(blueprint: &ProjectBlueprint) -> Result<Vec<u8>, IntakeError> {
+    let mut output = String::new();
+    output.push_str("# AgentForge Project Blueprint v1\n");
+    push_scalar(&mut output, "version", &blueprint.version.to_string())?;
+    push_scalar(&mut output, "name", &blueprint.name)?;
+    push_scalar(&mut output, "mission", &blueprint.mission)?;
+    if let Some(value) = &blueprint.default_milestone {
+        push_scalar(&mut output, "default_milestone", value)?;
+    }
+    push_list(&mut output, "allowed_path", &blueprint.allowed_paths)?;
+    push_list(&mut output, "forbidden_path", &blueprint.forbidden_paths)?;
+    for capability in &blueprint.capabilities {
+        push_scalar(&mut output, "capability", capability.as_str())?;
+    }
+    for approval in &blueprint.approvals {
+        push_scalar(&mut output, "approval", approval.as_str())?;
+    }
+    push_list(&mut output, "gate", &blueprint.gates)?;
+    let bytes = output.into_bytes();
+    parse_blueprint("<guided blueprint>", &bytes)?;
+    Ok(bytes)
+}
+
+/// Serializes validated guidelines using the canonical version marker.
+pub fn serialize_guidelines(guidelines: &GuidelineDocument) -> Result<Vec<u8>, IntakeError> {
+    if guidelines.version != GUIDELINES_VERSION {
+        return Err(validation("<guided guidelines>", 0, "version must be 1"));
+    }
+    if guidelines.body.trim().is_empty() {
+        return Err(validation(
+            "<guided guidelines>",
+            2,
+            "guideline body must not be empty",
+        ));
+    }
+    if guidelines.body.len() > MAX_GUIDELINE_BYTES {
+        return Err(validation(
+            "<guided guidelines>",
+            0,
+            "guidelines exceed 256 KiB",
+        ));
+    }
+    if guidelines.body.contains('\0') {
+        return Err(validation(
+            "<guided guidelines>",
+            0,
+            "guidelines must not contain NUL bytes",
+        ));
+    }
+    let prefix = if guidelines.body.starts_with('\n') {
+        "# AgentForge Guidelines v1"
+    } else {
+        "# AgentForge Guidelines v1\n"
+    };
+    let bytes = format!("{prefix}{}\n", guidelines.body).into_bytes();
+    parse_guidelines("<guided guidelines>", &bytes)?;
+    Ok(bytes)
+}
+
+/// Atomically writes both intake documents if their pre-edit snapshot is still current.
+pub fn commit_documents(
+    root: impl AsRef<Path>,
+    blueprint: &ProjectBlueprint,
+    guidelines: &GuidelineDocument,
+    expected: &IntakeSnapshot,
+) -> Result<(PathBuf, PathBuf), IntakeError> {
+    let root = root.as_ref();
+    let current = snapshot(root)?;
+    if &current != expected {
+        let (blueprint_path, guidelines_path) = project_paths(root);
+        let changed = if current.blueprint != expected.blueprint {
+            blueprint_path
+        } else {
+            guidelines_path
+        };
+        return Err(IntakeError::Conflict(changed));
+    }
+    let blueprint_bytes = serialize_blueprint(blueprint)?;
+    let guidelines_bytes = serialize_guidelines(guidelines)?;
+    let (blueprint_path, guidelines_path) = project_paths(root);
+    if let Some(parent) = blueprint_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    atomic_replace(&blueprint_path, &blueprint_bytes)?;
+    if let Err(error) = atomic_replace(&guidelines_path, &guidelines_bytes) {
+        let _ = restore_file(&blueprint_path, expected.blueprint.as_deref());
+        return Err(error);
+    }
+    Ok((blueprint_path, guidelines_path))
+}
+
+/// Restores the exact pre-edit intake files after a later coordinated write fails.
+pub fn restore_documents(
+    root: impl AsRef<Path>,
+    snapshot: &IntakeSnapshot,
+) -> Result<(), IntakeError> {
+    let (blueprint_path, guidelines_path) = project_paths(root);
+    restore_file(&blueprint_path, snapshot.blueprint.as_deref())?;
+    restore_file(&guidelines_path, snapshot.guidelines.as_deref())?;
+    Ok(())
 }
 
 /// Builds a validated task contract from a draft and structured blueprint defaults.
@@ -293,6 +450,88 @@ fn create_new_file(path: &Path, bytes: &[u8]) -> Result<(), IntakeError> {
     file.write_all(bytes)?;
     file.sync_all()?;
     Ok(())
+}
+
+fn read_optional(path: &Path) -> Result<Option<Vec<u8>>, IntakeError> {
+    match fs::read(path) {
+        Ok(bytes) => Ok(Some(bytes)),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(IntakeError::Io(error)),
+    }
+}
+
+fn push_scalar(output: &mut String, key: &str, value: &str) -> Result<(), IntakeError> {
+    if value.is_empty() {
+        return Err(IntakeError::Task(format!("{key} must not be empty")));
+    }
+    if value.len() > MAX_FIELD_BYTES {
+        return Err(IntakeError::Task(format!("{key} exceeds 4096 bytes")));
+    }
+    if value.contains(['\n', '\r', '\0']) {
+        return Err(IntakeError::Task(format!(
+            "{key} contains an unsupported control byte"
+        )));
+    }
+    output.push_str(key);
+    output.push('=');
+    output.push_str(value);
+    output.push('\n');
+    Ok(())
+}
+
+fn push_list(output: &mut String, key: &str, values: &[String]) -> Result<(), IntakeError> {
+    if values.len() > MAX_LIST_ITEMS {
+        return Err(IntakeError::Task(format!("{key} list exceeds 128 items")));
+    }
+    for value in values {
+        push_scalar(output, key, value)?;
+    }
+    Ok(())
+}
+
+fn atomic_replace(path: &Path, bytes: &[u8]) -> Result<(), IntakeError> {
+    let sequence = TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    let file_name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("intake");
+    let temporary = path.with_file_name(format!(
+        ".{file_name}.tmp-{}-{sequence}",
+        std::process::id()
+    ));
+    let result = (|| -> Result<(), IntakeError> {
+        let mut file = OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(&temporary)?;
+        file.write_all(bytes)?;
+        file.sync_all()?;
+        drop(file);
+        match fs::rename(&temporary, path) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                fs::remove_file(path)?;
+                fs::rename(&temporary, path)?;
+                Ok(())
+            }
+            Err(error) => Err(IntakeError::Io(error)),
+        }
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&temporary);
+    }
+    result
+}
+
+fn restore_file(path: &Path, bytes: Option<&[u8]>) -> Result<(), IntakeError> {
+    match bytes {
+        Some(bytes) => atomic_replace(path, bytes),
+        None => match fs::remove_file(path) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(IntakeError::Io(error)),
+        },
+    }
 }
 
 fn parse_blueprint(file: &str, bytes: &[u8]) -> Result<ProjectBlueprint, IntakeError> {
@@ -653,5 +892,40 @@ mod tests {
         assert_eq!(task.allowed_paths, vec!["src"]);
         assert_eq!(task.capabilities, vec![Capability::ReadRepository]);
         assert_eq!(task.required_gates, vec!["full"]);
+    }
+
+    #[test]
+    fn guided_serialization_round_trips_and_is_deterministic() {
+        let bundle = starter_bundle();
+        let first = serialize_blueprint(&bundle.blueprint).expect("blueprint");
+        let second = serialize_blueprint(&bundle.blueprint).expect("blueprint");
+        assert_eq!(first, second);
+        assert_eq!(
+            parse_blueprint("guided", &first).expect("round trip"),
+            bundle.blueprint
+        );
+        let guidelines = serialize_guidelines(&bundle.guidelines).expect("guidelines");
+        assert_eq!(
+            parse_guidelines("guided", &guidelines).expect("round trip"),
+            bundle.guidelines
+        );
+    }
+
+    #[test]
+    fn guided_commit_rejects_a_changed_source() {
+        let root = temporary_root();
+        initialize(&root).expect("initialize");
+        let expected = snapshot(&root).expect("snapshot");
+        let bundle = load(&root).expect("load");
+        fs::write(
+            root.join(GUIDELINES_RELATIVE_PATH),
+            "# AgentForge Guidelines v1\n\nchanged\n",
+        )
+        .expect("external edit");
+        assert!(matches!(
+            commit_documents(&root, &bundle.blueprint, &bundle.guidelines, &expected),
+            Err(IntakeError::Conflict(path)) if path.ends_with(GUIDELINES_RELATIVE_PATH)
+        ));
+        fs::remove_dir_all(root).expect("cleanup");
     }
 }
