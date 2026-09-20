@@ -1,6 +1,6 @@
 # Plan: P2-M006 — Real-agent dogfooding and operator workflow
 
-Status: Draft
+Status: Approved
 Milestone: P2-M006
 Created: 2026-09-20
 
