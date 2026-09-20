@@ -28,5 +28,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "agentforge-worktree"
+version = "0.0.1"
+dependencies = [
+ "agentforge-core",
+]
+
+[[package]]
 name = "xtask"
 version = "0.0.1"
