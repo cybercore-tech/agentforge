@@ -82,6 +82,10 @@ fn malformed_endpoint_fails_closed() {
 fn stale_identity_fails_closed() {
     let root = temporary_repo();
     let daemon_dir = root.join(".forge/daemon");
+    let canonical_daemon_dir = root
+        .canonicalize()
+        .expect("canonical temporary repository")
+        .join(".forge/daemon");
     fs::create_dir_all(&daemon_dir).expect("daemon directory");
     fs::write(daemon_dir.join("lock"), b"pid=1\n").expect("lock");
     fs::write(
@@ -91,7 +95,7 @@ fn stale_identity_fails_closed() {
     .expect("endpoint");
     assert!(matches!(
         serve(&root, DEFAULT_BIND),
-        Err(DaemonError::StaleInstance(path)) if path == daemon_dir.join("lock")
+        Err(DaemonError::StaleInstance(path)) if path == canonical_daemon_dir.join("lock")
     ));
     fs::remove_dir_all(root).expect("cleanup");
 }
