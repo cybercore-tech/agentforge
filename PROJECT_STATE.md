@@ -11,7 +11,7 @@ Phase 2 — operator experience.
 
 ## Active milestone
 
-None. P2-M007 is complete; the next increment is intentionally unplanned until real operator use
+None. P2-M008 is complete; the next increment is intentionally unplanned until real operator use
 identifies the next bounded need.
 
 ## Completed milestones
@@ -35,6 +35,17 @@ identifies the next bounded need.
 - `P2-M005` — Local daemon and dogfooding.
 - `P2-M006` — Real-agent dogfooding and operator workflow.
 - `P2-M007` — Cross-platform agent operations.
+- `P2-M008` — Windows dogfooding parity.
+
+## P2-M008 completion evidence
+
+- Approved plan: `.plans/P2-M008-windows-dogfooding-parity.plan.md`.
+- Plan amendment: `4750814` — portable Rust fixture boundary.
+- Implementation commits: `f6ee2e4`, `4b2f1f4`.
+- Exact implementation CI: `35520394000` — all jobs green across repository policy, stable,
+  MSRV, CLI smoke, Ubuntu, macOS, and Windows for exact head `4b2f1f4`.
+- Portable worktree lifecycle tests now compare canonical roots and run on every platform matrix
+  host; daemon CLI dogfooding uses a direct Rust executable fixture without shell interpolation.
 
 ## P2-M007 completion evidence
 

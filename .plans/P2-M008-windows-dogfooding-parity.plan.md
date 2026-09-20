@@ -1,6 +1,6 @@
 # Plan: P2-M008 — Windows dogfooding parity
 
-Status: Approved
+Status: Completed
 Milestone: P2-M008
 Created: 2026-09-20
 
@@ -97,16 +97,16 @@ from the same worktree-backed workflow operators use, not only compilation and C
 
 ## Acceptance criteria
 
-- [ ] Windows CI runs and passes the managed worktree lifecycle integration suite.
-- [ ] Windows CI runs and passes daemon-backed CLI dogfooding with a non-shell fixture.
-- [ ] Existing ownership, approval, audit, path, dirty-state, and non-forced-retirement guarantees
+- [x] Windows CI runs and passes the managed worktree lifecycle integration suite.
+- [x] Windows CI runs and passes daemon-backed CLI dogfooding with a non-shell fixture.
+- [x] Existing ownership, approval, audit, path, dirty-state, and non-forced-retirement guarantees
       remain asserted and green on all supported platforms.
-- [ ] CI and documentation no longer claim parity while silently excluding these workflows.
-- [ ] Full local gate and exact-head CI pass for implementation and closure checkpoints.
+- [x] CI and documentation no longer claim parity while silently excluding these workflows.
+- [x] Full local gate and exact-head CI pass for implementation and closure checkpoints.
 
 ## Completion record
 
-Implementation commits: pending.
-Implementation CI: pending.
+Implementation commits: `f6ee2e4`, `4b2f1f4`.
+Implementation CI: `35520394000` — all jobs green for exact head `4b2f1f4`.
 Closure commit: pending.
 Closure CI: pending.
