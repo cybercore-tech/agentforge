@@ -23,6 +23,9 @@ approved plan.
 - Implementation commit: `caa37debdd89ea6035723749b52db7a02fba081d`.
 - Exact implementation CI: `35559168897` — all seven jobs green across repository policy, stable,
   MSRV, CLI smoke, Ubuntu, macOS, and Windows.
+- Closure commit: `b4d7f7c90b72154b81306f289b872e2d8f1cf248`.
+- Exact closure CI: `35559471908` attempt 2 — all seven jobs green after the initial Windows daemon
+  teardown infrastructure failure passed on the failed-job rerun.
 - The registry guide, release policy, README warning, and ADR-0031 now distinguish AgentForge from
   occupied crates.io identities and preserve the GitHub binary distribution boundary.
 

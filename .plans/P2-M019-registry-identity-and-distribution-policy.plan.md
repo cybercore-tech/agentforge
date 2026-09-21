@@ -92,9 +92,10 @@ Implementation commit: `caa37debdd89ea6035723749b52db7a02fba081d`.
 Exact CI run: `35559168897`.
 Exact CI result: Green across repository policy, stable, MSRV, CLI smoke, Ubuntu, macOS, and
 Windows for the implementation SHA.
-Closure commit: pending.
-Closure CI run: pending.
-Closure CI result: pending.
+Closure commit: `b4d7f7c90b72154b81306f289b872e2d8f1cf248`.
+Closure CI run: `35559471908` (attempt 2 after the failed Windows teardown job).
+Closure CI result: Green across repository policy, stable, MSRV, CLI smoke, Ubuntu, macOS, and
+Windows for the exact closure SHA.
 Completed: 2026-09-20.
 Notes: Existing crates.io names were documented as unrelated occupied identities. Workspace crates
 remain private and the GitHub binary release path remains authoritative; no package rename or

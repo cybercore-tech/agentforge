@@ -7,6 +7,9 @@
 - P2-M019 implementation commit: `caa37debdd89ea6035723749b52db7a02fba081d`; exact CI
   `35559168897` is green across repository policy, stable, MSRV, CLI smoke, Ubuntu, macOS, and
   Windows.
+- P2-M019 closure commit: `b4d7f7c90b72154b81306f289b872e2d8f1cf248`; exact CI
+  `35559471908` attempt 2 is green across all seven jobs after the initial Windows daemon teardown
+  infrastructure failure passed on the failed-job rerun.
 - P2-M019 keeps all workspace crates private, documents the occupied crates.io names, and preserves
   GitHub binary distribution; no package publication, rename, yank, or owner-transfer request was
   made.
