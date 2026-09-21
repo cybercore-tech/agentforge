@@ -7,11 +7,26 @@
 
 ## Current phase
 
-Phase 2 — operator experience.
+Phase 3 — external systems and Mission Control.
 
 ## Active milestone
 
-No active milestone. P2-M022 — Cargo publishability preparation — is complete.
+No active milestone. P3-M001 — Cybercore Mission Control foundation — is complete; P3-M002 is
+the next planned connector increment.
+
+## P3-M001 completion evidence
+
+- Approved plan: `.plans/P3-M001-cybercore-mission-control-foundation.plan.md`.
+- Implementation commit: `07eafdf5851b32b92a392d7ab9f2465f71f5e860` in the standalone
+  `cybercore-mission-control` repository; remote `main` resolves to the exact SHA.
+- TypeScript validation passed with Cloudflare Workers Types `5.20260921.1`.
+- Wrangler `4.135.0` dry-run recognized the Worker, static assets, D1 binding, and
+  `ProjectEventChannel` Durable Object.
+- Local D1 migration `0001_initial.sql` applied successfully.
+- Runtime/API smoke passed for health, dashboard assets, admin authorization, project creation,
+  agent registration, authenticated heartbeat persistence, durable audit evidence, and duplicate
+  nonce rejection.
+- No production Cloudflare deployment or credential was used.
 
 P2-M022 prepared `agentforge-platform` for a future registry decision without publishing anything.
 The package now has complete metadata, explicit registry version requirements beside local paths,
@@ -101,6 +116,7 @@ publication.
 - `P2-M018` — README hardening and in-page reader.
 - `P2-M021` — Windows daemon CI reliability.
 - `P2-M022` — Cargo publishability preparation.
+- `P3-M001` — Cybercore Mission Control foundation.
 
 ## P2-M018 completion evidence
 

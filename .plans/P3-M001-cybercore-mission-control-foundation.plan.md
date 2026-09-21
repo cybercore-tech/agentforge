@@ -1,6 +1,6 @@
 # Plan: P3-M001 — Cybercore Mission Control foundation
 
-Status: Approved
+Status: Complete
 Milestone: P3-M001
 Created: 2026-09-21
 Owner: AgentForge project
@@ -190,8 +190,19 @@ AgentForge repository changes in this plan-only checkpoint are limited to:
 
 ## Completion record
 
-Implementation commit: pending
-Exact deployment/validation evidence: pending
-Completed: pending
-Notes: Plan-only approval checkpoint. Implementation must occur in the separate
-\`cybercore-mission-control\` repository after this plan is committed.
+Implementation commit: `07eafdf5851b32b92a392d7ab9f2465f71f5e860` in the separate
+\`cybercore-mission-control\` repository.
+Exact deployment/validation evidence:
+- TypeScript check passed with Cloudflare Workers Types `5.20260921.1`.
+- Wrangler `4.135.0` dry-run passed and recognized the Worker, static assets, D1 binding, and
+  `ProjectEventChannel` Durable Object binding.
+- Local D1 migration `0001_initial.sql` applied successfully with 12 commands.
+- Runtime smoke passed for health, dashboard assets, and the unauthenticated admin guard.
+- API smoke passed for project creation, agent registration, authenticated heartbeat persistence,
+  durable audit count, and duplicate-nonce rejection (`409 replayed_heartbeat`).
+- Remote `main` resolves to the exact implementation SHA; no production Cloudflare deployment or
+  credential was used.
+Completed: 2026-09-21
+Notes: The Worker/D1 foundation, observation-only API boundary, Durable Object event interface,
+demo dashboard, connector contract, and security documentation are complete. P3-M002 is the next
+separate plan for the Rust local connector.

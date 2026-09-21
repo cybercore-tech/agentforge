@@ -2,8 +2,14 @@
 
 ## Repository state
 
-- Active milestone: none. P2-M022 — Cargo publishability preparation — is complete.
-- Active plan: none (`.plans/ACTIVE` is intentionally absent between milestones).
+- Active milestone: none. P3-M001 — Cybercore Mission Control foundation — is complete; P3-M002 is
+  the next planned connector increment.
+- Active plan: none (`.plans/ACTIVE` is intentionally empty between milestones).
+- P3-M001 implementation commit: `07eafdf5851b32b92a392d7ab9f2465f71f5e860` in the standalone
+  `cybercore-mission-control` repository; remote `main` resolves to the exact SHA.
+- P3-M001 validation passed with Cloudflare Workers Types `5.20260921.1`, Wrangler `4.135.0`
+  dry-run, local D1 migration, runtime/API smoke, durable audit evidence, and duplicate-nonce
+  rejection. No production Cloudflare deployment or credential was used.
 - P2-M022 prepared the `agentforge-platform` package without changing the private registry
   boundary. Metadata, license inclusion, explicit registry version requirements, and the opt-in
   offline archive preflight are now in place.

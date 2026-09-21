@@ -56,6 +56,13 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 | P2-M021 | complete | Windows daemon CI reliability | Spawned and foreground daemon lifecycle tests are isolated and the exact cross-platform CI matrix is green. |
 | P2-M022 | complete | Cargo publishability preparation | The future platform package has registry-aware metadata and an offline archive preflight while all crates remain private. |
 
+## Phase 3 — external systems and Mission Control
+
+| ID | Status | Milestone | Acceptance signal |
+| --- | --- | --- | --- |
+| P3-M001 | complete | Cybercore Mission Control foundation | A private Cloudflare Worker control plane persists projects, agents, heartbeats, and audit events, exposes a tested observation-only API, and renders a durable/demo dashboard. |
+| P3-M002 | planned | Rust local connector | A scoped local connector sends bounded, replay-resistant heartbeats outbound without granting the cloud service local execution authority. |
+
 ## Phase 1 — multi-agent scheduling and integration
 
 | ID | Status | Milestone | Acceptance signal |
