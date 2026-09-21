@@ -2,8 +2,14 @@
 
 ## Repository state
 
-- Active milestone: none; P2-M014 — safe review and integration workflow is complete.
+- Active milestone: none; P2-M015 — real-project orchestration pilot is complete.
 - Active plan: none (`.plans/ACTIVE` is intentionally absent after closure).
+- P2-M015 implementation commit: `8992da820162e3bd410841dd8eeddd8e5f04a935`; exact CI
+  `35549918749` is green across repository policy, stable, MSRV, CLI smoke, Linux, macOS, and
+  Windows.
+- P2-M015 plan: `.plans/P2-M015-real-project-orchestration-pilot.plan.md` — completed with a
+  foreground `forge task launch` path that composes exact-base worktree preparation, readiness and
+  approval preflight, bounded process execution, durable worktree observation, and explicit recovery.
 - P2-M014 implementation commit: `b0cbdc810a1835c9f27d9c064cd6646334fc4897`; exact CI
   `35548080732` is green across repository policy, stable, MSRV, CLI smoke, Linux, macOS, and
   Windows.

@@ -11,7 +11,7 @@ Phase 2 — operator experience.
 
 ## Active milestone
 
-None. P2-M014 is complete; the next increment is intentionally unplanned until real operator use
+None. P2-M015 is complete; the next increment is intentionally unplanned until real operator use
 identifies the next bounded need.
 
 ## Completed milestones
@@ -42,6 +42,18 @@ identifies the next bounded need.
 - `P2-M012` — Interactive foreground agent sessions.
 - `P2-M013` — PTY-backed foreground agent sessions.
 - `P2-M014` — Safe review and integration workflow.
+- `P2-M015` — Real-project orchestration pilot.
+
+## P2-M015 completion evidence
+
+- Approved plan: `.plans/P2-M015-real-project-orchestration-pilot.plan.md`.
+- Implementation commit: `8992da820162e3bd410841dd8eeddd8e5f04a935`.
+- Exact implementation CI: `35549918749` — all seven jobs green across repository policy, stable,
+  MSRV, CLI smoke, Ubuntu, macOS, and Windows.
+- The foreground `forge task launch` path validates task readiness, capabilities, approvals, and
+  adapter configuration before resolving an exact base and creating or reusing the deterministic
+  managed worktree. It records durable worktree observation evidence, delegates to the existing
+  bounded process path, and leaves acceptance, review, integration, and retirement explicit.
 
 ## P2-M014 completion evidence
 

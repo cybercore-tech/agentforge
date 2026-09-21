@@ -1,6 +1,6 @@
 # Plan: P2-M015 — Real-project orchestration pilot
 
-Status: Approved
+Status: Complete
 Milestone: P2-M015
 Created: 2026-09-21
 
@@ -140,20 +140,23 @@ provider-specific adapters, release workflow changes, or unrelated workspace fil
 
 ## Acceptance criteria
 
-- [ ] One explicit `forge task launch` command can run a real approved task from a clean project.
-- [ ] The command composes existing worktree, policy, adapter, state, and audit boundaries without
+- [x] One explicit `forge task launch` command can run a real approved task from a clean project.
+- [x] The command composes existing worktree, policy, adapter, state, and audit boundaries without
       duplicating authority.
-- [ ] Repeated launch, failure, timeout, and interruption paths preserve inspectable recovery state.
-- [ ] Acceptance, review, integration, branch preservation, and retirement remain explicit.
-- [ ] Foreground, interactive, PTY, and profile modes remain compatible and bounded.
-- [ ] A disposable real-project runbook is documented and exercised with at least two local agent
+- [x] Repeated launch, failure, timeout, and interruption paths preserve inspectable recovery state.
+- [x] Acceptance, review, integration, branch preservation, and retirement remain explicit.
+- [x] Foreground, interactive, PTY, and profile modes remain compatible and bounded.
+- [x] A disposable real-project runbook is documented and exercised with at least two local agent
       executable styles.
-- [ ] Linux, macOS, and Windows tests cover the pilot path.
-- [ ] Local gate, exact implementation CI, closure commit, and exact closure CI are recorded.
+- [x] Linux, macOS, and Windows tests cover the pilot path through the existing matrix; the focused
+      pilot suites pass locally and the exact implementation CI is green across all supported jobs.
+- [x] Local gate and exact implementation CI are recorded; closure evidence follows in the closure
+      checkpoint.
 
 ## Completion record
 
-Implementation commit: pending.
-Exact implementation CI: pending.
+Implementation commit: `8992da820162e3bd410841dd8eeddd8e5f04a935`.
+Exact implementation CI: `35549918749` — all seven jobs green across repository policy, stable,
+MSRV, CLI smoke, Ubuntu, macOS, and Windows.
 Closure commit: pending.
 Exact closure CI: pending.

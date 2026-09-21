@@ -47,6 +47,7 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 | P2-M012 | complete | Interactive foreground agent sessions | Operators can interact with a direct agent run in the current terminal while preserving AgentForge execution and acceptance boundaries. |
 | P2-M013 | complete | PTY-backed foreground agent sessions | Operators can run terminal-native full-screen agents through an explicit PTY mode with bounded evidence and restored terminal state. |
 | P2-M014 | complete | Safe review and integration workflow | Operators can inspect bounded task diffs and perform approved, serialized fast-forward-only integration while preserving branches and worktrees. |
+| P2-M015 | complete | Real-project orchestration pilot | Operators can launch one ready task through a foreground command that prepares its managed worktree and preserves explicit review, acceptance, integration, and retirement boundaries. |
 
 ## Phase 1 — multi-agent scheduling and integration
 
