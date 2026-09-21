@@ -1,6 +1,6 @@
 # Plan: P2-M014 — Safe review and integration workflow
 
-Status: Approved
+Status: Complete
 Milestone: P2-M014
 Created: 2026-09-20
 
@@ -169,20 +169,21 @@ integration and that daemon/HUD surfaces do not gain merge authority.
 
 ## Acceptance criteria
 
-- [ ] Operators can inspect a bounded, deterministic task diff without mutation.
-- [ ] Integration requires explicit task state, capability, approval, target, ownership, cleanliness,
+- [x] Operators can inspect a bounded, deterministic task diff without mutation.
+- [x] Integration requires explicit task state, capability, approval, target, ownership, cleanliness,
       and exact-head checks.
-- [ ] Only serialized, fast-forward-only, non-forced integration is possible through the command.
-- [ ] Integration success, idempotent replay, contention, and failure are audit-visible and bounded.
-- [ ] Task branches and worktrees remain preserved until explicit retirement.
-- [ ] Existing execution, daemon, HUD, scheduler, intake, and release behavior remains compatible.
-- [ ] Linux, macOS, and Windows tests cover the integration and lock behavior.
-- [ ] Documentation distinguishes review, acceptance, integration, and retirement boundaries.
-- [ ] Local gate, exact implementation CI, closure commit, and exact closure CI are recorded.
+- [x] Only serialized, fast-forward-only, non-forced integration is possible through the command.
+- [x] Integration success, idempotent replay, contention, and failure are audit-visible and bounded.
+- [x] Task branches and worktrees remain preserved until explicit retirement.
+- [x] Existing execution, daemon, HUD, scheduler, intake, and release behavior remains compatible.
+- [x] Linux, macOS, and Windows tests cover the integration and lock behavior.
+- [x] Documentation distinguishes review, acceptance, integration, and retirement boundaries.
+- [x] Local gate, exact implementation CI, closure commit, and exact closure CI are recorded.
 
 ## Completion record
 
-Implementation commit: pending.
-Exact implementation CI: pending.
+Implementation commit: `b0cbdc810a1835c9f27d9c064cd6646334fc4897`.
+Exact implementation CI: `35548080732` — all seven jobs green across repository policy, stable,
+MSRV, CLI smoke, Ubuntu, macOS, and Windows.
 Closure commit: pending.
 Exact closure CI: pending.

@@ -11,7 +11,7 @@ Phase 2 — operator experience.
 
 ## Active milestone
 
-None. P2-M013 is complete; the next increment is intentionally unplanned until real operator use
+None. P2-M014 is complete; the next increment is intentionally unplanned until real operator use
 identifies the next bounded need.
 
 ## Completed milestones
@@ -41,6 +41,18 @@ identifies the next bounded need.
 - `P2-M011` — Guided intake operator hardening.
 - `P2-M012` — Interactive foreground agent sessions.
 - `P2-M013` — PTY-backed foreground agent sessions.
+- `P2-M014` — Safe review and integration workflow.
+
+## P2-M014 completion evidence
+
+- Approved plan: `.plans/P2-M014-safe-review-integration.plan.md`.
+- Implementation commit: `b0cbdc810a1835c9f27d9c064cd6646334fc4897`.
+- Exact implementation CI: `35548080732` — all seven jobs green across repository policy, stable,
+  MSRV, CLI smoke, Ubuntu, macOS, and Windows.
+- The operator workflow now provides bounded read-only task diffs and explicit approved integration
+  through a serialized, fast-forward-only path. Integration verifies task state, capability,
+  approval, ownership, cleanliness, target ancestry, and exact heads; it records durable evidence,
+  is idempotent, and preserves the source branch and worktree for explicit retirement.
 
 ## P2-M013 completion evidence
 

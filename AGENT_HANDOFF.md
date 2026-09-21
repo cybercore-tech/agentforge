@@ -2,8 +2,14 @@
 
 ## Repository state
 
-- Active milestone: none; P2-M013 — PTY-backed foreground agent sessions are complete.
+- Active milestone: none; P2-M014 — safe review and integration workflow is complete.
 - Active plan: none (`.plans/ACTIVE` is intentionally absent after closure).
+- P2-M014 implementation commit: `b0cbdc810a1835c9f27d9c064cd6646334fc4897`; exact CI
+  `35548080732` is green across repository policy, stable, MSRV, CLI smoke, Linux, macOS, and
+  Windows.
+- P2-M014 plan: `.plans/P2-M014-safe-review-integration.plan.md` — completed with bounded review
+  diffs, explicit merge approval/capability checks, serialized fast-forward-only integration,
+  idempotent audit evidence, and preserved branches/worktrees.
 - P2-M013 implementation commit: `c9809205cf5f5851b00d957332a35f732392ab66`; exact CI
   `35545010733` is green across repository policy, stable, MSRV, CLI smoke, Linux, macOS, and
   Windows.
