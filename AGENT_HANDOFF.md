@@ -7,6 +7,8 @@
 - P2-M016 implementation commits: `b8eaff7`, `e92d9e7` (portable Windows protocol-fixture repair);
   exact CI `35551842104` is green across repository policy, stable, MSRV, CLI smoke, Linux, macOS,
   and Windows after the macOS temporary-root collision passed on the failed-job rerun.
+- P2-M016 closure commit: `63513a6`; exact closure CI `35552143595` is green across repository
+  policy, stable, MSRV, CLI smoke, Linux, macOS, and Windows.
 - P2-M016 plan: `.plans/P2-M016-daemon-task-launch-parity.plan.md` — completed with
   `forge daemon launch` for direct executables and named profiles. It reuses the foreground launch
   preparation seam, keeps `daemon run` compatibility, and preserves explicit acceptance, review,

@@ -163,8 +163,9 @@ Implementation commits: `b8eaff7`, `e92d9e7` (portable Windows fixture repair).
 Exact implementation CI: `35551842104` — final rerun green across repository policy, stable, MSRV,
 CLI smoke, Ubuntu, macOS, and Windows. The initial macOS failure was classified as an unrelated
 temporary-root collision in an existing intake test and passed on the failed-job rerun.
-Closure commit:
-Exact closure CI:
+Closure commit: `63513a6`.
+Exact closure CI: `35552143595` — all seven jobs green across repository policy, stable, MSRV,
+CLI smoke, Ubuntu, macOS, and Windows.
 Completed: 2026-09-21
 Notes: `forge daemon run` remains compatible and requires a prepared worktree; `forge daemon launch`
 shares the P2-M015 preparation and persisted execution authority without implicit acceptance,

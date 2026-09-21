@@ -52,6 +52,9 @@ identifies the next bounded need.
 - Exact implementation CI: `35551842104` — final rerun green across repository policy, stable,
   MSRV, CLI smoke, Ubuntu, macOS, and Windows. The initial macOS failure was classified as an
   unrelated temporary-root collision in an existing intake test and passed on the failed-job rerun.
+- Closure commit: `63513a6`.
+- Exact closure CI: `35552143595` — all seven jobs green across repository policy, stable, MSRV,
+  CLI smoke, Ubuntu, macOS, and Windows.
 - `forge daemon launch` now prepares or verifies the deterministic managed worktree through the
   existing P2-M015 orchestration seam, records a durable observation, and executes through the
   bounded persisted process path for direct executables and named profiles. Existing
