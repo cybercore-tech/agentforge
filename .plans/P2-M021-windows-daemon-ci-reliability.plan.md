@@ -1,6 +1,6 @@
 # Plan: P2-M021 — Windows daemon CI reliability
 
-Status: Draft
+Status: Approved
 Milestone: P2-M021
 Created: 2026-09-20
 Owner: AgentForge project
