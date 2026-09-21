@@ -2,7 +2,7 @@
 
 ## Repository state
 
-- Active milestone: none; P2-M016 — daemon task-launch parity is complete.
+- Active milestone: none; P2-M017 — AgentForge GitHub Pages is complete.
 - Active plan: none (`.plans/ACTIVE` is intentionally absent after closure).
 - P2-M016 implementation commits: `b8eaff7`, `e92d9e7` (portable Windows protocol-fixture repair);
   exact CI `35551842104` is green across repository policy, stable, MSRV, CLI smoke, Linux, macOS,
@@ -13,6 +13,13 @@
   `forge daemon launch` for direct executables and named profiles. It reuses the foreground launch
   preparation seam, keeps `daemon run` compatibility, and preserves explicit acceptance, review,
   integration, and retirement boundaries.
+- P2-M017 implementation commit: `cae1563`; exact CI `35553651412` is green across repository
+  policy, stable, MSRV, CLI smoke, Linux, macOS, and Windows after the Windows daemon teardown
+  test passed on the failed-job rerun.
+- P2-M017 Pages deployment: exact workflow `35553651453` is green for the same implementation SHA;
+  the public site is live at `https://darkstardevx.github.io/agentforge/`.
+- P2-M017 plan: `.plans/P2-M017-agentforge-github-pages.plan.md` — completed with the static
+  forge-rail landing page, bounded Pages workflow, ADR, README discovery link, and preserved mockup.
 - P2-M015 implementation commit: `8992da820162e3bd410841dd8eeddd8e5f04a935`; exact CI
   `35549918749` is green across repository policy, stable, MSRV, CLI smoke, Linux, macOS, and
   Windows.

@@ -11,7 +11,7 @@ Phase 2 — operator experience.
 
 ## Active milestone
 
-None. P2-M016 is complete; the next increment is intentionally unplanned until real operator use
+None. P2-M017 is complete; the next increment is intentionally unplanned until real operator use
 identifies the next bounded need.
 
 ## Completed milestones
@@ -44,6 +44,19 @@ identifies the next bounded need.
 - `P2-M014` — Safe review and integration workflow.
 - `P2-M015` — Real-project orchestration pilot.
 - `P2-M016` — Daemon task-launch parity.
+- `P2-M017` — AgentForge GitHub Pages.
+
+## P2-M017 completion evidence
+
+- Approved plan: `.plans/P2-M017-agentforge-github-pages.plan.md`.
+- Implementation commit: `cae1563`.
+- Exact implementation CI: `35553651412` — all seven jobs green after the Windows daemon teardown
+  test passed on the failed-job rerun.
+- Exact Pages deployment: `35553651453` — the static artifact validated and deployed for the exact
+  implementation commit after Pages was enabled for GitHub Actions.
+- The public site is live at `https://darkstardevx.github.io/agentforge/`. It is dependency-free,
+  responsive, keyboard-accessible, reduced-motion aware, and keeps the alpha/pre-release warning
+  visible. The repository and its durable evidence remain authoritative.
 
 ## P2-M016 completion evidence
 

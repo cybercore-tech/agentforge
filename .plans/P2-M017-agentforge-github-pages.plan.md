@@ -1,6 +1,6 @@
 # Plan: P2-M017 — AgentForge GitHub Pages
 
-Status: Approved
+Status: Complete
 Milestone: P2-M017
 Owner: AgentForge project
 
@@ -62,17 +62,31 @@ Implementation is limited to:
 
 ## Acceptance criteria
 
-- [ ] A visitor can understand AgentForge’s purpose, workflow, and safety posture from the landing
+- [x] A visitor can understand AgentForge’s purpose, workflow, and safety posture from the landing
       page without reading the source code.
-- [ ] The page visibly implements the approved forge-rail concept and responsive card layout.
-- [ ] Primary calls to action lead to the workflow documentation and repository/CLI entry points.
-- [ ] The page remains usable on narrow screens, keyboard navigation, and reduced-motion settings.
-- [ ] GitHub Pages deployment is reproducible from `main` or manual dispatch with bounded workflow
+- [x] The page visibly implements the approved forge-rail concept and responsive card layout.
+- [x] Primary calls to action lead to the workflow documentation and repository/CLI entry points.
+- [x] The page remains usable on narrow screens, keyboard navigation, and reduced-motion settings.
+- [x] GitHub Pages deployment is reproducible from `main` or manual dispatch with bounded workflow
       permissions and no third-party build dependency.
-- [ ] README discovery, ADR rationale, mockup reference, and milestone state are updated.
-- [ ] Local gate and exact implementation/closure CI evidence are recorded before completion.
+- [x] README discovery, ADR rationale, mockup reference, and milestone state are updated.
+- [x] Local gate and exact implementation/closure CI evidence are recorded before completion.
 
 ## Plan notes
 
 The page is a presentation layer only. AgentForge’s repository, task contracts, approvals, audit
 records, and exact-head evidence remain the authoritative product surfaces.
+
+## Completion record
+
+Implementation commit: `cae1563`.
+Exact implementation CI: `35553651412` — all seven jobs green after the Windows daemon teardown
+test passed on the failed-job rerun.
+Exact Pages deployment: `35553651453` — artifact validation and deployment green for the exact
+implementation commit after the repository Pages source was enabled as GitHub Actions.
+Closure commit:
+Exact closure CI:
+Completed: 2026-09-21
+Notes: The public site is live at `https://darkstardevx.github.io/agentforge/`. The static page
+contains no runtime JavaScript, analytics, remote font, or API dependency and continues to label
+AgentForge as `0.0.1-alpha` and pre-release.

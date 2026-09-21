@@ -49,6 +49,7 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 | P2-M014 | complete | Safe review and integration workflow | Operators can inspect bounded task diffs and perform approved, serialized fast-forward-only integration while preserving branches and worktrees. |
 | P2-M015 | complete | Real-project orchestration pilot | Operators can launch one ready task through a foreground command that prepares its managed worktree and preserves explicit review, acceptance, integration, and retirement boundaries. |
 | P2-M016 | complete | Daemon task-launch parity | Operators can launch one ready detached task through a daemon command that prepares or verifies its managed worktree while preserving explicit review, acceptance, integration, and retirement. |
+| P2-M017 | complete | AgentForge GitHub Pages | Visitors can understand the local-first workflow through a responsive, accessible static site deployed from `main` with bounded Pages permissions. |
 
 ## Phase 1 — multi-agent scheduling and integration
 
