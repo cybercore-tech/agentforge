@@ -2,14 +2,20 @@
 
 ## Repository state
 
-- Active milestone: none. P3-M001 — Cybercore Mission Control foundation — is complete; P3-M002 is
-  the next planned connector increment.
-- Active plan: none (`.plans/ACTIVE` is intentionally empty between milestones).
+- Active milestone: none. P3-M002 — Cybercore Rust local connector — is complete; the connector
+  remains experimental and not release-ready.
+- Active plan: none (`.plans/ACTIVE` is intentionally absent between milestones).
 - P3-M001 implementation commit: `07eafdf5851b32b92a392d7ab9f2465f71f5e860` in the standalone
   `cybercore-mission-control` repository; remote `main` resolves to the exact SHA.
 - P3-M001 validation passed with Cloudflare Workers Types `5.20260921.1`, Wrangler `4.135.0`
   dry-run, local D1 migration, runtime/API smoke, durable audit evidence, and duplicate-nonce
   rejection. No production Cloudflare deployment or credential was used.
+- P3-M002 implementation commit: `5da61c73e729d245edc356047353c2bd82842fcc` in the standalone
+  `cybercore-mission-control` repository; exact GitHub Actions run `35599020205` is green for
+  Worker TypeScript and Rust connector jobs.
+- P3-M002 passed locked Rust formatting, check, seven connector tests, and Clippy gates. The
+  connector is outbound-only, observation-only, credential-redacting, and has no command channel;
+  no production deployment or real operator credential was used.
 - P2-M022 prepared the `agentforge-platform` package without changing the private registry
   boundary. Metadata, license inclusion, explicit registry version requirements, and the opt-in
   offline archive preflight are now in place.

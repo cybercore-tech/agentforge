@@ -11,8 +11,8 @@ Phase 3 — external systems and Mission Control.
 
 ## Active milestone
 
-No active milestone. P3-M001 — Cybercore Mission Control foundation — is complete; P3-M002 is
-the next planned connector increment.
+No active milestone. P3-M002 — Cybercore Rust local connector — is complete; the connector remains
+experimental and not release-ready.
 
 ## P3-M001 completion evidence
 
@@ -27,6 +27,18 @@ the next planned connector increment.
   agent registration, authenticated heartbeat persistence, durable audit evidence, and duplicate
   nonce rejection.
 - No production Cloudflare deployment or credential was used.
+
+## P3-M002 completion evidence
+
+- Approved plan: `.plans/P3-M002-cybercore-rust-local-connector.plan.md`.
+- Implementation commit: `5da61c73e729d245edc356047353c2bd82842fcc` in the standalone
+  `cybercore-mission-control` repository; remote `main` resolves to the exact SHA.
+- Locked offline Rust formatting, check, test, and Clippy gates passed; seven connector tests cover
+  protocol shape, credential redaction, bounds, retries, and cooperative shutdown.
+- Exact GitHub Actions run `35599020205` is green for the implementation SHA, including Worker
+  TypeScript and Rust connector jobs.
+- No production deployment or real operator credential was used. The connector is outbound-only,
+  observation-only, and explicitly experimental.
 
 P2-M022 prepared `agentforge-platform` for a future registry decision without publishing anything.
 The package now has complete metadata, explicit registry version requirements beside local paths,
@@ -117,6 +129,7 @@ publication.
 - `P2-M021` — Windows daemon CI reliability.
 - `P2-M022` — Cargo publishability preparation.
 - `P3-M001` — Cybercore Mission Control foundation.
+- `P3-M002` — Cybercore Rust local connector.
 
 ## P2-M018 completion evidence
 

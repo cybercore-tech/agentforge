@@ -1,6 +1,6 @@
 # Plan: P3-M002 — Cybercore Rust local connector
 
-Status: Approved
+Status: Complete
 Milestone: P3-M002
 Created: 2026-09-21
 Owner: AgentForge project
@@ -135,8 +135,20 @@ fixtures and synthetic credentials are sufficient.
 
 ## Completion record
 
-Implementation commit: pending
-Exact validation evidence: pending
-Completed: pending
-Notes: Plan-only approval checkpoint. Implementation must occur in the standalone
-`cybercore-mission-control` repository after this plan is committed.
+Implementation commit: `5da61c73e729d245edc356047353c2bd82842fcc` in the standalone
+`cybercore-mission-control` repository; remote `main` resolves to the exact SHA.
+Exact validation evidence:
+- `cargo fmt --all -- --check` passed.
+- `cargo check --workspace --locked --offline` passed.
+- `cargo test --workspace --locked --offline` passed all seven connector tests and doc-tests;
+  loopback protocol fixtures were run with socket access enabled.
+- `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` passed.
+- GitHub Actions run `35599020205` is green for the exact SHA, including Worker TypeScript and Rust
+  connector jobs.
+- Tests cover bounded configuration, HTTPS/loopback policy, owner-only credential handling,
+  redaction, OS-random nonces, authenticated heartbeat shape, transient retry limits,
+  authentication-failure no-retry behavior, and cooperative periodic shutdown.
+- No production deployment or real operator credential was used.
+Completed: 2026-09-21
+Notes: The standalone connector is experimental and not release-ready. It is outbound-only,
+observation-only, and does not grant Mission Control local execution authority.
