@@ -2,8 +2,15 @@
 
 ## Repository state
 
-- Active milestone: none; P2-M015 — real-project orchestration pilot is complete.
+- Active milestone: none; P2-M016 — daemon task-launch parity is complete.
 - Active plan: none (`.plans/ACTIVE` is intentionally absent after closure).
+- P2-M016 implementation commits: `b8eaff7`, `e92d9e7` (portable Windows protocol-fixture repair);
+  exact CI `35551842104` is green across repository policy, stable, MSRV, CLI smoke, Linux, macOS,
+  and Windows after the macOS temporary-root collision passed on the failed-job rerun.
+- P2-M016 plan: `.plans/P2-M016-daemon-task-launch-parity.plan.md` — completed with
+  `forge daemon launch` for direct executables and named profiles. It reuses the foreground launch
+  preparation seam, keeps `daemon run` compatibility, and preserves explicit acceptance, review,
+  integration, and retirement boundaries.
 - P2-M015 implementation commit: `8992da820162e3bd410841dd8eeddd8e5f04a935`; exact CI
   `35549918749` is green across repository policy, stable, MSRV, CLI smoke, Linux, macOS, and
   Windows.

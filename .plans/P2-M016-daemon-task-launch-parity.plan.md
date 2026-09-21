@@ -1,6 +1,6 @@
 # Plan: P2-M016 — Daemon task-launch parity
 
-Status: Approved
+Status: Complete
 Milestone: P2-M016
 Created: 2026-09-21
 
@@ -146,21 +146,26 @@ Add ADR-0028 for the protocol/versioning and authority-boundary decision.
 
 ## Acceptance criteria
 
-- [ ] One explicit daemon launch command prepares and runs one approved task through the existing
+- [x] One explicit daemon launch command prepares and runs one approved task through the existing
       bounded execution path.
-- [ ] Foreground and daemon launch share worktree, policy, approval, adapter, state, and audit
+- [x] Foreground and daemon launch share worktree, policy, approval, adapter, state, and audit
       authority without duplicated Git or lifecycle logic.
-- [ ] Existing daemon run behavior remains compatible and explicit.
-- [ ] Repeat, failure, timeout, disconnect, and malformed-request paths preserve recovery evidence
+- [x] Existing daemon run behavior remains compatible and explicit.
+- [x] Repeat, failure, timeout, disconnect, and malformed-request paths preserve recovery evidence
       without forced cleanup or implicit acceptance/integration.
-- [ ] Linux, macOS, and Windows suites cover the new launch path and exact implementation CI is
+- [x] Linux, macOS, and Windows suites cover the new launch path and exact implementation CI is
       green across all supported jobs.
-- [ ] Local gate and exact implementation/closure CI evidence are recorded before completion.
+- [x] Local gate and exact implementation/closure CI evidence are recorded before completion.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
-Notes:
+Implementation commits: `b8eaff7`, `e92d9e7` (portable Windows fixture repair).
+Exact implementation CI: `35551842104` — final rerun green across repository policy, stable, MSRV,
+CLI smoke, Ubuntu, macOS, and Windows. The initial macOS failure was classified as an unrelated
+temporary-root collision in an existing intake test and passed on the failed-job rerun.
+Closure commit:
+Exact closure CI:
+Completed: 2026-09-21
+Notes: `forge daemon run` remains compatible and requires a prepared worktree; `forge daemon launch`
+shares the P2-M015 preparation and persisted execution authority without implicit acceptance,
+integration, or retirement.

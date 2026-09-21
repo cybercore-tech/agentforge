@@ -11,7 +11,7 @@ Phase 2 — operator experience.
 
 ## Active milestone
 
-None. P2-M015 is complete; the next increment is intentionally unplanned until real operator use
+None. P2-M016 is complete; the next increment is intentionally unplanned until real operator use
 identifies the next bounded need.
 
 ## Completed milestones
@@ -43,6 +43,20 @@ identifies the next bounded need.
 - `P2-M013` — PTY-backed foreground agent sessions.
 - `P2-M014` — Safe review and integration workflow.
 - `P2-M015` — Real-project orchestration pilot.
+- `P2-M016` — Daemon task-launch parity.
+
+## P2-M016 completion evidence
+
+- Approved plan: `.plans/P2-M016-daemon-task-launch-parity.plan.md`.
+- Implementation commits: `b8eaff7`, `e92d9e7` (portable Windows protocol-fixture repair).
+- Exact implementation CI: `35551842104` — final rerun green across repository policy, stable,
+  MSRV, CLI smoke, Ubuntu, macOS, and Windows. The initial macOS failure was classified as an
+  unrelated temporary-root collision in an existing intake test and passed on the failed-job rerun.
+- `forge daemon launch` now prepares or verifies the deterministic managed worktree through the
+  existing P2-M015 orchestration seam, records a durable observation, and executes through the
+  bounded persisted process path for direct executables and named profiles. Existing
+  `forge daemon run` behavior remains compatible and explicit; acceptance, review, integration,
+  and retirement remain independent operator actions.
 
 ## P2-M015 completion evidence
 
