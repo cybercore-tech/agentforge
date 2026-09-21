@@ -61,6 +61,8 @@ identifies the next bounded need.
   same closure SHA.
 - Pages workflow repair: `7d2b45b`; exact CI `35554310599` and Pages deployment `35554310590` are
   green, with the deployment environment URL expression validated on the repaired SHA.
+- Pages workflow repair closure: `24d1571`; exact CI `35554451233` and Pages deployment
+  `35554451229` are green for the exact closure SHA.
 - The public site is live at `https://darkstardevx.github.io/agentforge/`. It is dependency-free,
   responsive, keyboard-accessible, reduced-motion aware, and keeps the alpha/pre-release warning
   visible. The repository and its durable evidence remain authoritative.

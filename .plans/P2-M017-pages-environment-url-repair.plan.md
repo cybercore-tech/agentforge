@@ -44,6 +44,11 @@ Exact repair CI: `35554310599` — all seven jobs green across repository policy
 CLI smoke, Ubuntu, macOS, and Windows.
 Exact repair Pages deployment: `35554310590` — artifact validation and deployment green with a
 valid environment URL for the repaired SHA.
+Closure commit: `24d1571`.
+Exact closure CI: `35554451233` — all seven jobs green across repository policy, stable, MSRV,
+CLI smoke, Ubuntu, macOS, and Windows.
+Exact closure Pages deployment: `35554451229` — artifact validation and deployment green for the
+same closure SHA.
 Completed: 2026-09-21
 Notes: The repair removed only the accidental literal backslash from the Pages environment URL
 expression; page content, permissions, and deployment source were unchanged.
