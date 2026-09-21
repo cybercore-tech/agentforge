@@ -978,14 +978,20 @@ mod tests {
 
     #[test]
     fn launch_protocol_round_trip_preserves_base_and_mode() {
-        let request = parse_request(b"AFD1\tLAUNCH\ttask\t/tmp/agent\tHEAD\n").unwrap();
+        let executable = if cfg!(windows) {
+            PathBuf::from(r"C:\agent.exe")
+        } else {
+            PathBuf::from("/tmp/agent")
+        };
+        let frame = format!("AFD1\tLAUNCH\ttask\t{}\tHEAD\n", executable.display());
+        let request = parse_request(frame.as_bytes()).unwrap();
         assert!(matches!(
             request,
             Request::Launch {
                 base_ref,
-                executable,
+                executable: parsed_executable,
                 ..
-            } if base_ref == "HEAD" && executable.as_path() == Path::new("/tmp/agent")
+            } if base_ref == "HEAD" && parsed_executable == executable
         ));
         assert_eq!(
             parse_response(b"AFD1\tOK\tLAUNCH\ttask=task termination=Exited\n"),
