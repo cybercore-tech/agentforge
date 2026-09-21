@@ -8,13 +8,20 @@ use std::net::{Shutdown, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Mutex, MutexGuard};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 static TEMPORARY_REPO_COUNTER: AtomicU64 = AtomicU64::new(0);
+// Windows can leave one foreground loopback daemon transition in flight while
+// another test thread is tearing down its listener. Keep lifecycle ownership
+// explicit within this test binary; each test still exercises the complete
+// start/status/stop assertions against its own isolated repository.
+static DAEMON_LIFECYCLE_LOCK: Mutex<()> = Mutex::new(());
 
 #[test]
 fn daemon_lifecycle_is_loopback_only_and_cooperative() {
+    let _lifecycle_guard = daemon_lifecycle_guard();
     let root = temporary_repo();
     let server_root = root.clone();
     let server = thread::spawn(move || serve(server_root, DEFAULT_BIND));
@@ -107,6 +114,7 @@ fn stale_identity_fails_closed() {
 
 #[test]
 fn disconnected_client_does_not_stop_daemon() {
+    let _lifecycle_guard = daemon_lifecycle_guard();
     let root = temporary_repo();
     let server_root = root.clone();
     let server = thread::spawn(move || serve(server_root, DEFAULT_BIND));
@@ -153,6 +161,7 @@ fn disconnected_client_does_not_stop_daemon() {
 
 #[test]
 fn spawned_daemon_start_and_restart_are_bounded_and_cooperative() {
+    let _lifecycle_guard = daemon_lifecycle_guard();
     let root = temporary_repo();
     let forged = env!("CARGO_BIN_EXE_forged");
     let running = match start_with_program(&root, DEFAULT_BIND, forged) {
@@ -201,6 +210,12 @@ fn temporary_repo() -> PathBuf {
     git(&root, &["add", "README.md"]);
     git(&root, &["commit", "-qm", "fixture"]);
     root
+}
+
+fn daemon_lifecycle_guard() -> MutexGuard<'static, ()> {
+    DAEMON_LIFECYCLE_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 fn git(root: &Path, arguments: &[&str]) {
