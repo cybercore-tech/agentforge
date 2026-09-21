@@ -24,6 +24,10 @@ publication.
 - Implementation commit: `02cf453ab778c4c2aa9e44d0c83d9378b8ac142e`.
 - Exact implementation CI: `35562749505` — rerun green across repository policy, stable, MSRV,
   CLI smoke, Ubuntu, macOS, and Windows after the initial macOS temporary-root collision.
+- Closure commit: `6ff27045a32c22d8910f48cd07ef70e086f50f94`.
+- Closure CI evidence: `35565106069` — repository policy, stable, MSRV, CLI smoke, Ubuntu, and
+  macOS green; Windows reproduced the known daemon teardown `PermissionDenied (Access is denied.)`
+  infrastructure failure. No package-identity regression was observed.
 
 ## P2-M019 completion evidence
 

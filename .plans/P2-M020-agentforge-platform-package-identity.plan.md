@@ -97,15 +97,17 @@ Exact CI run:
 Exact CI result:
 green
 Closure commit:
-pending
+`6ff27045a32c22d8910f48cd07ef70e086f50f94`
 Closure CI run:
-pending
+`35565106069` (six jobs green; Windows retry reproduced known daemon teardown infrastructure failure)
 Closure CI result:
-pending
+infrastructure-blocked on Windows only; no package-identity failure observed
 Completed:
 2026-09-20
 Notes:
 The selected package identity is private and not published. The source directory remains
 `crates/agentforge-cli`; `forge`, `forged`, and GitHub release archives are unchanged. A future
 publishability plan must add registry-compatible version requirements for private path dependencies
-before any package publication is considered.
+before any package publication is considered. The closure CI matrix was green on repository policy,
+stable, MSRV, CLI smoke, Ubuntu, and macOS; Windows repeatedly hit its existing daemon teardown
+`PermissionDenied (Access is denied.)` runner failure and is recorded as infrastructure evidence.

@@ -8,6 +8,9 @@
   preserving the `forge`/`forged` binaries, internal crates, and GitHub release artifacts.
 - P2-M020 implementation commit: `02cf453ab778c4c2aa9e44d0c83d9378b8ac142e`; exact CI
   `35562749505` is green across all seven jobs after the initial macOS temporary-root collision.
+- P2-M020 closure commit: `6ff27045a32c22d8910f48cd07ef70e086f50f94`; closure CI `35565106069`
+  is green on six jobs. Windows reproduced the known daemon teardown `PermissionDenied (Access is
+  denied.)` infrastructure failure; no package-identity regression was observed.
 - P2-M019 implementation commit: `caa37debdd89ea6035723749b52db7a02fba081d`; exact CI
   `35559168897` is green across repository policy, stable, MSRV, CLI smoke, Ubuntu, macOS, and
   Windows.
