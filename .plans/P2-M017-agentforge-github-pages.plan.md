@@ -1,6 +1,6 @@
 # Plan: P2-M017 — AgentForge GitHub Pages
 
-Status: Draft
+Status: Approved
 Milestone: P2-M017
 Owner: AgentForge project
 
