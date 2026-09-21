@@ -55,6 +55,11 @@ identifies the next bounded need.
   root collision and Windows daemon teardown jobs passed on the failed-job rerun.
 - Exact Pages deployment: `35555122547` — static artifact validation and deployment green for the
   exact implementation SHA.
+- Closure commit: `cc2a6b2`.
+- Exact closure CI: `35555830628` — all seven jobs green across repository policy, stable, MSRV, CLI
+  smoke, Linux, macOS, and Windows.
+- Exact closure Pages deployment: `35555830619` — artifact validation and deployment green for the
+  same closure SHA.
 - The README now matches the P2-M017 baseline and explicitly documents alpha limitations, trust
   boundaries, operator responsibilities, safe first-run checks, and failure inspection paths.
 - The public Pages CTA opens a local accessible README dialog with a full-document link; the

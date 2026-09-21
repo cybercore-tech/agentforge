@@ -7,6 +7,8 @@
 - P2-M018 implementation commit: `d6856e2`; exact CI `35555122531` is green across repository
   policy, stable, MSRV, CLI smoke, Linux, macOS, and Windows after the failed-job rerun.
 - P2-M018 Pages deployment: exact workflow `35555122547` is green for the implementation SHA.
+- P2-M018 closure commit: `cc2a6b2`; exact closure CI `35555830628` and Pages deployment
+  `35555830619` are green for that exact closure SHA.
 - The README now carries current alpha status, explicit safety/authority limitations, a safe
   first-run checklist, and detailed failure inspection guidance. The public Pages CTA opens a
   bounded local README dialog and the GitHub About homepage points to the live site.

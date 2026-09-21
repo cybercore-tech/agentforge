@@ -99,3 +99,8 @@ Exact Pages deployment: `35555122547` — static artifact validation and deploym
 Repository About homepage: `https://darkstardevx.github.io/agentforge/` verified through the GitHub
 repository API.
 Completed: 2026-09-22.
+Closure commit: `cc2a6b2`.
+Exact closure CI: `35555830628` — all seven jobs green across repository policy, stable, MSRV, CLI
+smoke, Linux, macOS, and Windows.
+Exact closure Pages deployment: `35555830619` — artifact validation and deployment green for the
+same closure SHA.
