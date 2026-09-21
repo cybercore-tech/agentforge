@@ -11,8 +11,11 @@ Phase 2 — operator experience.
 
 ## Active milestone
 
-None. P2-M017 is complete; the next increment is intentionally unplanned until real operator use
-identifies the next bounded need.
+`P2-M018` — README hardening and in-page reader.
+
+The approved plan is `.plans/P2-M018-readme-hardening-and-site-reader.plan.md`. Implementation is
+limited to documentation and the dependency-free GitHub Pages presentation layer; the Rust product
+surface is unchanged.
 
 ## Completed milestones
 

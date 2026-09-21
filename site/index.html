@@ -149,14 +149,47 @@
         <h2 id="cta-title">Build with agents.<br /><span>Keep the evidence.</span></h2>
         <div class="hero-actions">
           <a class="button button-primary" href="https://github.com/darkstardevx/agentforge">Explore on GitHub <span aria-hidden="true">↗</span></a>
-          <a class="button button-quiet" href="https://github.com/darkstardevx/agentforge/blob/main/README.md">Read the README <span aria-hidden="true">→</span></a>
+          <button class="button button-quiet" type="button" id="readme-trigger" aria-haspopup="dialog" aria-controls="readme-dialog">Read the README <span aria-hidden="true">→</span></button>
         </div>
       </section>
     </main>
+
+    <dialog class="readme-dialog" id="readme-dialog" aria-labelledby="readme-dialog-title">
+      <div class="readme-dialog-shell">
+        <div class="readme-dialog-header">
+          <div>
+            <p class="eyebrow">PROJECT README</p>
+            <h2 id="readme-dialog-title">AgentForge, clearly.</h2>
+          </div>
+          <button class="dialog-close" type="button" aria-label="Close README reader">×</button>
+        </div>
+        <div class="readme-dialog-body">
+          <p class="readme-dialog-status"><span class="status-dot" aria-hidden="true"></span> 0.0.1-alpha · pre-release · not release-ready</p>
+          <h3>What it is</h3>
+          <p>AgentForge is a local-first, model-agnostic development environment for turning AI-assisted work into explicit, reviewable engineering workflows. Plans, task contracts, capabilities, approvals, isolated worktrees, gates, CI observations, and audit records stay durable in the repository.</p>
+          <h3>What it is not</h3>
+          <p>It is not a sandbox, a security boundary, an autonomous merge bot, or a stable product contract. Agent output is untrusted work in progress. Use disposable projects, do not provide production secrets, and keep a human responsible for review, acceptance, integration, and retirement.</p>
+          <h3>Safe first run</h3>
+          <pre><code>git clone https://github.com/darkstardevx/agentforge.git
+cargo install --path crates/agentforge-cli --locked
+forge init ./my-project
+forge intake ./my-project
+forge blueprint validate ./my-project</code></pre>
+          <p>Before launching an agent, inspect the task contract, verify its capabilities and approvals, confirm the executable path, and use a clean project with a known base commit. A successful process is evidence for review—not automatic acceptance.</p>
+          <h3>Read the full operating guide</h3>
+          <p>The complete README documents the command surface, daemon and interactive modes, worktree lifecycle, audit evidence, failure recovery, and current limitations. It is the canonical detailed guide.</p>
+        </div>
+        <div class="readme-dialog-footer">
+          <a class="button button-primary" href="https://github.com/darkstardevx/agentforge/blob/main/README.md" target="_blank" rel="noopener">Open full README <span aria-hidden="true">↗</span></a>
+          <button class="button button-quiet dialog-dismiss" type="button">Keep reading the site</button>
+        </div>
+      </div>
+    </dialog>
 
     <footer class="site-footer shell">
       <span>AGENTFORGE <i aria-hidden="true">/</i> OPEN SOURCE <i aria-hidden="true">/</i> LOCAL-FIRST</span>
       <span>BUILD WITH AGENTS. KEEP THE EVIDENCE.</span>
     </footer>
+    <script src="script.js"></script>
   </body>
 </html>

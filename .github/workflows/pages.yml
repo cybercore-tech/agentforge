@@ -25,7 +25,12 @@ jobs:
         run: |
           test -s site/index.html
           test -s site/styles.css
+          test -s site/script.js
           grep -Fq 'id="main-content"' site/index.html
+          grep -Fq 'id="readme-dialog"' site/index.html
+          grep -Fq 'id="readme-trigger"' site/index.html
+          grep -Fq 'showModal' site/script.js
+          grep -Fq 'README.md' site/index.html
           grep -Fq 'AgentForge' site/index.html
           grep -Fq 'pre-release' site/index.html
           grep -Fq 'prefers-reduced-motion' site/styles.css

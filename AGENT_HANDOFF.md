@@ -2,8 +2,10 @@
 
 ## Repository state
 
-- Active milestone: none; P2-M017 — AgentForge GitHub Pages is complete.
-- Active plan: none (`.plans/ACTIVE` is intentionally absent after closure).
+- Active milestone: `P2-M018` — README hardening and in-page reader.
+- Active plan: `.plans/P2-M018-readme-hardening-and-site-reader.plan.md` (`Status: Approved`).
+- Implementation is limited to README, the dependency-free Pages presentation layer, ADRs, and
+  milestone/state documentation; no Rust product behavior is in scope.
 - P2-M016 implementation commits: `b8eaff7`, `e92d9e7` (portable Windows protocol-fixture repair);
   exact CI `35551842104` is green across repository policy, stable, MSRV, CLI smoke, Linux, macOS,
   and Windows after the macOS temporary-root collision passed on the failed-job rerun.

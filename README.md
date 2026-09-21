@@ -7,7 +7,7 @@ It treats models as replaceable workers—not as the source of truth. The durabl
 the repository: plans, task contracts, permissions, isolated worktrees, quality-gate evidence,
 CI observations, audit records, and human decisions. 🧭
 
-> **Status:** `0.0.1-alpha` · P2-M013 PTY foreground sessions complete · pre-release,
+> **Status:** `0.0.1-alpha` · P2-M017 GitHub Pages complete · pre-release,
 > incomplete, and not release-ready
 
 [![CI](https://github.com/darkstardevx/agentforge/actions/workflows/ci.yml/badge.svg)](https://github.com/darkstardevx/agentforge/actions/workflows/ci.yml)
@@ -27,6 +27,55 @@ The direct interactive path now has two explicit modes: cooked line-oriented `--
 native-terminal `--interactive --pty` for full-screen/raw-mode agents. PTY mode requires a real
 terminal and is not available through pipes or the detached daemon. Interfaces, configuration
 formats, and operator workflows may change before the first stable release. 🌱
+
+## 🔴 Important limitations and operator responsibility
+
+Read this section before connecting AgentForge to a real project. The controls described below are
+workflow controls, not a security product or a promise that an agent is safe by itself.
+
+- **Alpha means change is expected.** There is no stable API, CLI compatibility guarantee, task or
+  audit-schema migration guarantee, upgrade path, SLA, or production support commitment. Pin a
+  checkout when reproducing a run and keep backups of project state.
+- **Agents are untrusted workers.** A configured executable receives the task’s explicit working
+  directory and process inputs, but AgentForge does not sandbox the executable, inspect its model
+  reasoning, or certify the code it produces. A local agent may be able to read or modify anything
+  its operating-system user can access.
+- **Capabilities are policy checks, not operating-system isolation.** Owned paths, approvals, and
+  gates constrain the AgentForge workflow; they do not replace filesystem permissions, containers,
+  network controls, secret management, endpoint protection, or a security review.
+- **Success is evidence, not acceptance.** A zero exit status, passing local gate, or green CI run
+  does not automatically accept a task. An independent operator must inspect the exact diff, audit
+  records, task state, and CI evidence before accepting or integrating it.
+- **Integration remains explicit.** AgentForge does not silently merge branches, delete preserved
+  task branches, retire dirty worktrees, run routine `git clean`, or run routine `git reset --hard`.
+  Resolve ambiguous or dirty state deliberately and preserve evidence when something fails.
+- **Secrets and production systems stay out of the first run.** Use a disposable project with no
+  production credentials, tokens, customer data, or irreversible deployment hooks. Review profile
+  environment values and executable paths before launching an agent.
+- **The public site is informational.** GitHub Pages explains the product; the repository’s plans,
+  task snapshots, approvals, audit log, worktrees, gates, and exact-head CI evidence remain the
+  authoritative operational surfaces.
+
+### Safe first-run checklist
+
+Before `forge task launch`, `forge daemon launch`, or `forge run`:
+
+1. Confirm the project root is the repository you intend to change and that `git status` is clean.
+2. Read the project’s `.forge/blueprint.conf` and `.forge/guidelines.md`; prose guidance never
+   grants authority by itself.
+3. Inspect the task contract, allowed and forbidden paths, capabilities, dependencies, gates, and
+   required approvals.
+4. Verify the absolute executable or named profile, its literal arguments, timeout, output limit,
+   and explicit environment values.
+5. Confirm the exact base ref and the deterministic managed worktree before the agent starts.
+6. Keep the terminal attached for interactive work, or verify the bounded daemon status and audit
+   evidence when using detached execution.
+7. After completion, review the diff and evidence, record an independent acceptance decision, and
+   retire only a clean, unambiguous worktree. Preserve the task branch until integration and
+   recovery decisions are complete.
+
+If any check is unclear, stop and inspect. A fail-closed error is a signal to resolve the state, not
+an invitation to bypass the policy.
 
 ## Why AgentForge? 🎯
 
@@ -332,6 +381,24 @@ Important boundaries:
 - The HUD is a projection, not a second source of truth.
 - CI status is meaningful only when it matches the exact commit under review.
 
+### What to inspect when a run stops
+
+AgentForge deliberately separates observation from repair. Start with the command that matches the
+failure, then preserve the evidence while deciding what to do:
+
+| Symptom | First inspection | Operator boundary |
+| --- | --- | --- |
+| Task is not ready | `forge task inspect <root> <task-id>` | Satisfy dependencies, capabilities, and approvals; do not force a transition. |
+| Agent did not start | `forge doctor <root>` and the task/profile inspection commands | Fix the executable, profile, policy, or worktree preflight; no partial run is considered success. |
+| Worktree is dirty or ambiguous | `forge worktree inspect <root> <task-id>` and `git status` in that worktree | Review and clean it intentionally, or preserve it for recovery; retirement is non-forced. |
+| Process failed or timed out | `forge task inspect`, HUD, audit log, and the bounded output evidence | Classify the failure before retrying; a retry is a new explicit lifecycle decision. |
+| CI is red | Verify the run’s exact commit SHA and classify the failure | Repair forward on a new commit; never treat a different green SHA as proof for the reviewed change. |
+| Integration is requested | `forge task diff <root> <task-id>` | Require independent approval, clean source/target state, and the serialized fast-forward boundary. |
+
+The operator should be able to explain why a task ran, what it changed, which checks passed, who
+accepted it, and which exact commit was integrated. If that explanation cannot be reconstructed
+from the repository and its audit evidence, the task is not ready to ship.
+
 ## Repository layout 📁
 
 | Path | Purpose |
@@ -398,9 +465,10 @@ Clippy, tests, and documentation tests. Do not bypass hooks or validation with `
 
 Completed foundations include durable task state, worktree isolation, adapters, gates, CI
 classification, audit history, scheduling primitives, orchestration, project intake, release
-readiness, and the operator experience milestones through P2-M013. The optional loopback daemon,
-guided intake, cooked interactive foreground sessions, and PTY-backed foreground sessions are
-covered by the supported Linux, macOS, and Windows CI matrix, but remain pre-release capabilities.
+readiness, the operator experience, real-project pilots, daemon task launch, and the P2-M017 public
+site. The optional loopback daemon, guided intake, cooked interactive foreground sessions,
+PTY-backed foreground sessions, protected integration, and GitHub Pages surface are covered by the
+supported Linux, macOS, and Windows CI matrix where applicable, but remain pre-release capabilities.
 
 The next increment is intentionally not pre-approved. Future work should be driven by real operator
 usage and may expand daemon-driven orchestration, richer integration surfaces, or additional provider
