@@ -1,6 +1,6 @@
 # Plan: P2-M020 — AgentForge platform package identity
 
-Status: Approved
+Status: Complete
 Milestone: P2-M020
 Created: 2026-09-20
 Owner: AgentForge project
@@ -73,13 +73,13 @@ needed before any future registry publication discussion.
 
 ## Acceptance criteria
 
-- [ ] The end-user package is named `agentforge-platform` in Cargo metadata.
-- [ ] `forge` and `forged` behavior, binary names, tests, and release archive layout are unchanged.
-- [ ] Workspace, CI, release, README, and blueprint references use the selected package identity.
-- [ ] Internal crates remain private and no crates.io publication occurs.
-- [ ] ADR, registry policy, milestone state, and handoff records describe the new identity and the
+- [x] The end-user package is named `agentforge-platform` in Cargo metadata.
+- [x] `forge` and `forged` behavior, binary names, tests, and release archive layout are unchanged.
+- [x] Workspace, CI, release, README, and blueprint references use the selected package identity.
+- [x] Internal crates remain private and no crates.io publication occurs.
+- [x] ADR, registry policy, milestone state, and handoff records describe the new identity and the
       deferred publishability gate.
-- [ ] Full local validation and exact-SHA CI evidence are recorded in the completion record.
+- [x] Full local validation and exact-SHA CI evidence are recorded in the completion record.
 
 ## Implementation sequence
 
@@ -91,10 +91,21 @@ needed before any future registry publication discussion.
 ## Completion record
 
 Implementation commit:
+`02cf453ab778c4c2aa9e44d0c83d9378b8ac142e`
 Exact CI run:
+`35562749505` (rerun of failed macOS job; all seven jobs green)
 Exact CI result:
+green
 Closure commit:
+pending
 Closure CI run:
+pending
 Closure CI result:
+pending
 Completed:
+2026-09-20
 Notes:
+The selected package identity is private and not published. The source directory remains
+`crates/agentforge-cli`; `forge`, `forged`, and GitHub release archives are unchanged. A future
+publishability plan must add registry-compatible version requirements for private path dependencies
+before any package publication is considered.

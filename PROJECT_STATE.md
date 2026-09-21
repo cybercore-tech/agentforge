@@ -11,11 +11,19 @@ Phase 2 — operator experience.
 
 ## Active milestone
 
-P2-M020 — AgentForge platform package identity.
+No active milestone. P2-M020 — AgentForge platform package identity — is complete.
 
-The end-user workspace package is migrating from `agentforge-cli` to the selected future identity
-`agentforge-platform`. All workspace crates remain private (`publish = false`); GitHub binary
-archives, `forge`/`forged`, internal crate names, and runtime behavior remain unchanged.
+The end-user workspace package is named `agentforge-platform`. All workspace crates remain private
+(`publish = false`); GitHub binary archives, `forge`/`forged`, internal crate names, and runtime
+behavior remain unchanged. A future publishability plan is still required before any registry
+publication.
+
+## P2-M020 completion evidence
+
+- Approved plan: `.plans/P2-M020-agentforge-platform-package-identity.plan.md`.
+- Implementation commit: `02cf453ab778c4c2aa9e44d0c83d9378b8ac142e`.
+- Exact implementation CI: `35562749505` — rerun green across repository policy, stable, MSRV,
+  CLI smoke, Ubuntu, macOS, and Windows after the initial macOS temporary-root collision.
 
 ## P2-M019 completion evidence
 

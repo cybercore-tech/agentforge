@@ -52,7 +52,7 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 | P2-M017 | complete | AgentForge GitHub Pages | Visitors can understand the local-first workflow through a responsive, accessible static site deployed from `main` with bounded Pages permissions. |
 | P2-M018 | complete | README hardening and in-page reader | README warnings and operator guidance match the current alpha product, the GitHub About link points to Pages, and the public “Read the README” control opens an accessible local dialog with a canonical full-document link. |
 | P2-M019 | complete | Registry identity and distribution policy | Existing crates.io collisions are documented, binary distribution remains authoritative, and future package publication is gated behind a separate naming plan. |
-| P2-M020 | active | AgentForge platform package identity | The future end-user Cargo package is named `agentforge-platform` while binaries, internal crates, and GitHub release artifacts remain compatible. |
+| P2-M020 | complete | AgentForge platform package identity | The future end-user Cargo package is named `agentforge-platform` while binaries, internal crates, and GitHub release artifacts remain compatible. |
 
 ## Phase 1 — multi-agent scheduling and integration
 

@@ -2,10 +2,12 @@
 
 ## Repository state
 
-- Active milestone: P2-M020 — AgentForge platform package identity.
-- Active plan: `.plans/P2-M020-agentforge-platform-package-identity.plan.md` (Approved).
-- P2-M020 selects `agentforge-platform` as the future end-user Cargo package identity while
+- Active milestone: none. P2-M020 — AgentForge platform package identity — is complete.
+- Active plan: none (`.plans/ACTIVE` is intentionally absent between milestones).
+- P2-M020 selected `agentforge-platform` as the future end-user Cargo package identity while
   preserving the `forge`/`forged` binaries, internal crates, and GitHub release artifacts.
+- P2-M020 implementation commit: `02cf453ab778c4c2aa9e44d0c83d9378b8ac142e`; exact CI
+  `35562749505` is green across all seven jobs after the initial macOS temporary-root collision.
 - P2-M019 implementation commit: `caa37debdd89ea6035723749b52db7a02fba081d`; exact CI
   `35559168897` is green across repository policy, stable, MSRV, CLI smoke, Ubuntu, macOS, and
   Windows.
