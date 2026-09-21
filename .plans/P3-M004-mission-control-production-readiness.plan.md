@@ -1,6 +1,6 @@
 # Plan: P3-M004 — Mission Control production-readiness foundations
 
-Status: Approved
+Status: Completed
 Milestone: P3-M004
 Created: 2026-09-21
 Owner: AgentForge project
@@ -132,8 +132,8 @@ the same exact SHA. No hook, test, lint, security, or deployment gate may be byp
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
-Notes:
+Implementation commits: `48863e8`, `d2029f1`, `c5d92b4`, `9533c51`, `e9b76c3`, and `4a435c1` in the standalone `cybercore-mission-control` repository; remote `main` resolves to `4a435c1c6ac90f78986aa39c04235dae6552d8aa`.
+CI runs: `35608217415` (preflight foundation), `35611397659` (deterministic platform gate), `35612605311` (negative-path and staging workflow increment), and `35614113529` (live-event verification); each is green for its exact implementation SHA.
+CI result: Worker TypeScript/preflight/Wrangler staging binding validation and the Ubuntu, macOS, and Windows Rust connector matrix are green for the final implementation SHA.
+Completed: 2026-09-21
+Notes: Local disposable validation passed migration, registration, authenticated heartbeat, durable audit, authenticated live event delivery, malformed/stale/future/oversized input rejection, credential/project-scope failures, nonce replay rejection, protocol tests, and Rust package gates. A manually confirmed staging-only dry-run workflow is present. No Cloudflare deployment, production credential, real account ID, or remote command authority was used. Automatic CI intentionally excludes the long-lived local Wrangler smoke process because repeated CI runs exposed a platform process-lifecycle hang; the same smoke passed in a clean local checkout and remains operator-runnable via `npm run smoke:local`.

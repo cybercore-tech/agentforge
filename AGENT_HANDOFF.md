@@ -2,8 +2,8 @@
 
 ## Repository state
 
-- Active milestone: none. P3-M003 — Cybercore connector release hardening — is complete; the
-  connector is a release candidate but not a production control plane.
+- Active milestone: none. P3-M004 — Mission Control production-readiness foundations — is complete;
+  the standalone service remains staging-ready groundwork, not a production deployment.
 - Active plan: none (`.plans/ACTIVE` is intentionally absent between milestones).
 - P3-M001 implementation commit: `07eafdf5851b32b92a392d7ab9f2465f71f5e860` in the standalone
   `cybercore-mission-control` repository; remote `main` resolves to the exact SHA.
@@ -23,6 +23,15 @@
   package metadata, platform CI, and a tag-gated checksummed release workflow. GitHub accepted the
   workflow definition; no release tag, production deployment, crate publication, or real credential
   was used.
+- P3-M004 implementation sequence: `48863e8`, `d2029f1`, `c5d92b4`, `9533c51`, `e9b76c3`, and
+  `4a435c1c6ac90f78986aa39c04235dae6552d8aa` in the standalone `cybercore-mission-control`
+  repository; exact CI runs `35608217415`, `35611397659`, `35612605311`, and `35614113529` are
+  green for their corresponding heads, with the final run green across Worker TypeScript and the
+  Ubuntu/macOS/Windows Rust connector matrix.
+- P3-M004 covers fail-closed environment preflight, disposable local migration/API/live-event smoke,
+  protocol and negative-path tests, explicit staging/production boundaries, a staging-only manual
+  dry-run workflow, and deployment/recovery/security documentation. No Cloudflare deployment,
+  production credential, real account ID, or remote command authority was used.
 - P2-M022 prepared the `agentforge-platform` package without changing the private registry
   boundary. Metadata, license inclusion, explicit registry version requirements, and the opt-in
   offline archive preflight are now in place.

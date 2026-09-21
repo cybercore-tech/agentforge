@@ -63,6 +63,7 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 | P3-M001 | complete | Cybercore Mission Control foundation | A private Cloudflare Worker control plane persists projects, agents, heartbeats, and audit events, exposes a tested observation-only API, and renders a durable/demo dashboard. |
 | P3-M002 | complete | Rust local connector | A scoped local connector sends bounded, replay-resistant heartbeats outbound without granting the cloud service local execution authority. |
 | P3-M003 | complete | Cybercore connector release hardening | The connector has provenance-aware CLI output, supported-platform CI, inspected packaging, license/support policy, and a tag-gated checksummed release workflow without cloud deployment side effects. |
+| P3-M004 | complete | Mission Control production-readiness foundations | Fail-closed environment preflight, disposable migration/API/live-event smoke, negative-path coverage, and an explicitly gated staging dry-run workflow exist without production mutation. |
 
 ## Phase 1 — multi-agent scheduling and integration
 

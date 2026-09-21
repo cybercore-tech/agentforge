@@ -11,8 +11,8 @@ Phase 3 — external systems and Mission Control.
 
 ## Active milestone
 
-No active milestone. P3-M003 — Cybercore connector release hardening — is complete; the connector
-is a release candidate but not a production control plane.
+No active milestone. P3-M004 — Mission Control production-readiness foundations — is complete; the
+standalone service remains staging-ready groundwork, not a production deployment.
 
 ## P3-M001 completion evidence
 
@@ -50,6 +50,23 @@ is a release candidate but not a production control plane.
 - Exact GitHub Actions run `35601172176` is green across Ubuntu, macOS, Windows, and Worker
   TypeScript; GitHub accepted the tag-gated release workflow definition.
 - No release tag, production deployment, crate publication, or real operator credential was used.
+
+## P3-M004 completion evidence
+
+- Approved plan: `.plans/P3-M004-mission-control-production-readiness.plan.md`.
+- Standalone implementation sequence: `48863e8`, `d2029f1`, `c5d92b4`, `9533c51`, `e9b76c3`, and
+  `4a435c1c6ac90f78986aa39c04235dae6552d8aa`; standalone `main` resolves to the final SHA.
+- Exact standalone CI runs `35608217415`, `35611397659`, `35612605311`, and `35614113529` are
+  green for their corresponding implementation heads; the final run covers Worker TypeScript,
+  preflight/protocol checks, staging binding dry-run, and Ubuntu/macOS/Windows Rust connector jobs.
+- Local disposable validation covered migration, registration, authenticated heartbeat, durable
+  audit, authenticated live event delivery, malformed/stale/future/oversized input rejection,
+  credential/project-scope failures, replay rejection, and Rust package gates.
+- A manually confirmed staging-only dry-run workflow is present. Automatic CI deliberately excludes
+  the long-lived local Wrangler process after repeated CI-only lifecycle hangs; the same smoke passes
+  in a clean local checkout and remains operator-runnable via `npm run smoke:local`.
+- No Cloudflare deployment, production credential, real account ID, or remote command authority was
+  used; Mission Control remains observation-only and AgentForge remains the local authority.
 
 P2-M022 prepared `agentforge-platform` for a future registry decision without publishing anything.
 The package now has complete metadata, explicit registry version requirements beside local paths,
@@ -142,6 +159,7 @@ publication.
 - `P3-M001` — Cybercore Mission Control foundation.
 - `P3-M002` — Cybercore Rust local connector.
 - `P3-M003` — Cybercore connector release hardening.
+- `P3-M004` — Mission Control production-readiness foundations.
 
 ## P2-M018 completion evidence
 
