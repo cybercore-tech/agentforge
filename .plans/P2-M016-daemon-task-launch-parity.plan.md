@@ -1,6 +1,6 @@
 # Plan: P2-M016 — Daemon task-launch parity
 
-Status: Draft
+Status: Approved
 Milestone: P2-M016
 Created: 2026-09-21
 
