@@ -54,6 +54,11 @@ identifies the next bounded need.
   test passed on the failed-job rerun.
 - Exact Pages deployment: `35553651453` — the static artifact validated and deployed for the exact
   implementation commit after Pages was enabled for GitHub Actions.
+- Closure commit: `96e02c3`.
+- Exact closure CI: `35553972640` — all seven jobs green across repository policy, stable, MSRV,
+  CLI smoke, Ubuntu, macOS, and Windows.
+- Exact closure Pages deployment: `35553972643` — artifact validation and deployment green for the
+  same closure SHA.
 - The public site is live at `https://darkstardevx.github.io/agentforge/`. It is dependency-free,
   responsive, keyboard-accessible, reduced-motion aware, and keeps the alpha/pre-release warning
   visible. The repository and its durable evidence remain authoritative.

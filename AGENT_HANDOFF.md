@@ -18,6 +18,8 @@
   test passed on the failed-job rerun.
 - P2-M017 Pages deployment: exact workflow `35553651453` is green for the same implementation SHA;
   the public site is live at `https://darkstardevx.github.io/agentforge/`.
+- P2-M017 closure commit: `96e02c3`; exact closure CI `35553972640` and Pages deployment
+  `35553972643` are green for that exact closure SHA.
 - P2-M017 plan: `.plans/P2-M017-agentforge-github-pages.plan.md` — completed with the static
   forge-rail landing page, bounded Pages workflow, ADR, README discovery link, and preserved mockup.
 - P2-M015 implementation commit: `8992da820162e3bd410841dd8eeddd8e5f04a935`; exact CI
