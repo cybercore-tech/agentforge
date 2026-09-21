@@ -11,11 +11,8 @@ Phase 2 — operator experience.
 
 ## Active milestone
 
-`P2-M018` — README hardening and in-page reader.
-
-The approved plan is `.plans/P2-M018-readme-hardening-and-site-reader.plan.md`. Implementation is
-limited to documentation and the dependency-free GitHub Pages presentation layer; the Rust product
-surface is unchanged.
+None. P2-M018 is complete; the next increment is intentionally unplanned until real operator use
+identifies the next bounded need.
 
 ## Completed milestones
 
@@ -48,6 +45,20 @@ surface is unchanged.
 - `P2-M015` — Real-project orchestration pilot.
 - `P2-M016` — Daemon task-launch parity.
 - `P2-M017` — AgentForge GitHub Pages.
+- `P2-M018` — README hardening and in-page reader.
+
+## P2-M018 completion evidence
+
+- Approved plan: `.plans/P2-M018-readme-hardening-and-site-reader.plan.md`.
+- Implementation commit: `d6856e2`.
+- Exact implementation CI: `35555122531` — all seven jobs green after the failed macOS temporary-
+  root collision and Windows daemon teardown jobs passed on the failed-job rerun.
+- Exact Pages deployment: `35555122547` — static artifact validation and deployment green for the
+  exact implementation SHA.
+- The README now matches the P2-M017 baseline and explicitly documents alpha limitations, trust
+  boundaries, operator responsibilities, safe first-run checks, and failure inspection paths.
+- The public Pages CTA opens a local accessible README dialog with a full-document link; the
+  repository About homepage is `https://darkstardevx.github.io/agentforge/`.
 
 ## P2-M017 completion evidence
 

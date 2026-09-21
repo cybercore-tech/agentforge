@@ -1,6 +1,6 @@
 # Plan: P2-M018 — README hardening and in-page reader
 
-Status: Approved
+Status: Complete
 Milestone: P2-M018
 Owner: AgentForge project
 
@@ -73,15 +73,15 @@ source-file change.
 
 ## Acceptance criteria
 
-- [ ] README status and capability detail match the completed P2-M017 baseline.
-- [ ] README clearly states alpha status, missing guarantees, trust boundaries, and safe operator
+- [x] README status and capability detail match the completed P2-M017 baseline.
+- [x] README clearly states alpha status, missing guarantees, trust boundaries, and safe operator
       practices in explicit language.
-- [ ] The landing-page “Read the README” control opens a styled, keyboard-accessible reader without
+- [x] The landing-page “Read the README” control opens a styled, keyboard-accessible reader without
       leaving the page, with a clear link to the full README.
-- [ ] Dialog behavior is local, bounded, responsive, reduced-motion aware, and has a safe fallback
+- [x] Dialog behavior is local, bounded, responsive, reduced-motion aware, and has a safe fallback
       when native `<dialog>` is unavailable.
-- [ ] GitHub Pages static validation covers the new reader assets and remains dependency-free.
-- [ ] Repository About metadata, milestone records, and exact CI/Pages evidence are recorded.
+- [x] GitHub Pages static validation covers the new reader assets and remains dependency-free.
+- [x] Repository About metadata, milestone records, and exact CI/Pages evidence are recorded.
 
 ## Plan notes
 
@@ -91,5 +91,11 @@ single interaction; the full README remains the canonical detailed document.
 
 ## Completion record
 
-To be filled at closure with implementation SHA, exact CI run, Pages deployment run, closure SHA,
-and final metadata verification.
+Implementation commit: `d6856e2`.
+Exact implementation CI: `35555122531` — all seven jobs green after the failed macOS temporary-root
+collision and Windows daemon teardown jobs passed on the failed-job rerun.
+Exact Pages deployment: `35555122547` — static artifact validation and deployment green for
+`d6856e2`.
+Repository About homepage: `https://darkstardevx.github.io/agentforge/` verified through the GitHub
+repository API.
+Completed: 2026-09-22.

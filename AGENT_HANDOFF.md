@@ -2,10 +2,14 @@
 
 ## Repository state
 
-- Active milestone: `P2-M018` — README hardening and in-page reader.
-- Active plan: `.plans/P2-M018-readme-hardening-and-site-reader.plan.md` (`Status: Approved`).
-- Implementation is limited to README, the dependency-free Pages presentation layer, ADRs, and
-  milestone/state documentation; no Rust product behavior is in scope.
+- Active milestone: none; P2-M018 — README hardening and in-page reader is complete.
+- Active plan: none (`.plans/ACTIVE` is intentionally absent after closure).
+- P2-M018 implementation commit: `d6856e2`; exact CI `35555122531` is green across repository
+  policy, stable, MSRV, CLI smoke, Linux, macOS, and Windows after the failed-job rerun.
+- P2-M018 Pages deployment: exact workflow `35555122547` is green for the implementation SHA.
+- The README now carries current alpha status, explicit safety/authority limitations, a safe
+  first-run checklist, and detailed failure inspection guidance. The public Pages CTA opens a
+  bounded local README dialog and the GitHub About homepage points to the live site.
 - P2-M016 implementation commits: `b8eaff7`, `e92d9e7` (portable Windows protocol-fixture repair);
   exact CI `35551842104` is green across repository policy, stable, MSRV, CLI smoke, Linux, macOS,
   and Windows after the macOS temporary-root collision passed on the failed-job rerun.
