@@ -1,6 +1,6 @@
 # Plan: P3-M003 — Cybercore connector release hardening
 
-Status: Approved
+Status: Complete
 Milestone: P3-M003
 Created: 2026-09-21
 Owner: AgentForge project
@@ -120,8 +120,20 @@ the same exact SHA. No hook, test, lint, or security check may be bypassed.
 
 ## Completion record
 
-Implementation commit: pending
-Exact validation evidence: pending
-Completed: pending
-Notes: Plan-only approval checkpoint. Implementation must occur in the standalone
-`cybercore-mission-control` repository after this plan is committed.
+Implementation commit: `781590ce3769aacda21d95db267ca74d91022dfe` in the standalone
+`cybercore-mission-control` repository; remote `main` resolves to the exact SHA.
+Exact validation evidence:
+- `cargo fmt --all -- --check`, locked workspace check/test, and Clippy with warnings denied
+  passed locally; eight connector tests passed, including provenance output and cooperative
+  periodic shutdown.
+- `cargo package --locked --allow-dirty -p cybercore-agent --offline` passed and the inspected
+  archive contains 10 intended files, including the MIT license, with no local config or secret.
+- `cybercore-agent --version` reports package version, commit provenance, and target; help output
+  documents one-shot, periodic, and explicit-config modes.
+- GitHub Actions run `35601172176` is green for the exact SHA across Ubuntu, macOS, Windows, and
+  Worker TypeScript; the Rust matrix also verifies the package archive on Linux.
+- GitHub accepted the tag-gated release workflow with checksummed native archives and manifest;
+  no release tag, production deployment, crate publication, or real credential was used.
+Completed: 2026-09-21
+Notes: P3-M003 is release-candidate hardening, not a production readiness or public registry
+publication decision. The connector remains outbound-only and observation-only.

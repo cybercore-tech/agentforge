@@ -2,8 +2,8 @@
 
 ## Repository state
 
-- Active milestone: none. P3-M002 — Cybercore Rust local connector — is complete; the connector
-  remains experimental and not release-ready.
+- Active milestone: none. P3-M003 — Cybercore connector release hardening — is complete; the
+  connector is a release candidate but not a production control plane.
 - Active plan: none (`.plans/ACTIVE` is intentionally absent between milestones).
 - P3-M001 implementation commit: `07eafdf5851b32b92a392d7ab9f2465f71f5e860` in the standalone
   `cybercore-mission-control` repository; remote `main` resolves to the exact SHA.
@@ -16,6 +16,13 @@
 - P3-M002 passed locked Rust formatting, check, seven connector tests, and Clippy gates. The
   connector is outbound-only, observation-only, credential-redacting, and has no command channel;
   no production deployment or real operator credential was used.
+- P3-M003 implementation commit: `781590ce3769aacda21d95db267ca74d91022dfe` in the standalone
+  `cybercore-mission-control` repository; exact CI `35601172176` is green across Ubuntu, macOS,
+  Windows, and Worker TypeScript.
+- P3-M003 adds version/build provenance, cooperative Ctrl-C shutdown, MIT licensing, inspected
+  package metadata, platform CI, and a tag-gated checksummed release workflow. GitHub accepted the
+  workflow definition; no release tag, production deployment, crate publication, or real credential
+  was used.
 - P2-M022 prepared the `agentforge-platform` package without changing the private registry
   boundary. Metadata, license inclusion, explicit registry version requirements, and the opt-in
   offline archive preflight are now in place.
