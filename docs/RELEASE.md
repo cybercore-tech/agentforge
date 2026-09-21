@@ -2,6 +2,19 @@
 
 AgentForge uses a small, explicit release process for its early `0.x` line.
 
+## Distribution boundary
+
+The current release workflow publishes GitHub release archives for the `forge` and `forged`
+binaries. AgentForge does not currently publish crates to crates.io. The names `agentforge`,
+`agentforge-core`, and `agentforge-cli` are already occupied by unrelated published packages, so
+`cargo add agentforge` is not a supported installation path and must not be added to release
+instructions.
+
+Any future crates.io package requires a separate approved registry-identity plan with fresh name
+availability evidence, an explicit package naming scheme, dependency publication order, and
+verification of the resulting install instructions. Do not rename or publish workspace crates as
+part of an ordinary binary release.
+
 ## Version policy
 
 The workspace version is the release version. Tags must use `vMAJOR.MINOR.PATCH` and must match the

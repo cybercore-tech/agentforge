@@ -7,7 +7,7 @@ It treats models as replaceable workers—not as the source of truth. The durabl
 the repository: plans, task contracts, permissions, isolated worktrees, quality-gate evidence,
 CI observations, audit records, and human decisions. 🧭
 
-> **Status:** `0.0.1-alpha` · P2-M017 GitHub Pages complete · pre-release,
+> **Status:** `0.0.1-alpha` · P2-M019 registry identity work active · pre-release,
 > incomplete, and not release-ready
 
 [![CI](https://github.com/darkstardevx/agentforge/actions/workflows/ci.yml/badge.svg)](https://github.com/darkstardevx/agentforge/actions/workflows/ci.yml)
@@ -27,6 +27,15 @@ The direct interactive path now has two explicit modes: cooked line-oriented `--
 native-terminal `--interactive --pty` for full-screen/raw-mode agents. PTY mode requires a real
 terminal and is not available through pipes or the detached daemon. Interfaces, configuration
 formats, and operator workflows may change before the first stable release. 🌱
+
+### 📦 Distribution and crates.io warning
+
+AgentForge is **not published to crates.io**. Do not run `cargo add agentforge` expecting this
+project: that name is already occupied by an unrelated Rust crate. The supported public install
+path is the official GitHub release archive; local development can install `forge` and `forged`
+from this checkout with `cargo install --path`. See
+[`docs/REGISTRY.md`](docs/REGISTRY.md) and [`docs/RELEASE.md`](docs/RELEASE.md) for the identity
+policy and the gate required before any future package publication.
 
 ## 🔴 Important limitations and operator responsibility
 
@@ -152,6 +161,9 @@ cargo install --path crates/agentforge-daemon --locked
 ```
 
 This installs `forge` and `forged` from the local checkout. 📦
+
+These are local source installs, not crates.io packages. Verify the repository URL before running
+any install command; similarly named crates and projects are not affiliated with this repository.
 
 ## A first project workflow 🧪
 
@@ -458,6 +470,7 @@ Clippy, tests, and documentation tests. Do not bypass hooks or validation with `
 - [Governance](docs/GOVERNANCE.md)
 - [Milestones](docs/MILESTONES.md)
 - [Release process](docs/RELEASE.md)
+- [Package identity and distribution](docs/REGISTRY.md)
 - [Architecture notes](docs/architecture/README.md)
 - [Architecture decision records](docs/adr/README.md)
 

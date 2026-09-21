@@ -11,8 +11,12 @@ Phase 2 — operator experience.
 
 ## Active milestone
 
-None. P2-M018 is complete; the next increment is intentionally unplanned until real operator use
-identifies the next bounded need.
+P2-M019 — Registry identity and distribution policy.
+
+The current workspace remains private (`publish = false`) and is distributed through GitHub binary
+archives or local source builds. The crates.io names `agentforge`, `agentforge-core`, and
+`agentforge-cli` are occupied by unrelated published packages; no package publication or rename is
+allowed in this milestone.
 
 ## Completed milestones
 

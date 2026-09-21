@@ -2,8 +2,10 @@
 
 ## Repository state
 
-- Active milestone: none; P2-M018 — README hardening and in-page reader is complete.
-- Active plan: none (`.plans/ACTIVE` is intentionally absent after closure).
+- Active milestone: P2-M019 — Registry identity and distribution policy.
+- Active plan: `.plans/P2-M019-registry-identity-and-distribution-policy.plan.md` (Approved).
+- P2-M019 keeps all workspace crates private and documents the occupied crates.io names; no package
+  publication, rename, yank, or owner-transfer request is in scope.
 - P2-M018 implementation commit: `d6856e2`; exact CI `35555122531` is green across repository
   policy, stable, MSRV, CLI smoke, Linux, macOS, and Windows after the failed-job rerun.
 - P2-M018 Pages deployment: exact workflow `35555122547` is green for the implementation SHA.
