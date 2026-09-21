@@ -1,6 +1,6 @@
 # Plan: P2-M015 — Real-project orchestration pilot
 
-Status: Draft
+Status: Approved
 Milestone: P2-M015
 Created: 2026-09-21
 
