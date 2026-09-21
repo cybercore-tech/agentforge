@@ -75,7 +75,8 @@ daemon, worktree, task, audit, and agent contracts are not.
 - `docs/MILESTONES.md`
 - `PROJECT_STATE.md`
 - `AGENT_HANDOFF.md`
-- `scripts/` or `tools/xtask/` only if a bounded package-preflight command is needed
+- `.cargo/registry-preflight.toml`
+- `scripts/package-preflight`
 
 ## Test-first matrix
 
