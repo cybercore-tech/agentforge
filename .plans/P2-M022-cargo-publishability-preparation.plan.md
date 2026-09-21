@@ -1,6 +1,6 @@
 # Plan: P2-M022 — Cargo publishability preparation
 
-Status: Draft
+Status: Approved
 Milestone: P2-M022
 Created: 2026-09-20
 Owner: AgentForge project
