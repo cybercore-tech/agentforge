@@ -158,5 +158,6 @@ provider-specific adapters, release workflow changes, or unrelated workspace fil
 Implementation commit: `8992da820162e3bd410841dd8eeddd8e5f04a935`.
 Exact implementation CI: `35549918749` — all seven jobs green across repository policy, stable,
 MSRV, CLI smoke, Ubuntu, macOS, and Windows.
-Closure commit: pending.
-Exact closure CI: pending.
+Closure commit: `5ce50c9`.
+Exact closure CI: `35550083171` — all seven jobs green across repository policy, stable, MSRV,
+CLI smoke, Ubuntu, macOS, and Windows.

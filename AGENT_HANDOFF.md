@@ -7,6 +7,8 @@
 - P2-M015 implementation commit: `8992da820162e3bd410841dd8eeddd8e5f04a935`; exact CI
   `35549918749` is green across repository policy, stable, MSRV, CLI smoke, Linux, macOS, and
   Windows.
+- P2-M015 closure commit: `5ce50c9`; exact closure CI `35550083171` is green across repository
+  policy, stable, MSRV, CLI smoke, Linux, macOS, and Windows.
 - P2-M015 plan: `.plans/P2-M015-real-project-orchestration-pilot.plan.md` — completed with a
   foreground `forge task launch` path that composes exact-base worktree preparation, readiness and
   approval preflight, bounded process execution, durable worktree observation, and explicit recovery.
