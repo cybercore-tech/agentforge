@@ -1,6 +1,6 @@
 # Plan: P2-M019 — Registry identity and distribution policy
 
-Status: Approved
+Status: Complete
 Milestone: P2-M019
 Created: 2026-09-20
 Owner: AgentForge project
@@ -88,11 +88,14 @@ that safe state while the project's public package names are decided deliberatel
 
 ## Completion record
 
-Implementation commit:
-Exact CI run:
-Exact CI result:
-Closure commit:
-Closure CI run:
-Closure CI result:
-Completed:
-Notes:
+Implementation commit: `caa37debdd89ea6035723749b52db7a02fba081d`.
+Exact CI run: `35559168897`.
+Exact CI result: Green across repository policy, stable, MSRV, CLI smoke, Ubuntu, macOS, and
+Windows for the implementation SHA.
+Closure commit: pending.
+Closure CI run: pending.
+Closure CI result: pending.
+Completed: 2026-09-20.
+Notes: Existing crates.io names were documented as unrelated occupied identities. Workspace crates
+remain private and the GitHub binary release path remains authoritative; no package rename or
+publication was attempted.

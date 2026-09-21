@@ -2,10 +2,14 @@
 
 ## Repository state
 
-- Active milestone: P2-M019 — Registry identity and distribution policy.
-- Active plan: `.plans/P2-M019-registry-identity-and-distribution-policy.plan.md` (Approved).
-- P2-M019 keeps all workspace crates private and documents the occupied crates.io names; no package
-  publication, rename, yank, or owner-transfer request is in scope.
+- Active milestone: none; P2-M019 — Registry identity and distribution policy is complete.
+- Active plan: none (`.plans/ACTIVE` is intentionally absent after closure).
+- P2-M019 implementation commit: `caa37debdd89ea6035723749b52db7a02fba081d`; exact CI
+  `35559168897` is green across repository policy, stable, MSRV, CLI smoke, Ubuntu, macOS, and
+  Windows.
+- P2-M019 keeps all workspace crates private, documents the occupied crates.io names, and preserves
+  GitHub binary distribution; no package publication, rename, yank, or owner-transfer request was
+  made.
 - P2-M018 implementation commit: `d6856e2`; exact CI `35555122531` is green across repository
   policy, stable, MSRV, CLI smoke, Linux, macOS, and Windows after the failed-job rerun.
 - P2-M018 Pages deployment: exact workflow `35555122547` is green for the implementation SHA.

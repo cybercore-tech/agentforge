@@ -11,12 +11,20 @@ Phase 2 — operator experience.
 
 ## Active milestone
 
-P2-M019 — Registry identity and distribution policy.
+None. P2-M019 — Registry identity and distribution policy is complete. The current workspace
+remains private (`publish = false`) and is distributed through GitHub binary archives or local
+source builds. The crates.io names `agentforge`, `agentforge-core`, and `agentforge-cli` are
+occupied by unrelated published packages; any future package publication or rename requires a new
+approved plan.
 
-The current workspace remains private (`publish = false`) and is distributed through GitHub binary
-archives or local source builds. The crates.io names `agentforge`, `agentforge-core`, and
-`agentforge-cli` are occupied by unrelated published packages; no package publication or rename is
-allowed in this milestone.
+## P2-M019 completion evidence
+
+- Approved plan: `.plans/P2-M019-registry-identity-and-distribution-policy.plan.md`.
+- Implementation commit: `caa37debdd89ea6035723749b52db7a02fba081d`.
+- Exact implementation CI: `35559168897` — all seven jobs green across repository policy, stable,
+  MSRV, CLI smoke, Ubuntu, macOS, and Windows.
+- The registry guide, release policy, README warning, and ADR-0031 now distinguish AgentForge from
+  occupied crates.io identities and preserve the GitHub binary distribution boundary.
 
 ## Completed milestones
 

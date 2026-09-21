@@ -51,7 +51,7 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 | P2-M016 | complete | Daemon task-launch parity | Operators can launch one ready detached task through a daemon command that prepares or verifies its managed worktree while preserving explicit review, acceptance, integration, and retirement. |
 | P2-M017 | complete | AgentForge GitHub Pages | Visitors can understand the local-first workflow through a responsive, accessible static site deployed from `main` with bounded Pages permissions. |
 | P2-M018 | complete | README hardening and in-page reader | README warnings and operator guidance match the current alpha product, the GitHub About link points to Pages, and the public “Read the README” control opens an accessible local dialog with a canonical full-document link. |
-| P2-M019 | active | Registry identity and distribution policy | Existing crates.io collisions are documented, binary distribution remains authoritative, and future package publication is gated behind a separate naming plan. |
+| P2-M019 | complete | Registry identity and distribution policy | Existing crates.io collisions are documented, binary distribution remains authoritative, and future package publication is gated behind a separate naming plan. |
 
 ## Phase 1 — multi-agent scheduling and integration
 
