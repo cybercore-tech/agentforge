@@ -49,6 +49,10 @@ identifies the next bounded need.
 - Implementation commit: `b0cbdc810a1835c9f27d9c064cd6646334fc4897`.
 - Exact implementation CI: `35548080732` — all seven jobs green across repository policy, stable,
   MSRV, CLI smoke, Ubuntu, macOS, and Windows.
+- Closure commit: `75031af0105cf5019e8f55751f77e375947bb443`.
+- Exact closure CI: `35548238497` — all seven jobs green across repository policy, stable, MSRV,
+  CLI smoke, Ubuntu, macOS, and Windows; the Windows teardown failure was classified as
+  infrastructure/flaky and passed on the failed-job rerun.
 - The operator workflow now provides bounded read-only task diffs and explicit approved integration
   through a serialized, fast-forward-only path. Integration verifies task state, capability,
   approval, ownership, cleanliness, target ancestry, and exact heads; it records durable evidence,

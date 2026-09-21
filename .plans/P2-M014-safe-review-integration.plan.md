@@ -185,5 +185,7 @@ integration and that daemon/HUD surfaces do not gain merge authority.
 Implementation commit: `b0cbdc810a1835c9f27d9c064cd6646334fc4897`.
 Exact implementation CI: `35548080732` — all seven jobs green across repository policy, stable,
 MSRV, CLI smoke, Ubuntu, macOS, and Windows.
-Closure commit: pending.
-Exact closure CI: pending.
+Closure commit: `75031af0105cf5019e8f55751f77e375947bb443`.
+Exact closure CI: `35548238497` — all seven jobs green across repository policy, stable, MSRV,
+CLI smoke, Ubuntu, macOS, and Windows (Windows portable-test retry passed after an infrastructure
+teardown flake).

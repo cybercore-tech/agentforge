@@ -7,6 +7,10 @@
 - P2-M014 implementation commit: `b0cbdc810a1835c9f27d9c064cd6646334fc4897`; exact CI
   `35548080732` is green across repository policy, stable, MSRV, CLI smoke, Linux, macOS, and
   Windows.
+- P2-M014 closure commit: `75031af0105cf5019e8f55751f77e375947bb443`; exact closure CI
+  `35548238497` is green across repository policy, stable, MSRV, CLI smoke, Linux, macOS, and
+  Windows. The initial Windows teardown failure was classified as infrastructure/flaky and the
+  failed job passed on rerun.
 - P2-M014 plan: `.plans/P2-M014-safe-review-integration.plan.md` — completed with bounded review
   diffs, explicit merge approval/capability checks, serialized fast-forward-only integration,
   idempotent audit evidence, and preserved branches/worktrees.
