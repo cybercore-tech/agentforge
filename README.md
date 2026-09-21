@@ -178,6 +178,8 @@ The current CLI entry points are:
 ```bash
 forge task launch <project-root> <task-id> <absolute-executable> [--base <ref>]
 forge task launch <project-root> <task-id> --profile <profile-id> [--base <ref>]
+forge daemon launch <project-root> <task-id> <absolute-executable> [--base <ref>]
+forge daemon launch <project-root> <task-id> --profile <profile-id> [--base <ref>]
 forge run <project-root> <task-id> <absolute-executable>
 forge run <project-root> <task-id> --profile <profile-id>
 forge run <project-root> <task-id> <absolute-executable> --interactive
@@ -230,6 +232,18 @@ forge daemon status /path/to/project
 forge daemon restart /path/to/project
 forge daemon stop /path/to/project
 ```
+
+Use `forge daemon launch` when detached execution should also prepare the task-owned worktree:
+
+```bash
+forge daemon launch /path/to/project P2-M016-T0001 /absolute/path/to/agent --base HEAD
+forge daemon launch /path/to/project P2-M016-T0002 --profile local-agent --base HEAD
+```
+
+This performs the same bounded readiness, approval, exact-base, and worktree checks as the
+foreground `forge task launch` pilot. `forge daemon run` remains available for the lower-level
+prepared-worktree contract. Neither command accepts work, integrates branches, or retires
+worktrees implicitly.
 
 Startup waits for a bounded, verified loopback endpoint. Stale or malformed metadata remains
 fail-closed and requires explicit operator inspection; AgentForge never silently adopts or kills

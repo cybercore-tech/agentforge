@@ -66,6 +66,21 @@ versioned protocol. The daemon serializes one mutating execution at a time and r
 timeouts, and interruption evidence before returning an error. It never accepts tasks or performs
 forced worktree cleanup.
 
+P2-M016 adds daemon launch parity for detached execution:
+
+```bash
+forge daemon launch /path/to/project P2-M016-T0001 /absolute/path/to/agent --base HEAD
+forge daemon launch /path/to/project P2-M016-T0002 --profile local-agent --base HEAD
+```
+
+`daemon launch` performs the same readiness, capability, approval, exact-base, and managed
+worktree preparation as `task launch`, then submits the bounded captured process to the running
+daemon. It reuses an owned clean worktree when possible and records the durable worktree
+observation before execution. `daemon run` remains compatible and intentionally requires a
+pre-created worktree; the new launch operation does not alter that existing request contract.
+Both detached paths remain serialized and cooperative, and neither grants acceptance, review,
+integration, or retirement authority.
+
 P2-M006 adds explicit operator preparation for that path through `forge worktree create|inspect|list|retire`.
 These commands delegate to the managed worktree authority, preserve task branches, and refuse dirty,
 ambiguous, or unrelated worktrees. A configured executable is still passed directly to the daemon;

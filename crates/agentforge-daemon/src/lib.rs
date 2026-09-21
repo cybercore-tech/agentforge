@@ -4,7 +4,7 @@ use agentforge_adapter::{AgentProfileStore, ProcessAdapter, ProcessAdapterConfig
 use agentforge_audit::FileAuditStore;
 use agentforge_core::task::TaskId;
 use agentforge_operator::approved_boundaries;
-use agentforge_orchestrator::execute_process_persisted;
+use agentforge_orchestrator::{execute_process_persisted, launch_process_persisted};
 use std::fmt;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
@@ -227,6 +227,7 @@ pub fn run_task(
         },
     )? {
         Response::Run(message) => Ok(message),
+        Response::Launch(_) => Err(DaemonError::Protocol("unexpected run response".into())),
         Response::Status => Err(DaemonError::Protocol("unexpected run response".into())),
         Response::Stop => Err(DaemonError::Protocol("unexpected run response".into())),
         Response::Error(message) => Err(DaemonError::Execution(message)),
@@ -239,14 +240,7 @@ pub fn run_profile(
     task_id: &TaskId,
     profile: &str,
 ) -> Result<String, DaemonError> {
-    if profile.is_empty()
-        || profile.len() > 64
-        || !profile
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
-    {
-        return Err(DaemonError::Protocol("daemon profile ID is invalid".into()));
-    }
+    validate_profile_id(profile)?;
     match send_request(
         root.as_ref(),
         Request::RunProfile {
@@ -255,8 +249,103 @@ pub fn run_profile(
         },
     )? {
         Response::Run(message) => Ok(message),
+        Response::Launch(_) => Err(DaemonError::Protocol("unexpected run response".into())),
         Response::Status => Err(DaemonError::Protocol("unexpected run response".into())),
         Response::Stop => Err(DaemonError::Protocol("unexpected run response".into())),
+        Response::Error(message) => Err(DaemonError::Execution(message)),
+    }
+}
+
+fn validate_profile_id(profile: &str) -> Result<(), DaemonError> {
+    if profile.is_empty()
+        || profile.len() > 64
+        || !profile
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
+    {
+        return Err(DaemonError::Protocol("daemon profile ID is invalid".into()));
+    }
+    Ok(())
+}
+
+fn validate_protocol_path(path: &Path) -> Result<(), DaemonError> {
+    if path
+        .to_string_lossy()
+        .chars()
+        .any(|character| matches!(character, '\n' | '\r' | '\t'))
+    {
+        return Err(DaemonError::Protocol(
+            "daemon path contains control characters".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_base_ref(base_ref: &str) -> Result<(), DaemonError> {
+    if base_ref.is_empty()
+        || base_ref.len() > 256
+        || base_ref.starts_with('-')
+        || base_ref
+            .chars()
+            .any(|character| matches!(character, '\n' | '\r' | '\t'))
+    {
+        return Err(DaemonError::Protocol("daemon base ref is invalid".into()));
+    }
+    Ok(())
+}
+
+/// Submits one explicitly configured task to the daemon with managed worktree preparation.
+pub fn launch_task(
+    root: impl AsRef<Path>,
+    task_id: &TaskId,
+    executable: impl AsRef<Path>,
+    base_ref: &str,
+) -> Result<String, DaemonError> {
+    let executable = executable.as_ref();
+    validate_protocol_path(executable)?;
+    if !executable.is_absolute() {
+        return Err(DaemonError::Protocol(
+            "daemon executable path must be absolute".into(),
+        ));
+    }
+    validate_base_ref(base_ref)?;
+    match send_request(
+        root.as_ref(),
+        Request::Launch {
+            task_id: task_id.clone(),
+            executable: executable.to_path_buf(),
+            base_ref: base_ref.to_owned(),
+        },
+    )? {
+        Response::Launch(message) => Ok(message),
+        Response::Run(_) => Err(DaemonError::Protocol("unexpected launch response".into())),
+        Response::Status => Err(DaemonError::Protocol("unexpected launch response".into())),
+        Response::Stop => Err(DaemonError::Protocol("unexpected launch response".into())),
+        Response::Error(message) => Err(DaemonError::Execution(message)),
+    }
+}
+
+/// Submits one project-local agent profile with managed worktree preparation.
+pub fn launch_profile(
+    root: impl AsRef<Path>,
+    task_id: &TaskId,
+    profile: &str,
+    base_ref: &str,
+) -> Result<String, DaemonError> {
+    validate_profile_id(profile)?;
+    validate_base_ref(base_ref)?;
+    match send_request(
+        root.as_ref(),
+        Request::LaunchProfile {
+            task_id: task_id.clone(),
+            profile: profile.to_owned(),
+            base_ref: base_ref.to_owned(),
+        },
+    )? {
+        Response::Launch(message) => Ok(message),
+        Response::Run(_) => Err(DaemonError::Protocol("unexpected launch response".into())),
+        Response::Status => Err(DaemonError::Protocol("unexpected launch response".into())),
+        Response::Stop => Err(DaemonError::Protocol("unexpected launch response".into())),
         Response::Error(message) => Err(DaemonError::Execution(message)),
     }
 }
@@ -459,6 +548,22 @@ impl Server {
                     Err(error) => Response::Error(error.to_string()),
                 }
             }
+            Request::Launch {
+                task_id,
+                executable,
+                base_ref,
+            } => match execute_launch_task(&self.root, &task_id, &executable, &base_ref) {
+                Ok(message) => Response::Launch(message),
+                Err(error) => Response::Error(error.to_string()),
+            },
+            Request::LaunchProfile {
+                task_id,
+                profile,
+                base_ref,
+            } => match execute_launch_profile(&self.root, &task_id, &profile, &base_ref) {
+                Ok(message) => Response::Launch(message),
+                Err(error) => Response::Error(error.to_string()),
+            },
         }
     }
 }
@@ -472,42 +577,53 @@ impl Drop for Server {
 }
 
 fn execute_task(root: &Path, task_id: &TaskId, executable: &Path) -> Result<String, DaemonError> {
-    let task_store = agentforge_state::FileTaskStore::for_project_root(root);
-    let audit_directory = root.join(".forge");
-    fs::create_dir_all(&audit_directory)?;
-    let mut audit_store = FileAuditStore::open(audit_directory.join("audit.log"))
-        .map_err(|error| DaemonError::Execution(error.to_string()))?;
-    let approvals = approved_boundaries(root, task_id)
-        .map_err(|error| DaemonError::Execution(error.to_string()))?;
     let adapter = ProcessAdapter::new(ProcessAdapterConfig::new("daemon-process", executable))
         .map_err(|error| DaemonError::Execution(error.to_string()))?;
-    let execution = execute_process_persisted(
-        root,
-        &task_store,
-        &mut audit_store,
-        task_id,
-        &adapter,
-        &approvals,
-    )
-    .map_err(|error| DaemonError::Execution(error.to_string()))?;
-    Ok(format!(
-        "task={} termination={:?}",
-        execution.report.task_id(),
-        execution.report.termination()
-    ))
+    execute_with_adapter(root, task_id, adapter, None)
 }
 
 fn execute_profile(root: &Path, task_id: &TaskId, profile: &str) -> Result<String, DaemonError> {
     let profile = AgentProfileStore::new(root)
         .load(profile)
         .map_err(|error| DaemonError::Execution(error.to_string()))?;
-    execute_with_config(root, task_id, profile.adapter_config())
+    let adapter = ProcessAdapter::new(profile.adapter_config())
+        .map_err(|error| DaemonError::Execution(error.to_string()))?;
+    execute_with_adapter(root, task_id, adapter, None)
 }
 
-fn execute_with_config(
+fn execute_launch_task(
     root: &Path,
     task_id: &TaskId,
-    config: ProcessAdapterConfig,
+    executable: &Path,
+    base_ref: &str,
+) -> Result<String, DaemonError> {
+    let adapter = ProcessAdapter::new(ProcessAdapterConfig::new(
+        "daemon-launch-process",
+        executable,
+    ))
+    .map_err(|error| DaemonError::Execution(error.to_string()))?;
+    execute_with_adapter(root, task_id, adapter, Some(base_ref))
+}
+
+fn execute_launch_profile(
+    root: &Path,
+    task_id: &TaskId,
+    profile: &str,
+    base_ref: &str,
+) -> Result<String, DaemonError> {
+    let profile = AgentProfileStore::new(root)
+        .load(profile)
+        .map_err(|error| DaemonError::Execution(error.to_string()))?;
+    let adapter = ProcessAdapter::new(profile.adapter_config())
+        .map_err(|error| DaemonError::Execution(error.to_string()))?;
+    execute_with_adapter(root, task_id, adapter, Some(base_ref))
+}
+
+fn execute_with_adapter(
+    root: &Path,
+    task_id: &TaskId,
+    adapter: ProcessAdapter,
+    base_ref: Option<&str>,
 ) -> Result<String, DaemonError> {
     let task_store = agentforge_state::FileTaskStore::for_project_root(root);
     let audit_directory = root.join(".forge");
@@ -516,22 +632,44 @@ fn execute_with_config(
         .map_err(|error| DaemonError::Execution(error.to_string()))?;
     let approvals = approved_boundaries(root, task_id)
         .map_err(|error| DaemonError::Execution(error.to_string()))?;
-    let adapter =
-        ProcessAdapter::new(config).map_err(|error| DaemonError::Execution(error.to_string()))?;
-    let execution = execute_process_persisted(
-        root,
-        &task_store,
-        &mut audit_store,
-        task_id,
-        &adapter,
-        &approvals,
-    )
-    .map_err(|error| DaemonError::Execution(error.to_string()))?;
-    Ok(format!(
-        "task={} termination={:?}",
-        execution.report.task_id(),
-        execution.report.termination()
-    ))
+    match base_ref {
+        Some(base_ref) => {
+            let launch = launch_process_persisted(
+                root,
+                &task_store,
+                &mut audit_store,
+                task_id,
+                &adapter,
+                &approvals,
+                base_ref,
+            )
+            .map_err(|error| DaemonError::Execution(error.to_string()))?;
+            Ok(format!(
+                "task={} termination={:?} base={} worktree-created={} path={}",
+                launch.execution.report.task_id(),
+                launch.execution.report.termination(),
+                launch.base_commit,
+                launch.worktree_created,
+                launch.worktree.path().display()
+            ))
+        }
+        None => {
+            let execution = execute_process_persisted(
+                root,
+                &task_store,
+                &mut audit_store,
+                task_id,
+                &adapter,
+                &approvals,
+            )
+            .map_err(|error| DaemonError::Execution(error.to_string()))?;
+            Ok(format!(
+                "task={} termination={:?}",
+                execution.report.task_id(),
+                execution.report.termination()
+            ))
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -545,6 +683,16 @@ enum Request {
     RunProfile {
         task_id: TaskId,
         profile: String,
+    },
+    Launch {
+        task_id: TaskId,
+        executable: PathBuf,
+        base_ref: String,
+    },
+    LaunchProfile {
+        task_id: TaskId,
+        profile: String,
+        base_ref: String,
     },
 }
 
@@ -560,6 +708,19 @@ impl Request {
             Self::RunProfile { task_id, profile } => {
                 format!("{PROTOCOL}\tRUN_PROFILE\t{task_id}\t{profile}\n")
             }
+            Self::Launch {
+                task_id,
+                executable,
+                base_ref,
+            } => format!(
+                "{PROTOCOL}\tLAUNCH\t{task_id}\t{}\t{base_ref}\n",
+                executable.display()
+            ),
+            Self::LaunchProfile {
+                task_id,
+                profile,
+                base_ref,
+            } => format!("{PROTOCOL}\tLAUNCH_PROFILE\t{task_id}\t{profile}\t{base_ref}\n"),
         }
     }
 }
@@ -569,6 +730,7 @@ enum Response {
     Status,
     Stop,
     Run(String),
+    Launch(String),
     Error(String),
 }
 
@@ -577,6 +739,7 @@ fn write_response(stream: &mut TcpStream, response: &Response) -> io::Result<()>
         Response::Status => format!("{PROTOCOL}\tOK\tSTATUS\n"),
         Response::Stop => format!("{PROTOCOL}\tOK\tSTOP\n"),
         Response::Run(message) => format!("{PROTOCOL}\tOK\tRUN\t{}\n", sanitize(message)),
+        Response::Launch(message) => format!("{PROTOCOL}\tOK\tLAUNCH\t{}\n", sanitize(message)),
         Response::Error(message) => format!("{PROTOCOL}\tERR\t{}\n", sanitize(message)),
     };
     if value.len() > MAX_RESPONSE_BYTES {
@@ -634,6 +797,60 @@ fn parse_request(frame: &[u8]) -> Result<Request, String> {
                 profile: fields[3].to_owned(),
             })
         }
+        Some("LAUNCH") if fields.len() == 5 => {
+            if fields[3].is_empty()
+                || fields[3]
+                    .chars()
+                    .any(|character| matches!(character, '\n' | '\r' | '\t'))
+            {
+                return Err("executable path is invalid".into());
+            }
+            if !Path::new(fields[3]).is_absolute() {
+                return Err("executable path must be absolute".into());
+            }
+            if fields[4].is_empty()
+                || fields[4].len() > 256
+                || fields[4].starts_with('-')
+                || fields[4]
+                    .chars()
+                    .any(|character| matches!(character, '\n' | '\r' | '\t'))
+            {
+                return Err("base ref is invalid".into());
+            }
+            let task_id =
+                TaskId::parse(fields[2].to_string()).map_err(|error| error.to_string())?;
+            Ok(Request::Launch {
+                task_id,
+                executable: PathBuf::from(fields[3]),
+                base_ref: fields[4].to_owned(),
+            })
+        }
+        Some("LAUNCH_PROFILE") if fields.len() == 5 => {
+            if fields[3].is_empty()
+                || fields[3].len() > 64
+                || !fields[3]
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
+            {
+                return Err("profile ID is invalid".into());
+            }
+            if fields[4].is_empty()
+                || fields[4].len() > 256
+                || fields[4].starts_with('-')
+                || fields[4]
+                    .chars()
+                    .any(|character| matches!(character, '\n' | '\r' | '\t'))
+            {
+                return Err("base ref is invalid".into());
+            }
+            let task_id =
+                TaskId::parse(fields[2].to_string()).map_err(|error| error.to_string())?;
+            Ok(Request::LaunchProfile {
+                task_id,
+                profile: fields[3].to_owned(),
+                base_ref: fields[4].to_owned(),
+            })
+        }
         Some(command) => Err(format!("invalid {command} request")),
         None => Err("request command is missing".into()),
     }
@@ -650,6 +867,7 @@ fn parse_response(frame: &[u8]) -> Result<Response, String> {
         (Some("OK"), Some("STATUS")) if fields.next().is_none() => Ok(Response::Status),
         (Some("OK"), Some("STOP")) if fields.next().is_none() => Ok(Response::Stop),
         (Some("OK"), Some("RUN")) => Ok(Response::Run(fields.collect::<Vec<_>>().join("\t"))),
+        (Some("OK"), Some("LAUNCH")) => Ok(Response::Launch(fields.collect::<Vec<_>>().join("\t"))),
         (Some("ERR"), Some(message)) => Ok(Response::Error(message.to_string())),
         _ => Err("malformed response".into()),
     }
@@ -756,5 +974,23 @@ mod tests {
         assert_eq!(endpoint.pid, 42);
         assert_eq!(endpoint.address.port(), 43123);
         assert_eq!(parse_response(b"AFD1\tOK\tSTATUS\n"), Ok(Response::Status));
+    }
+
+    #[test]
+    fn launch_protocol_round_trip_preserves_base_and_mode() {
+        let request = parse_request(b"AFD1\tLAUNCH\ttask\t/tmp/agent\tHEAD\n").unwrap();
+        assert!(matches!(
+            request,
+            Request::Launch {
+                base_ref,
+                executable,
+                ..
+            } if base_ref == "HEAD" && executable.as_path() == Path::new("/tmp/agent")
+        ));
+        assert_eq!(
+            parse_response(b"AFD1\tOK\tLAUNCH\ttask=task termination=Exited\n"),
+            Ok(Response::Launch("task=task termination=Exited".into()))
+        );
+        assert!(parse_request(b"AFD1\tLAUNCH\ttask\t/tmp/agent\t-bad\n").is_err());
     }
 }

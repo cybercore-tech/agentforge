@@ -5,6 +5,7 @@ use agentforge_audit::FileAuditStore;
 use agentforge_core::agent::{ApprovalBoundary, Capability};
 use agentforge_core::task::{TaskGraph, TaskId, TaskRecord};
 use agentforge_daemon::{
+    launch_profile as daemon_launch_profile, launch_task as daemon_launch_task,
     restart_with_program as daemon_restart_with_program, run_profile as daemon_run_profile,
     run_task as daemon_run_task, start_with_program as daemon_start_with_program,
     status as daemon_status, stop as daemon_stop,
@@ -71,7 +72,7 @@ fn main() -> ExitCode {
 
 fn print_usage() {
     println!(
-        "usage: forge <version|doctor|status|init <root>|intake <root> [--task] [--input-file <path>]|blueprint validate <root>|task create|inspect|launch|diff|approve|integrate|accept|cancel|retry ...|agent list|validate|inspect <root> [<profile>]|run <root> <task-id> <absolute-executable> [--interactive] [--pty]|run <root> <task-id> --profile <profile> [--interactive] [--pty]|daemon start|restart|status|run|stop ...|worktree create|inspect|list|retire ...|hud <root> [--watch [--interval-ms <milliseconds>]]>"
+        "usage: forge <version|doctor|status|init <root>|intake <root> [--task] [--input-file <path>]|blueprint validate <root>|task create|inspect|launch|diff|approve|integrate|accept|cancel|retry ...|agent list|validate|inspect <root> [<profile>]|run <root> <task-id> <absolute-executable> [--interactive] [--pty]|run <root> <task-id> --profile <profile> [--interactive] [--pty]|daemon start|restart|status|run|launch|stop ...|worktree create|inspect|list|retire ...|hud <root> [--watch [--interval-ms <milliseconds>]]>"
     );
 }
 
@@ -337,6 +338,7 @@ fn daemon_command(arguments: Vec<String>) -> ExitCode {
                 }
             }
         }
+        Some("launch") => daemon_launch_command(&arguments[1..]),
         Some("stop") if arguments.len() == 2 => match daemon_stop(&arguments[1]) {
             Ok(()) => {
                 println!("daemon stopped");
@@ -349,10 +351,99 @@ fn daemon_command(arguments: Vec<String>) -> ExitCode {
         },
         _ => {
             eprintln!(
-                "daemon requires: status <root>, run <root> <task-id> <absolute-executable>, run <root> <task-id> --profile <profile>, or stop <root>"
+                "daemon requires: status <root>, run <root> <task-id> <absolute-executable>, run <root> <task-id> --profile <profile>, launch <root> <task-id> <absolute-executable> [--base <ref>], launch <root> <task-id> --profile <profile> [--base <ref>], or stop <root>"
             );
             print_usage();
             ExitCode::from(2)
+        }
+    }
+}
+
+fn daemon_launch_command(arguments: &[String]) -> ExitCode {
+    if arguments.len() < 3 {
+        eprintln!(
+            "daemon launch requires: <root> <task-id> <absolute-executable> [--base <ref>] or --profile <profile> [--base <ref>]"
+        );
+        return ExitCode::from(2);
+    }
+    let task_id = match TaskId::parse(arguments[1].clone()) {
+        Ok(value) => value,
+        Err(error) => {
+            eprintln!("invalid task ID: {error}");
+            return ExitCode::from(2);
+        }
+    };
+    let mut executable = None;
+    let mut profile = None;
+    let mut base_ref = String::from("HEAD");
+    let mut base_supplied = false;
+    let mut index = 2;
+    while index < arguments.len() {
+        match arguments[index].as_str() {
+            "--base" => {
+                let Some(value) = arguments.get(index + 1) else {
+                    eprintln!("--base requires a non-empty ref");
+                    return ExitCode::from(2);
+                };
+                if value.is_empty() || value.starts_with('-') || base_supplied {
+                    eprintln!("daemon launch accepts one non-empty --base ref");
+                    return ExitCode::from(2);
+                }
+                base_ref = value.clone();
+                base_supplied = true;
+                index += 2;
+            }
+            "--profile" => {
+                let Some(value) = arguments.get(index + 1) else {
+                    eprintln!("--profile requires a profile ID");
+                    return ExitCode::from(2);
+                };
+                if value.is_empty()
+                    || value.starts_with('-')
+                    || profile.is_some()
+                    || executable.is_some()
+                {
+                    eprintln!("--profile requires one profile ID");
+                    return ExitCode::from(2);
+                }
+                profile = Some(value.clone());
+                index += 2;
+            }
+            value if value.starts_with('-') => {
+                eprintln!("unknown daemon launch option: {value}");
+                return ExitCode::from(2);
+            }
+            value => {
+                if executable.is_some() || profile.is_some() {
+                    eprintln!("daemon launch accepts one executable or one --profile");
+                    return ExitCode::from(2);
+                }
+                executable = Some(value.to_owned());
+                index += 1;
+            }
+        }
+    }
+    let result = match (executable, profile) {
+        (Some(executable), None) => {
+            daemon_launch_task(&arguments[0], &task_id, executable, &base_ref)
+        }
+        (None, Some(profile)) => {
+            daemon_launch_profile(&arguments[0], &task_id, &profile, &base_ref)
+        }
+        (None, None) => {
+            eprintln!("daemon launch requires an executable or --profile <profile>");
+            return ExitCode::from(2);
+        }
+        (Some(_), Some(_)) => unreachable!("daemon launch parser prevents both modes"),
+    };
+    match result {
+        Ok(message) => {
+            println!("{message}");
+            ExitCode::SUCCESS
+        }
+        Err(error) => {
+            eprintln!("daemon launch failed: {error}");
+            ExitCode::from(1)
         }
     }
 }

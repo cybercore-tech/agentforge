@@ -67,6 +67,8 @@ commands below when detached captured execution is preferred.
 forge daemon status /path/to/project
 forge daemon run /path/to/project P2-M005-T0001 /absolute/path/to/agent
 forge daemon run /path/to/project P2-M005-T0001 --profile local-agent
+forge daemon launch /path/to/project P2-M016-T0001 /absolute/path/to/agent --base HEAD
+forge daemon launch /path/to/project P2-M016-T0002 --profile local-agent --base HEAD
 forge daemon stop /path/to/project
 ```
 
@@ -77,6 +79,13 @@ accepts it:
 ```bash
 forge task accept /path/to/project P2-M005-T0001 --actor operator
 ```
+
+`launch` is the detached counterpart to the foreground pilot. It validates the ready task,
+capabilities, approvals, repository, and exact base before creating or reusing the deterministic
+managed worktree. It records a `WorktreeObserved` event and then executes through the same bounded
+persisted process path. Repeated launch requests verify and reuse an owned clean worktree; dirty,
+unresolved, ambiguous, or unrelated worktrees fail closed. `run` retains its existing prepared-
+worktree behavior for compatibility.
 
 The daemon-backed CLI dogfooding path uses a direct executable fixture and is covered by the
 Linux, macOS, and Windows platform matrix. It does not depend on shell syntax or ambient process

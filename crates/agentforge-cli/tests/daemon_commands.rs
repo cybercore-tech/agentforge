@@ -86,6 +86,104 @@ fn daemon_status_and_stop_are_operator_commands() {
         .expect("fixture output"),
         "fixture executed\n"
     );
+
+    let created_launch = forge(
+        &root,
+        &[
+            "task",
+            "create",
+            root.to_str().expect("root"),
+            "P2-M016-T0001",
+            "P2-M016",
+            "implementer",
+            "exercise daemon launch",
+            "--allowed",
+            "agentforge-fixture-output.txt",
+            "--capability",
+            "write_owned_paths",
+            "--capability",
+            "run_local_commands",
+        ],
+    );
+    assert!(created_launch.status.success(), "{created_launch:?}");
+    let launched = forge(
+        &root,
+        &[
+            "daemon",
+            "launch",
+            root.to_str().expect("root"),
+            "P2-M016-T0001",
+            executable.to_str().expect("fixture path"),
+            "--base",
+            "HEAD",
+        ],
+    );
+    assert!(launched.status.success(), "{launched:?}");
+    let launch_stdout = String::from_utf8_lossy(&launched.stdout);
+    assert!(
+        launch_stdout.contains("task=P2-M016-T0001"),
+        "{launch_stdout}"
+    );
+    assert!(
+        launch_stdout.contains("worktree-created=true"),
+        "{launch_stdout}"
+    );
+    assert!(
+        root.join(".forge/worktrees/P2-M016-T0001/agentforge-fixture-output.txt")
+            .is_file()
+    );
+
+    fs::create_dir_all(root.join(".forge/agents")).expect("agent profile directory");
+    fs::write(
+        root.join(".forge/agents/fixture.conf"),
+        format!(
+            "version=1\nexecutable={}\n",
+            executable.to_str().expect("fixture path")
+        ),
+    )
+    .expect("agent profile");
+    let created_profile_launch = forge(
+        &root,
+        &[
+            "task",
+            "create",
+            root.to_str().expect("root"),
+            "P2-M016-T0002",
+            "P2-M016",
+            "implementer",
+            "exercise daemon profile launch",
+            "--allowed",
+            "agentforge-fixture-output.txt",
+            "--capability",
+            "write_owned_paths",
+            "--capability",
+            "run_local_commands",
+        ],
+    );
+    assert!(
+        created_profile_launch.status.success(),
+        "{created_profile_launch:?}"
+    );
+    let profile_launched = forge(
+        &root,
+        &[
+            "daemon",
+            "launch",
+            root.to_str().expect("root"),
+            "P2-M016-T0002",
+            "--profile",
+            "fixture",
+            "--base",
+            "HEAD",
+        ],
+    );
+    assert!(profile_launched.status.success(), "{profile_launched:?}");
+    assert!(String::from_utf8_lossy(&profile_launched.stdout).contains("task=P2-M016-T0002"));
+    assert!(
+        root.join(".forge/worktrees/P2-M016-T0002/agentforge-fixture-output.txt")
+            .is_file()
+    );
+
     let hud_output = forge(&root, &["hud", root.to_str().expect("root")]);
     assert!(hud_output.status.success(), "{hud_output:?}");
     assert!(String::from_utf8_lossy(&hud_output.stdout).contains("P2-M005-T0001"));
@@ -103,6 +201,37 @@ fn daemon_status_and_stop_are_operator_commands() {
     assert!(accepted.status.success(), "{accepted:?}");
     fs::remove_file(root.join(".forge/worktrees/P2-M005-T0001/agentforge-fixture-output.txt"))
         .expect("remove fixture output before retirement");
+    let accepted_launch = forge(
+        &root,
+        &[
+            "task",
+            "accept",
+            root.to_str().expect("root"),
+            "P2-M016-T0001",
+            "--actor",
+            "operator",
+        ],
+    );
+    assert!(accepted_launch.status.success(), "{accepted_launch:?}");
+    fs::remove_file(root.join(".forge/worktrees/P2-M016-T0001/agentforge-fixture-output.txt"))
+        .expect("remove launch fixture output before retirement");
+    let accepted_profile_launch = forge(
+        &root,
+        &[
+            "task",
+            "accept",
+            root.to_str().expect("root"),
+            "P2-M016-T0002",
+            "--actor",
+            "operator",
+        ],
+    );
+    assert!(
+        accepted_profile_launch.status.success(),
+        "{accepted_profile_launch:?}"
+    );
+    fs::remove_file(root.join(".forge/worktrees/P2-M016-T0002/agentforge-fixture-output.txt"))
+        .expect("remove profile fixture output before retirement");
 
     let status_output = forge(&root, &["daemon", "status", root.to_str().expect("root")]);
     assert!(status_output.status.success(), "{status_output:?}");
@@ -120,6 +249,29 @@ fn daemon_status_and_stop_are_operator_commands() {
         ],
     );
     assert!(retired.status.success(), "{retired:?}");
+    let retired_launch = forge(
+        &root,
+        &[
+            "worktree",
+            "retire",
+            root.to_str().expect("root"),
+            "P2-M016-T0001",
+        ],
+    );
+    assert!(retired_launch.status.success(), "{retired_launch:?}");
+    let retired_profile_launch = forge(
+        &root,
+        &[
+            "worktree",
+            "retire",
+            root.to_str().expect("root"),
+            "P2-M016-T0002",
+        ],
+    );
+    assert!(
+        retired_profile_launch.status.success(),
+        "{retired_profile_launch:?}"
+    );
     fs::remove_dir_all(root).expect("cleanup");
 }
 
