@@ -1,6 +1,6 @@
 # Plan: P2-M018 — README hardening and in-page reader
 
-Status: Draft
+Status: Approved
 Milestone: P2-M018
 Owner: AgentForge project
 
