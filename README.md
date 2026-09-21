@@ -239,6 +239,20 @@ forge worktree list /path/to/project
 forge worktree retire /path/to/project P2-M006-T0001
 ```
 
+Review and protected integration are separate explicit actions:
+
+```bash
+forge task diff /path/to/project P2-M014-T0001
+forge task integrate /path/to/project P2-M014-T0001 \
+  --target main --actor alice
+```
+
+Diff is read-only. Integration requires a succeeded task with the
+`merge_protected_branch` capability and recorded approval, a clean verified source and target,
+and a fast-forward-only history. It is serialized through `.forge/integration.lock`, records
+integrity-linked audit evidence, is safe to repeat, and never retires the source worktree or
+deletes its branch.
+
 ## Operator HUD 👀
 
 Render a bounded, read-only project snapshot:

@@ -186,3 +186,53 @@ fn unrelated_worktree_is_not_listed_as_managed() {
 
     run(&repo.root, &["worktree", "remove", &unrelated_text]);
 }
+
+#[test]
+fn diff_and_fast_forward_integration_are_verified_and_idempotent() {
+    let repo = TestRepository::new();
+    let manager = repo.manager();
+    let task_id = task(2);
+    let created = manager
+        .create(&WorktreeSpec::new(task_id.clone(), "main"))
+        .unwrap();
+
+    fs::write(created.path().join("change.txt"), "reviewed\n").unwrap();
+    run(created.path(), &["add", "change.txt"]);
+    run(created.path(), &["commit", "-m", "reviewed change"]);
+
+    let diff = manager.diff(&task_id, "main").unwrap();
+    assert_eq!(diff.target_branch(), "main");
+    assert!(diff.changed_files().iter().any(|path| path == "change.txt"));
+    assert!(!diff.source_dirty());
+
+    let report = manager.integrate(&task_id, "main").unwrap();
+    assert!(!report.already_integrated());
+    assert_eq!(report.target_after(), report.source_head());
+
+    let repeated = manager.integrate(&task_id, "main").unwrap();
+    assert!(repeated.already_integrated());
+    assert_eq!(repeated.target_after(), report.target_after());
+    manager.retire(&task_id).unwrap();
+}
+
+#[test]
+fn integration_lock_is_never_stolen() {
+    let repo = TestRepository::new();
+    let manager = repo.manager();
+    let task_id = task(3);
+    let created = manager
+        .create(&WorktreeSpec::new(task_id.clone(), "main"))
+        .unwrap();
+    fs::write(created.path().join("change.txt"), "reviewed\n").unwrap();
+    run(created.path(), &["add", "change.txt"]);
+    run(created.path(), &["commit", "-m", "reviewed change"]);
+    fs::create_dir_all(repo.root.join(".forge")).unwrap();
+    fs::write(repo.root.join(".forge/integration.lock"), "held\n").unwrap();
+
+    assert!(matches!(
+        manager.integrate(&task_id, "main"),
+        Err(WorktreeError::IntegrationLocked(_))
+    ));
+    fs::remove_file(repo.root.join(".forge/integration.lock")).unwrap();
+    manager.retire(&task_id).unwrap();
+}

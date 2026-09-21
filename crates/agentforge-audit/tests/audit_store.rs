@@ -82,6 +82,22 @@ fn file_round_trip_preserves_chain_and_fields() {
 }
 
 #[test]
+fn integration_event_kind_round_trips_as_versioned_evidence() {
+    let path = path();
+    let mut store = FileAuditStore::open(&path).unwrap();
+    store
+        .append(event(1, AuditEventKind::IntegrationRecorded))
+        .unwrap();
+    drop(store);
+    let store = FileAuditStore::open(&path).unwrap();
+    assert_eq!(
+        store.records()[0].event().kind(),
+        AuditEventKind::IntegrationRecorded
+    );
+    fs::remove_file(path).unwrap();
+}
+
+#[test]
 fn mutation_truncation_and_trailing_bytes_fail_closed() {
     let path = path();
     let mut store = FileAuditStore::open(&path).unwrap();

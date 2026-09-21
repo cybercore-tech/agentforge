@@ -73,3 +73,11 @@ events; the HUD remains an observation surface.
 P2-M009 ensures persisted daemon execution seeds each attempt audit from the verified sequence and
 digest tail, so later runs append contiguous integrity-linked events without changing the audit
 format or acceptance boundary.
+
+P2-M014 adds the explicit review boundary. `forge task diff <root> <task-id>` is a bounded,
+read-only projection of a managed task branch against the checked-out target. `forge task integrate`
+requires a succeeded task, the `merge_protected_branch` capability and approval, clean verified
+source and target worktrees, and a matching target branch. It serializes one literal
+`git merge --ff-only` through `.forge/integration.lock`, verifies the resulting commit, and appends
+an integrity-linked integration event. Repeated integration is idempotent; branches remain
+preserved and worktrees are never auto-retired.

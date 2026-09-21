@@ -6,7 +6,8 @@
 use agentforge_core::task::{TaskId, TaskIdError};
 use std::ffi::OsStr;
 use std::fmt;
-use std::fs;
+use std::fs::{self, OpenOptions};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
@@ -15,6 +16,7 @@ pub const DEFAULT_MANAGED_RELATIVE_PATH: &str = ".forge/worktrees";
 
 /// Prefix used for deterministic task branches.
 pub const TASK_BRANCH_PREFIX: &str = "agentforge/task/";
+const MAX_DIFF_OUTPUT: usize = 512 * 1024;
 
 /// Description of one worktree creation request.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -111,6 +113,112 @@ impl WorktreeStatus {
 /// Successfully created and verified managed worktree.
 pub type ManagedWorktree = WorktreeStatus;
 
+/// Bounded, read-only comparison between a task worktree and a target branch.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct WorktreeDiff {
+    task_id: TaskId,
+    source_branch: String,
+    source_head: String,
+    target_branch: String,
+    target_head: String,
+    merge_base: String,
+    changed_files: Vec<String>,
+    source_dirty: bool,
+}
+
+impl WorktreeDiff {
+    /// Returns the task identity.
+    #[must_use]
+    pub fn task_id(&self) -> &TaskId {
+        &self.task_id
+    }
+    /// Returns the deterministic source branch.
+    #[must_use]
+    pub fn source_branch(&self) -> &str {
+        &self.source_branch
+    }
+    /// Returns the exact source commit.
+    #[must_use]
+    pub fn source_head(&self) -> &str {
+        &self.source_head
+    }
+    /// Returns the comparison target branch.
+    #[must_use]
+    pub fn target_branch(&self) -> &str {
+        &self.target_branch
+    }
+    /// Returns the exact target commit.
+    #[must_use]
+    pub fn target_head(&self) -> &str {
+        &self.target_head
+    }
+    /// Returns the common ancestor used for the diff.
+    #[must_use]
+    pub fn merge_base(&self) -> &str {
+        &self.merge_base
+    }
+    /// Returns changed repository-relative paths.
+    #[must_use]
+    pub fn changed_files(&self) -> &[String] {
+        &self.changed_files
+    }
+    /// Returns whether the source worktree has uncommitted changes.
+    #[must_use]
+    pub const fn source_dirty(&self) -> bool {
+        self.source_dirty
+    }
+}
+
+/// Verified result of a fast-forward-only integration.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct IntegrationReport {
+    task_id: TaskId,
+    source_branch: String,
+    source_head: String,
+    target_branch: String,
+    target_before: String,
+    target_after: String,
+    already_integrated: bool,
+}
+
+impl IntegrationReport {
+    /// Returns the task identity.
+    #[must_use]
+    pub fn task_id(&self) -> &TaskId {
+        &self.task_id
+    }
+    /// Returns the deterministic source branch.
+    #[must_use]
+    pub fn source_branch(&self) -> &str {
+        &self.source_branch
+    }
+    /// Returns the exact source commit.
+    #[must_use]
+    pub fn source_head(&self) -> &str {
+        &self.source_head
+    }
+    /// Returns the target branch.
+    #[must_use]
+    pub fn target_branch(&self) -> &str {
+        &self.target_branch
+    }
+    /// Returns the target commit before integration.
+    #[must_use]
+    pub fn target_before(&self) -> &str {
+        &self.target_before
+    }
+    /// Returns the verified target commit after integration.
+    #[must_use]
+    pub fn target_after(&self) -> &str {
+        &self.target_after
+    }
+    /// Returns whether the source was already contained by the target.
+    #[must_use]
+    pub const fn already_integrated(&self) -> bool {
+        self.already_integrated
+    }
+}
+
 /// Safe manager for task-owned linked Git worktrees.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WorktreeManager {
@@ -150,6 +258,16 @@ impl WorktreeManager {
     #[must_use]
     pub fn managed_root(&self) -> &Path {
         &self.managed_root
+    }
+
+    /// Returns the checked-out branch of the project root.
+    pub fn current_branch(&self) -> Result<String, WorktreeError> {
+        let branch = git_text(&self.project_root, ["symbolic-ref", "--short", "HEAD"])?;
+        let branch = branch.trim().to_owned();
+        if branch.is_empty() {
+            return Err(WorktreeError::DetachedTarget);
+        }
+        Ok(branch)
     }
 
     /// Returns the deterministic branch name for a task.
@@ -373,6 +491,142 @@ impl WorktreeManager {
         Ok(())
     }
 
+    /// Produces a bounded, read-only diff against a target branch.
+    pub fn diff(
+        &self,
+        task_id: &TaskId,
+        target_branch: &str,
+    ) -> Result<WorktreeDiff, WorktreeError> {
+        validate_branch_name(target_branch)?;
+        let source = self
+            .inspect(task_id)?
+            .ok_or_else(|| WorktreeError::NotManaged(task_id.clone()))?;
+        let target_head = self.resolve_branch_head(target_branch)?;
+        let merge_base = git_text(
+            &self.project_root,
+            ["merge-base", &target_head, source.head()],
+        )?
+        .trim()
+        .to_owned();
+        let changed = git_text_bounded(
+            &self.project_root,
+            [
+                "diff",
+                "--name-status",
+                "--no-renames",
+                &merge_base,
+                source.head(),
+            ],
+            MAX_DIFF_OUTPUT,
+        )?;
+        let changed_files = changed
+            .lines()
+            .filter_map(|line| line.split_once('\t').map(|(_, path)| path.to_owned()))
+            .collect();
+        Ok(WorktreeDiff {
+            task_id: task_id.clone(),
+            source_branch: source.branch().to_owned(),
+            source_head: source.head().to_owned(),
+            target_branch: target_branch.to_owned(),
+            target_head,
+            merge_base,
+            changed_files,
+            source_dirty: source.is_dirty(),
+        })
+    }
+
+    /// Integrates a task branch using a serialized, literal fast-forward-only Git operation.
+    pub fn integrate(
+        &self,
+        task_id: &TaskId,
+        target_branch: &str,
+    ) -> Result<IntegrationReport, WorktreeError> {
+        validate_branch_name(target_branch)?;
+        let source = self
+            .inspect(task_id)?
+            .ok_or_else(|| WorktreeError::NotManaged(task_id.clone()))?;
+        if source.is_dirty() {
+            return Err(WorktreeError::DirtyWorktree(task_id.clone()));
+        }
+        if let Some(operation) = source.operation() {
+            return Err(WorktreeError::UnresolvedOperation {
+                task_id: task_id.clone(),
+                operation,
+            });
+        }
+        let current = self.current_branch()?;
+        if current != target_branch {
+            return Err(WorktreeError::TargetBranchMismatch {
+                expected: target_branch.to_owned(),
+                actual: current,
+            });
+        }
+        if git_status_dirty(&self.project_root)? {
+            return Err(WorktreeError::TargetDirty);
+        }
+        if let Some(operation) = detect_operation(&self.project_root)? {
+            return Err(WorktreeError::TargetUnresolvedOperation(operation));
+        }
+        let target_before = self.resolve_branch_head(target_branch)?;
+        let lock = IntegrationLock::acquire(self.project_root.join(".forge/integration.lock"))?;
+        let _lock = lock;
+        let current_source = self
+            .inspect(task_id)?
+            .ok_or_else(|| WorktreeError::NotManaged(task_id.clone()))?;
+        if current_source.head() != source.head() {
+            return Err(WorktreeError::StaleSource {
+                expected: source.head().to_owned(),
+                actual: current_source.head().to_owned(),
+            });
+        }
+        if git_success(
+            &self.project_root,
+            ["merge-base", "--is-ancestor", source.head(), &target_before],
+        )? {
+            return Ok(IntegrationReport {
+                task_id: task_id.clone(),
+                source_branch: source.branch().to_owned(),
+                source_head: source.head().to_owned(),
+                target_branch: target_branch.to_owned(),
+                target_before: target_before.clone(),
+                target_after: target_before,
+                already_integrated: true,
+            });
+        }
+        if !git_success(
+            &self.project_root,
+            ["merge-base", "--is-ancestor", &target_before, source.head()],
+        )? {
+            return Err(WorktreeError::NonFastForward {
+                source: source.head().to_owned(),
+                target: target_before,
+            });
+        }
+        git_text(&self.project_root, ["merge", "--ff-only", source.branch()])?;
+        let target_after = self.resolve_branch_head(target_branch)?;
+        if target_after != source.head() {
+            return Err(WorktreeError::PostIntegrationVerification {
+                expected: source.head().to_owned(),
+                actual: target_after,
+            });
+        }
+        Ok(IntegrationReport {
+            task_id: task_id.clone(),
+            source_branch: source.branch().to_owned(),
+            source_head: source.head().to_owned(),
+            target_branch: target_branch.to_owned(),
+            target_before,
+            target_after,
+            already_integrated: false,
+        })
+    }
+
+    fn resolve_branch_head(&self, branch: &str) -> Result<String, WorktreeError> {
+        let expression = format!("refs/heads/{branch}^{{commit}}");
+        git_text(&self.project_root, ["rev-parse", "--verify", &expression])
+            .map(|value| value.trim().to_owned())
+    }
+
     fn ensure_managed_root_safe(&self) -> Result<(), WorktreeError> {
         let forge_root = self.project_root.join(".forge");
         reject_symlink_if_present(&forge_root)?;
@@ -573,6 +827,82 @@ where
     String::from_utf8(output.stdout).map_err(|_| WorktreeError::NonUtf8GitOutput)
 }
 
+fn git_text_bounded<I, S>(cwd: &Path, args: I, limit: usize) -> Result<String, WorktreeError>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<OsStr>,
+{
+    let output = git_output(cwd, args)?;
+    if !output.status.success() {
+        return Err(WorktreeError::GitFailure {
+            status: output.status.code(),
+            stderr: String::from_utf8_lossy(&output.stderr).trim().to_owned(),
+        });
+    }
+    if output.stdout.len() > limit {
+        return Err(WorktreeError::DiffOutputLimit);
+    }
+    String::from_utf8(output.stdout).map_err(|_| WorktreeError::NonUtf8GitOutput)
+}
+
+fn git_status_dirty(cwd: &Path) -> Result<bool, WorktreeError> {
+    Ok(!git_text(
+        cwd,
+        [
+            "status",
+            "--porcelain=v1",
+            "--untracked-files=normal",
+            "--",
+            ".",
+            ":(exclude).forge",
+        ],
+    )?
+    .trim()
+    .is_empty())
+}
+
+fn validate_branch_name(branch: &str) -> Result<(), WorktreeError> {
+    if branch.trim().is_empty()
+        || branch.starts_with('-')
+        || branch
+            .chars()
+            .any(|character| character.is_control() || character.is_whitespace())
+        || branch.contains("..")
+        || branch.ends_with('/')
+    {
+        return Err(WorktreeError::InvalidTargetBranch(branch.to_owned()));
+    }
+    Ok(())
+}
+
+struct IntegrationLock {
+    path: PathBuf,
+}
+
+impl IntegrationLock {
+    fn acquire(path: PathBuf) -> Result<Self, WorktreeError> {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        let mut file = match OpenOptions::new().write(true).create_new(true).open(&path) {
+            Ok(file) => file,
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                return Err(WorktreeError::IntegrationLocked(path));
+            }
+            Err(error) => return Err(WorktreeError::Io(error)),
+        };
+        writeln!(file, "pid={}", std::process::id())?;
+        file.sync_all()?;
+        Ok(Self { path })
+    }
+}
+
+impl Drop for IntegrationLock {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.path);
+    }
+}
+
 fn git_success<I, S>(cwd: &Path, args: I) -> Result<bool, WorktreeError>
 where
     I: IntoIterator<Item = S>,
@@ -655,6 +985,46 @@ pub enum WorktreeError {
     BranchMissingAfterRetire(TaskId),
     /// Invalid task identity encountered while reconstructing managed state.
     TaskId(TaskIdError),
+    /// Target branch name is not a safe literal branch identifier.
+    InvalidTargetBranch(String),
+    /// The project root is detached and has no target branch.
+    DetachedTarget,
+    /// The checked-out target branch differs from the requested branch.
+    TargetBranchMismatch {
+        /// Requested target branch.
+        expected: String,
+        /// Checked-out branch.
+        actual: String,
+    },
+    /// The project root contains tracked or untracked changes.
+    TargetDirty,
+    /// The project root has an unresolved Git operation.
+    TargetUnresolvedOperation(GitOperation),
+    /// Another integration currently owns the serialized integration lock.
+    IntegrationLocked(PathBuf),
+    /// The task branch changed between preflight and integration.
+    StaleSource {
+        /// Source head observed during preflight.
+        expected: String,
+        /// Source head observed after locking.
+        actual: String,
+    },
+    /// The source and target histories cannot be fast-forwarded.
+    NonFastForward {
+        /// Source commit.
+        source: String,
+        /// Target commit.
+        target: String,
+    },
+    /// A bounded diff exceeded its output budget.
+    DiffOutputLimit,
+    /// The target did not point at the source after a successful merge.
+    PostIntegrationVerification {
+        /// Expected target commit.
+        expected: String,
+        /// Actual target commit.
+        actual: String,
+    },
 }
 
 impl fmt::Display for WorktreeError {
@@ -726,6 +1096,49 @@ impl fmt::Display for WorktreeError {
                 "task branch missing after worktree retirement: {task_id}"
             ),
             Self::TaskId(error) => write!(formatter, "invalid managed task ID: {error}"),
+            Self::InvalidTargetBranch(branch) => {
+                write!(formatter, "invalid target branch name: {branch}")
+            }
+            Self::DetachedTarget => {
+                formatter.write_str("project root is detached; target branch is unavailable")
+            }
+            Self::TargetBranchMismatch { expected, actual } => write!(
+                formatter,
+                "checked-out target branch mismatch: expected {expected}, found {actual}"
+            ),
+            Self::TargetDirty => formatter.write_str("target branch worktree is dirty"),
+            Self::TargetUnresolvedOperation(operation) => {
+                write!(
+                    formatter,
+                    "target branch has unresolved Git operation: {operation:?}"
+                )
+            }
+            Self::IntegrationLocked(path) => {
+                write!(
+                    formatter,
+                    "integration lock is already held: {}",
+                    path.display()
+                )
+            }
+            Self::StaleSource { expected, actual } => {
+                write!(
+                    formatter,
+                    "task source changed during integration: expected {expected}, found {actual}"
+                )
+            }
+            Self::NonFastForward { source, target } => {
+                write!(
+                    formatter,
+                    "source {source} is not a fast-forward of target {target}"
+                )
+            }
+            Self::DiffOutputLimit => {
+                formatter.write_str("task diff exceeds the bounded output limit")
+            }
+            Self::PostIntegrationVerification { expected, actual } => write!(
+                formatter,
+                "integration verification mismatch: expected {expected}, found {actual}"
+            ),
         }
     }
 }

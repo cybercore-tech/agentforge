@@ -4,6 +4,7 @@ use agentforge_audit::{AuditEvent, AuditEventKind, AuditStore, FileAuditStore};
 use agentforge_core::agent::ApprovalBoundary;
 use agentforge_core::task::{TaskGraph, TaskId, TaskState};
 use agentforge_state::{FileTaskStore, TaskStore};
+use agentforge_worktree::{IntegrationReport, WorktreeDiff, WorktreeManager};
 use std::fmt;
 use std::path::Path;
 
@@ -223,6 +224,106 @@ pub fn approved_boundaries(
     }
     values.sort_by_key(|boundary| boundary.as_str());
     Ok(values)
+}
+
+/// Inspects a task's managed worktree against the currently checked-out target branch.
+pub fn inspect_task_diff(
+    root: impl AsRef<Path>,
+    task_id: &TaskId,
+) -> Result<WorktreeDiff, OperatorError> {
+    let manager = WorktreeManager::new(root.as_ref())
+        .map_err(|error| OperatorError::new(error.to_string()))?;
+    let target = manager
+        .current_branch()
+        .map_err(|error| OperatorError::new(error.to_string()))?;
+    manager
+        .diff(task_id, &target)
+        .map_err(|error| OperatorError::new(error.to_string()))
+}
+
+/// Integrates one succeeded, explicitly approved task into a checked-out target branch.
+pub fn integrate_task(
+    root: impl AsRef<Path>,
+    task_id: &TaskId,
+    target_branch: &str,
+    actor: &str,
+) -> Result<IntegrationReport, OperatorError> {
+    validate_actor(actor)?;
+    let root = root.as_ref();
+    let graph = load_graph(root)?;
+    let task = graph
+        .get(task_id)
+        .ok_or_else(|| OperatorError::new("task not found"))?;
+    if task.state() != TaskState::Succeeded {
+        return Err(OperatorError::new(
+            "task must be succeeded before integration",
+        ));
+    }
+    if !task
+        .task()
+        .has_capability(agentforge_core::agent::Capability::MergeProtectedBranch)
+    {
+        return Err(OperatorError::new(
+            "task lacks merge_protected_branch capability",
+        ));
+    }
+    if !task
+        .task()
+        .required_approvals
+        .contains(&ApprovalBoundary::MergeProtectedBranch)
+    {
+        return Err(OperatorError::new(
+            "task does not require merge_protected_branch approval",
+        ));
+    }
+    if !approved_boundaries(root, task_id)?.contains(&ApprovalBoundary::MergeProtectedBranch) {
+        return Err(OperatorError::new(
+            "merge_protected_branch approval is missing",
+        ));
+    }
+
+    let manager =
+        WorktreeManager::new(root).map_err(|error| OperatorError::new(error.to_string()))?;
+    let report = manager
+        .integrate(task_id, target_branch)
+        .map_err(|error| OperatorError::new(error.to_string()))?;
+
+    let mut audit = open_existing_audit(root)?;
+    let already_recorded = audit.records().iter().any(|record| {
+        let event = record.event();
+        event.kind() == AuditEventKind::IntegrationRecorded
+            && event.task_id() == Some(task_id.as_str())
+            && event.fields().get("target_branch").map(String::as_str) == Some(target_branch)
+            && event.fields().get("source_head").map(String::as_str) == Some(report.source_head())
+    });
+    if !already_recorded {
+        let sequence = next_sequence(&audit);
+        let event = AuditEvent::new(
+            sequence,
+            format!("operator-integration-{sequence}"),
+            AuditEventKind::IntegrationRecorded,
+            actor,
+            1,
+        )
+        .with_task_id(task_id.as_str())
+        .with_field("source_branch", report.source_branch())
+        .with_field("source_head", report.source_head())
+        .with_field("target_branch", report.target_branch())
+        .with_field("target_before", report.target_before())
+        .with_field("target_after", report.target_after())
+        .with_field(
+            "outcome",
+            if report.already_integrated() {
+                "already_integrated"
+            } else {
+                "fast_forwarded"
+            },
+        );
+        audit
+            .append(event)
+            .map_err(|error| OperatorError::new(error.to_string()))?;
+    }
+    Ok(report)
 }
 
 fn load_graph(root: &Path) -> Result<TaskGraph, OperatorError> {

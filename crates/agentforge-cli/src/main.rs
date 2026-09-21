@@ -15,7 +15,8 @@ use agentforge_intake::{
     serialize_blueprint, serialize_guidelines, snapshot, starter_bundle,
 };
 use agentforge_operator::{
-    approve_task, approved_boundaries, inspect_tasks, parse_approval_boundary, transition_task,
+    approve_task, approved_boundaries, inspect_task_diff, inspect_tasks, integrate_task,
+    parse_approval_boundary, transition_task,
 };
 use agentforge_orchestrator::execute_process_persisted;
 use agentforge_state::{FileTaskStore, TaskStore};
@@ -70,7 +71,7 @@ fn main() -> ExitCode {
 
 fn print_usage() {
     println!(
-        "usage: forge <version|doctor|status|init <root>|intake <root> [--task] [--input-file <path>]|blueprint validate <root>|task create|inspect|approve|accept|cancel|retry ...|agent list|validate|inspect <root> [<profile>]|run <root> <task-id> <absolute-executable> [--interactive] [--pty]|run <root> <task-id> --profile <profile> [--interactive] [--pty]|daemon start|restart|status|run|stop ...|worktree create|inspect|list|retire ...|hud <root> [--watch [--interval-ms <milliseconds>]]>"
+        "usage: forge <version|doctor|status|init <root>|intake <root> [--task] [--input-file <path>]|blueprint validate <root>|task create|inspect|diff|approve|integrate|accept|cancel|retry ...|agent list|validate|inspect <root> [<profile>]|run <root> <task-id> <absolute-executable> [--interactive] [--pty]|run <root> <task-id> --profile <profile> [--interactive] [--pty]|daemon start|restart|status|run|stop ...|worktree create|inspect|list|retire ...|hud <root> [--watch [--interval-ms <milliseconds>]]>"
     );
 }
 
@@ -1009,7 +1010,9 @@ fn task_command(arguments: Vec<String>) -> ExitCode {
     match arguments.first().map(String::as_str) {
         Some("create") => task_create_command(arguments[1..].to_vec()),
         Some("inspect") => task_inspect_command(&arguments[1..]),
+        Some("diff") => task_diff_command(&arguments[1..]),
         Some("approve") => task_approve_command(&arguments[1..]),
+        Some("integrate") => task_integrate_command(&arguments[1..]),
         Some("accept") => {
             task_transition_command(&arguments[1..], agentforge_core::task::TaskState::Succeeded)
         }
@@ -1020,9 +1023,79 @@ fn task_command(arguments: Vec<String>) -> ExitCode {
             task_transition_command(&arguments[1..], agentforge_core::task::TaskState::Pending)
         }
         _ => {
-            eprintln!("task requires: create, inspect, approve, accept, cancel, or retry");
+            eprintln!(
+                "task requires: create, inspect, diff, approve, integrate, accept, cancel, or retry"
+            );
             print_usage();
             ExitCode::from(2)
+        }
+    }
+}
+
+fn task_diff_command(arguments: &[String]) -> ExitCode {
+    if arguments.len() != 2 {
+        eprintln!("task diff requires: <root> <task-id>");
+        return ExitCode::from(2);
+    }
+    let task_id = match TaskId::parse(arguments[1].clone()) {
+        Ok(value) => value,
+        Err(error) => {
+            eprintln!("invalid task ID: {error}");
+            return ExitCode::from(2);
+        }
+    };
+    match inspect_task_diff(&arguments[0], &task_id) {
+        Ok(diff) => {
+            println!(
+                "task diff task={} source={} source_head={} target={} target_head={} merge_base={} dirty={}",
+                diff.task_id(),
+                diff.source_branch(),
+                diff.source_head(),
+                diff.target_branch(),
+                diff.target_head(),
+                diff.merge_base(),
+                diff.source_dirty()
+            );
+            for path in diff.changed_files() {
+                println!("  {path}");
+            }
+            ExitCode::SUCCESS
+        }
+        Err(error) => {
+            eprintln!("task diff failed: {error}");
+            ExitCode::from(1)
+        }
+    }
+}
+
+fn task_integrate_command(arguments: &[String]) -> ExitCode {
+    if arguments.len() != 6 || arguments[2] != "--target" || arguments[4] != "--actor" {
+        eprintln!("task integrate requires: <root> <task-id> --target <branch> --actor <actor-id>");
+        return ExitCode::from(2);
+    }
+    let task_id = match TaskId::parse(arguments[1].clone()) {
+        Ok(value) => value,
+        Err(error) => {
+            eprintln!("invalid task ID: {error}");
+            return ExitCode::from(2);
+        }
+    };
+    match integrate_task(&arguments[0], &task_id, &arguments[3], &arguments[5]) {
+        Ok(report) => {
+            println!(
+                "task {} integrated target={} source_head={} target_before={} target_after={} already_integrated={}",
+                report.task_id(),
+                report.target_branch(),
+                report.source_head(),
+                report.target_before(),
+                report.target_after(),
+                report.already_integrated()
+            );
+            ExitCode::SUCCESS
+        }
+        Err(error) => {
+            eprintln!("task integrate failed: {error}");
+            ExitCode::from(1)
         }
     }
 }

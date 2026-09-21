@@ -82,6 +82,7 @@ dependencies = [
  "agentforge-audit",
  "agentforge-core",
  "agentforge-state",
+ "agentforge-worktree",
 ]
 
 [[package]]

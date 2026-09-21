@@ -36,6 +36,8 @@ pub enum AuditEventKind {
     ReviewHandoff,
     /// A task lifecycle transition was recorded.
     TaskTransition,
+    /// A reviewed task branch was integrated into a protected target.
+    IntegrationRecorded,
 }
 
 impl AuditEventKind {
@@ -51,6 +53,7 @@ impl AuditEventKind {
             Self::FailureClassified => 8,
             Self::ReviewHandoff => 9,
             Self::TaskTransition => 10,
+            Self::IntegrationRecorded => 11,
         }
     }
     fn from_code(code: u8) -> Result<Self, AuditError> {
@@ -65,6 +68,7 @@ impl AuditEventKind {
             8 => Self::FailureClassified,
             9 => Self::ReviewHandoff,
             10 => Self::TaskTransition,
+            11 => Self::IntegrationRecorded,
             _ => return Err(AuditError::UnknownEventKind(code)),
         })
     }
