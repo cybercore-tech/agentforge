@@ -1,6 +1,6 @@
 # Plan: P2-M020 — AgentForge platform package identity
 
-Status: Draft
+Status: Approved
 Milestone: P2-M020
 Created: 2026-09-20
 Owner: AgentForge project
