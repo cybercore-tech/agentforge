@@ -3,11 +3,11 @@
 use agentforge_adapter::{AdapterRequest, AgentAdapter, ExecutionReport};
 use agentforge_audit::{AuditEvent, AuditEventKind, AuditLog};
 use agentforge_audit::{AuditStore, FileAuditStore};
-use agentforge_core::agent::{AgentTask, Capability};
+use agentforge_core::agent::{AgentTask, ApprovalBoundary, Capability};
 use agentforge_core::task::{TaskGraph, TaskId, TaskState};
-use agentforge_policy::{PolicyDecision, PolicyEngine, PolicyRequest};
+use agentforge_policy::{ApprovalGrant, PolicyDecision, PolicyEngine, PolicyRequest};
 use agentforge_state::{FileTaskStore, TaskStore};
-use agentforge_worktree::WorktreeManager;
+use agentforge_worktree::{WorktreeManager, WorktreeSpec, WorktreeStatus};
 use std::fmt;
 use std::path::Path;
 
@@ -110,6 +110,163 @@ pub struct ProcessExecution {
     pub report: ExecutionReport,
     /// Durable audit log containing ordered stage evidence.
     pub audit: AuditLog,
+}
+
+/// Result of preparing a managed worktree and launching one foreground process.
+#[derive(Debug)]
+pub struct ForegroundLaunch {
+    /// Bounded process and audit evidence.
+    pub execution: ProcessExecution,
+    /// Exact commit resolved from the requested base ref before launch.
+    pub base_commit: String,
+    /// Verified worktree state observed before the agent started.
+    pub worktree: WorktreeStatus,
+    /// Whether the worktree was created by this launch.
+    pub worktree_created: bool,
+}
+
+/// Creates or verifies one task-owned worktree, then runs the persisted process path.
+///
+/// Validation, task readiness, capabilities, approvals, and exact base resolution happen before
+/// any worktree is created or an agent is spawned. Existing owned worktrees are reused only after
+/// cleanliness and unresolved-operation checks; unrelated worktrees are never adopted.
+pub fn launch_process_persisted<A: AgentAdapter>(
+    root: impl AsRef<Path>,
+    task_store: &FileTaskStore,
+    audit_store: &mut FileAuditStore,
+    task_id: &TaskId,
+    adapter: &A,
+    approvals: &[ApprovalBoundary],
+    base_ref: &str,
+) -> Result<ForegroundLaunch, SliceError> {
+    let root = root.as_ref().to_path_buf();
+    let graph = task_store
+        .load()
+        .map_err(|error| SliceError::Preflight(error.to_string()))?
+        .ok_or_else(|| SliceError::Preflight("task state snapshot is missing".into()))?;
+    let task = graph
+        .get(task_id)
+        .ok_or_else(|| SliceError::Preflight("task not found".into()))?
+        .task()
+        .clone();
+    task.validate()
+        .map_err(|error| SliceError::Preflight(error.to_string()))?;
+    if !graph
+        .ready_task_ids()
+        .map_err(|error| SliceError::Preflight(error.to_string()))?
+        .contains(task_id)
+    {
+        return Err(SliceError::Preflight(
+            "task is not ready; dependencies must succeed and state must be pending".into(),
+        ));
+    }
+    validate_launch_policy(&task, approvals)?;
+
+    let manager =
+        WorktreeManager::new(&root).map_err(|error| SliceError::Preflight(error.to_string()))?;
+    let base_commit = manager
+        .resolve_base(base_ref)
+        .map_err(|error| SliceError::Preflight(error.to_string()))?;
+    let (worktree, worktree_created) = match manager
+        .inspect(task_id)
+        .map_err(|error| SliceError::Preflight(error.to_string()))?
+    {
+        Some(status) => {
+            if status.is_dirty() {
+                return Err(SliceError::Preflight(format!(
+                    "managed worktree is dirty: {task_id}"
+                )));
+            }
+            if status.operation().is_some() {
+                return Err(SliceError::Preflight(format!(
+                    "managed worktree has an unresolved Git operation: {task_id}"
+                )));
+            }
+            (status, false)
+        }
+        None => {
+            let status = manager
+                .create(&WorktreeSpec::new(task_id.clone(), base_ref))
+                .map_err(|error| SliceError::Preflight(error.to_string()))?;
+            (status, true)
+        }
+    };
+
+    append_worktree_observation(
+        audit_store,
+        &task,
+        &worktree,
+        &base_commit,
+        worktree_created,
+    )?;
+    let execution =
+        execute_process_persisted(&root, task_store, audit_store, task_id, adapter, approvals)?;
+    Ok(ForegroundLaunch {
+        execution,
+        base_commit,
+        worktree,
+        worktree_created,
+    })
+}
+
+fn validate_launch_policy(
+    task: &AgentTask,
+    approvals: &[ApprovalBoundary],
+) -> Result<(), SliceError> {
+    let grants = approvals
+        .iter()
+        .copied()
+        .map(|boundary| ApprovalGrant { boundary })
+        .collect::<Vec<_>>();
+    let engine = PolicyEngine;
+    let request = PolicyRequest {
+        capability: Capability::RunLocalCommands,
+        paths: task.allowed_paths.clone(),
+        approval: None,
+    };
+    if let PolicyDecision::Denied(error) = engine.evaluate(task, &request, &grants) {
+        return Err(SliceError::Preflight(error.to_string()));
+    }
+    for boundary in &task.required_approvals {
+        let request = PolicyRequest {
+            capability: Capability::RunLocalCommands,
+            paths: Vec::new(),
+            approval: Some(*boundary),
+        };
+        if let PolicyDecision::Denied(error) = engine.evaluate(task, &request, &grants) {
+            return Err(SliceError::Preflight(error.to_string()));
+        }
+    }
+    Ok(())
+}
+
+fn append_worktree_observation(
+    audit_store: &mut FileAuditStore,
+    task: &AgentTask,
+    worktree: &WorktreeStatus,
+    base_commit: &str,
+    created: bool,
+) -> Result<(), SliceError> {
+    let sequence = audit_store
+        .records()
+        .last()
+        .map_or(1, |record| record.event().sequence().saturating_add(1));
+    let event = AuditEvent::new(
+        sequence,
+        format!("worktree-observed-{sequence}"),
+        AuditEventKind::WorktreeObserved,
+        "orchestrator",
+        1,
+    )
+    .with_task_id(task.task_id.clone())
+    .with_field("base_commit", base_commit)
+    .with_field("head", worktree.head())
+    .with_field("path", worktree.path().to_string_lossy())
+    .with_field("mode", if created { "created" } else { "reused" });
+    audit_store
+        .append(event)
+        .map_err(|error| SliceError::Preflight(error.to_string()))?;
+    Ok(())
 }
 
 /// Runs one task using file-backed task state and audit persistence.

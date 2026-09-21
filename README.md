@@ -176,6 +176,8 @@ if `.forge/audit.log` is missing or corrupt. 🔏
 The current CLI entry points are:
 
 ```bash
+forge task launch <project-root> <task-id> <absolute-executable> [--base <ref>]
+forge task launch <project-root> <task-id> --profile <profile-id> [--base <ref>]
 forge run <project-root> <task-id> <absolute-executable>
 forge run <project-root> <task-id> --profile <profile-id>
 forge run <project-root> <task-id> <absolute-executable> --interactive
@@ -183,6 +185,13 @@ forge run <project-root> <task-id> --profile <profile-id> --interactive
 forge run <project-root> <task-id> <absolute-executable> --interactive --pty
 forge run <project-root> <task-id> --profile <profile-id> --interactive --pty
 ```
+
+For the simplest real-project foreground pilot, use `forge task launch`. It verifies the ready
+task and approvals, resolves the exact base commit (default `HEAD`), creates or reuses the
+deterministic managed worktree, and runs the existing bounded adapter path. Add `--interactive` or
+`--interactive --pty` for the existing foreground terminal modes. A successful launch remains
+`Running` until you explicitly review and accept it; inspect, integrate, and retire the worktree
+as separate operator actions.
 
 The run path performs policy, task-state, worktree, adapter, gate, audit, and handoff checks around
 the configured local executable. The executable is passed directly as a process argument; shell

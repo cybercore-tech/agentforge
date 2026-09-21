@@ -9,6 +9,39 @@ The direct operator entry point is `forge run <root> <task-id> <absolute-executa
 `.forge/state/tasks.snapshot`, writes `.forge/audit.log`, requires a pre-created managed worktree,
 and leaves successful tasks in `Running` until independently accepted.
 
+P2-M015 adds the real-project foreground pilot, which composes worktree preparation with that same
+persisted execution path:
+
+```bash
+forge task launch /path/to/project P2-M015-T0001 /absolute/path/to/agent
+forge task launch /path/to/project P2-M015-T0001 --profile local-agent --base HEAD
+```
+
+Launch validates readiness, capabilities, task-linked approvals, and adapter configuration before
+creating anything. `--base` is resolved to an exact commit; it defaults to `HEAD`. An existing
+task-owned clean worktree is verified and reused, while dirty, unresolved, ambiguous, or unrelated
+worktrees fail closed. The launch records a `WorktreeObserved` audit event and then delegates to the
+same bounded process adapter used by `forge run`.
+
+The pilot leaves successful tasks in `Running` and leaves the managed worktree available for
+inspection, acceptance, diff review, integration, and explicit retirement. If launch fails, use
+the printed `task inspect` and `worktree inspect` recovery commands; no forced cleanup is attempted.
+The existing `forge run` command remains available when worktree preparation should stay a separate
+operator step.
+
+For a disposable real-project pilot, point the same command at the explicitly installed local
+executable you intend to review. For example, Codex- and Claude-style installations can be run as
+separate tasks or reviewed profiles:
+
+```bash
+forge task launch /tmp/my-project P2-M015-T0001 /home/user/.local/bin/codex --interactive
+forge task launch /tmp/my-project P2-M015-T0002 /home/user/.local/bin/claude --interactive
+```
+
+The executable path is passed directly; replace these illustrative paths with the absolute paths
+reported by the local installation. Keep the project disposable until the task output, diff, audit
+records, acceptance, integration, and retirement steps have all been reviewed.
+
 P2-M012 adds an opt-in cooked foreground interaction mode, and P2-M013 adds an explicit PTY mode:
 
 ```text

@@ -18,7 +18,7 @@ use agentforge_operator::{
     approve_task, approved_boundaries, inspect_task_diff, inspect_tasks, integrate_task,
     parse_approval_boundary, transition_task,
 };
-use agentforge_orchestrator::execute_process_persisted;
+use agentforge_orchestrator::{execute_process_persisted, launch_process_persisted};
 use agentforge_state::{FileTaskStore, TaskStore};
 use agentforge_worktree::{GitOperation, WorktreeManager, WorktreeSpec};
 use std::io::{self, Cursor, Read, Write};
@@ -71,7 +71,7 @@ fn main() -> ExitCode {
 
 fn print_usage() {
     println!(
-        "usage: forge <version|doctor|status|init <root>|intake <root> [--task] [--input-file <path>]|blueprint validate <root>|task create|inspect|diff|approve|integrate|accept|cancel|retry ...|agent list|validate|inspect <root> [<profile>]|run <root> <task-id> <absolute-executable> [--interactive] [--pty]|run <root> <task-id> --profile <profile> [--interactive] [--pty]|daemon start|restart|status|run|stop ...|worktree create|inspect|list|retire ...|hud <root> [--watch [--interval-ms <milliseconds>]]>"
+        "usage: forge <version|doctor|status|init <root>|intake <root> [--task] [--input-file <path>]|blueprint validate <root>|task create|inspect|launch|diff|approve|integrate|accept|cancel|retry ...|agent list|validate|inspect <root> [<profile>]|run <root> <task-id> <absolute-executable> [--interactive] [--pty]|run <root> <task-id> --profile <profile> [--interactive] [--pty]|daemon start|restart|status|run|stop ...|worktree create|inspect|list|retire ...|hud <root> [--watch [--interval-ms <milliseconds>]]>"
     );
 }
 
@@ -1010,6 +1010,7 @@ fn task_command(arguments: Vec<String>) -> ExitCode {
     match arguments.first().map(String::as_str) {
         Some("create") => task_create_command(arguments[1..].to_vec()),
         Some("inspect") => task_inspect_command(&arguments[1..]),
+        Some("launch") => task_launch_command(&arguments[1..]),
         Some("diff") => task_diff_command(&arguments[1..]),
         Some("approve") => task_approve_command(&arguments[1..]),
         Some("integrate") => task_integrate_command(&arguments[1..]),
@@ -1024,10 +1025,196 @@ fn task_command(arguments: Vec<String>) -> ExitCode {
         }
         _ => {
             eprintln!(
-                "task requires: create, inspect, diff, approve, integrate, accept, cancel, or retry"
+                "task requires: create, inspect, launch, diff, approve, integrate, accept, cancel, or retry"
             );
             print_usage();
             ExitCode::from(2)
+        }
+    }
+}
+
+fn task_launch_command(arguments: &[String]) -> ExitCode {
+    if arguments.len() < 3 {
+        eprintln!(
+            "task launch requires: <root> <task-id> <absolute-executable> or --profile <profile> [--base <ref>] [--interactive] [--pty]"
+        );
+        return ExitCode::from(2);
+    }
+
+    let root = std::path::PathBuf::from(&arguments[0]);
+    let task_id = match TaskId::parse(arguments[1].clone()) {
+        Ok(value) => value,
+        Err(error) => {
+            eprintln!("invalid task ID: {error}");
+            return ExitCode::from(2);
+        }
+    };
+    let mut executable: Option<String> = None;
+    let mut profile: Option<String> = None;
+    let mut base_ref = String::from("HEAD");
+    let mut base_supplied = false;
+    let mut interactive = false;
+    let mut pty = false;
+    let mut index = 2;
+    while index < arguments.len() {
+        match arguments[index].as_str() {
+            "--base" => {
+                let Some(value) = arguments.get(index + 1) else {
+                    eprintln!("--base requires a non-empty ref");
+                    return ExitCode::from(2);
+                };
+                if value.is_empty() || value.starts_with('-') {
+                    eprintln!("--base requires a non-empty ref");
+                    return ExitCode::from(2);
+                }
+                if base_supplied {
+                    eprintln!("task launch accepts --base at most once");
+                    return ExitCode::from(2);
+                }
+                base_supplied = true;
+                base_ref = value.clone();
+                index += 2;
+            }
+            "--interactive" => {
+                if interactive {
+                    eprintln!("task launch accepts --interactive at most once");
+                    return ExitCode::from(2);
+                }
+                interactive = true;
+                index += 1;
+            }
+            "--pty" => {
+                if pty {
+                    eprintln!("task launch accepts --pty at most once");
+                    return ExitCode::from(2);
+                }
+                pty = true;
+                index += 1;
+            }
+            "--profile" => {
+                let Some(value) = arguments.get(index + 1) else {
+                    eprintln!("--profile requires a profile ID");
+                    return ExitCode::from(2);
+                };
+                if value.is_empty()
+                    || value.starts_with('-')
+                    || profile.is_some()
+                    || executable.is_some()
+                {
+                    eprintln!("--profile requires one profile ID");
+                    return ExitCode::from(2);
+                }
+                profile = Some(value.clone());
+                index += 2;
+            }
+            value if value.starts_with('-') => {
+                eprintln!("unknown task launch option: {value}");
+                return ExitCode::from(2);
+            }
+            value => {
+                if executable.is_some() || profile.is_some() {
+                    eprintln!("task launch accepts one executable or one --profile");
+                    return ExitCode::from(2);
+                }
+                executable = Some(value.to_owned());
+                index += 1;
+            }
+        }
+    }
+    if pty && !interactive {
+        eprintln!("task launch requires --interactive when --pty is selected");
+        return ExitCode::from(2);
+    }
+    if executable.is_none() && profile.is_none() {
+        eprintln!("task launch requires an executable or --profile <profile>");
+        return ExitCode::from(2);
+    }
+
+    let mut config = if let Some(profile) = profile {
+        match AgentProfileStore::new(&root).load(&profile) {
+            Ok(profile) => profile.adapter_config(),
+            Err(error) => {
+                eprintln!("cannot load agent profile: {error}");
+                return ExitCode::from(2);
+            }
+        }
+    } else {
+        ProcessAdapterConfig::new(
+            "task-launch-process",
+            executable.expect("validated executable"),
+        )
+    };
+    if interactive {
+        config = config.with_interactive();
+    }
+    if pty {
+        config = config.with_pty();
+    }
+    let adapter = match ProcessAdapter::new(config) {
+        Ok(value) => value,
+        Err(error) => {
+            eprintln!("invalid adapter configuration: {error}");
+            return ExitCode::from(2);
+        }
+    };
+
+    let task_store = FileTaskStore::for_project_root(&root);
+    let audit_dir = root.join(".forge");
+    if let Err(error) = std::fs::create_dir_all(&audit_dir) {
+        eprintln!("cannot create audit directory: {error}");
+        return ExitCode::from(1);
+    }
+    let mut audit_store = match FileAuditStore::open(audit_dir.join("audit.log")) {
+        Ok(store) => store,
+        Err(error) => {
+            eprintln!("cannot open audit log: {error}");
+            return ExitCode::from(1);
+        }
+    };
+    let approvals = match approved_boundaries(&root, &task_id) {
+        Ok(value) => value,
+        Err(error) => {
+            eprintln!("cannot verify approvals: {error}");
+            return ExitCode::from(1);
+        }
+    };
+    match launch_process_persisted(
+        &root,
+        &task_store,
+        &mut audit_store,
+        &task_id,
+        &adapter,
+        &approvals,
+        &base_ref,
+    ) {
+        Ok(launch) => {
+            println!(
+                "task {} launched; termination={:?} base={} worktree-created={} path={}",
+                launch.execution.report.task_id(),
+                launch.execution.report.termination(),
+                launch.base_commit,
+                launch.worktree_created,
+                launch.worktree.path().display()
+            );
+            println!(
+                "recovery: inspect with `forge task inspect {} {}` and review with `forge task diff {} {}`",
+                root.display(),
+                task_id,
+                root.display(),
+                task_id
+            );
+            ExitCode::SUCCESS
+        }
+        Err(error) => {
+            eprintln!("task launch failed: {error}");
+            eprintln!(
+                "recovery: inspect with `forge task inspect {} {}` and `forge worktree inspect {} {}`",
+                root.display(),
+                task_id,
+                root.display(),
+                task_id
+            );
+            ExitCode::from(1)
         }
     }
 }

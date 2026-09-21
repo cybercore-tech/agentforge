@@ -48,6 +48,19 @@ forge worktree list /path/to/project
 The manager verifies the repository root, exact base commit, task branch, and managed path. It will
 not adopt an unrelated worktree or silently repair an unsafe state.
 
+For a foreground pilot, `forge task launch` composes those preparation checks with the direct
+persisted process path. It is intentionally not a daemon request and does not change daemon
+serialization or lifecycle behavior:
+
+```bash
+forge task launch /path/to/project P2-M015-T0001 /absolute/path/to/agent --base HEAD
+forge task launch /path/to/project P2-M015-T0001 --profile local-agent
+```
+
+The command creates or verifies the task-owned worktree, records the observation, and then runs one
+foreground task. Acceptance, review, integration, and retirement remain explicit. Use the daemon
+commands below when detached captured execution is preferred.
+
 ## Operate
 
 ```bash

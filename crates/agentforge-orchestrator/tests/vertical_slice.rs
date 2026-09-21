@@ -4,10 +4,10 @@ use agentforge_adapter::{
 };
 use agentforge_audit::FileAuditStore;
 use agentforge_audit::{AuditEvent, AuditEventKind, AuditStore};
-use agentforge_core::agent::{AgentRole, AgentTask, Capability};
+use agentforge_core::agent::{AgentRole, AgentTask, ApprovalBoundary, Capability};
 use agentforge_core::task::{TaskGraph, TaskId, TaskState};
 use agentforge_orchestrator::{
-    SliceError, SliceEvidence, SliceStage, execute_process_persisted, run,
+    SliceError, SliceEvidence, SliceStage, execute_process_persisted, launch_process_persisted, run,
 };
 use agentforge_state::{FileTaskStore, TaskStore};
 use agentforge_worktree::{WorktreeManager, WorktreeSpec};
@@ -257,6 +257,120 @@ fn adapter_failure_persists_failed_state_and_audit_before_returning() {
     assert_eq!(audit_store.records().len(), 3);
     assert_eq!(audit_store.records()[2].event().event_id(), "agent-failed");
     let _ = manager.retire(&task_id);
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn foreground_launch_creates_worktree_and_preserves_failure_evidence() {
+    let root = unique_temp_repo();
+    git(&root, &["init", "-q"]);
+    git(
+        &root,
+        &["config", "user.email", "agentforge@example.invalid"],
+    );
+    git(&root, &["config", "user.name", "AgentForge Test"]);
+    std::fs::write(root.join("README.md"), "fixture\n").unwrap();
+    git(&root, &["add", "README.md"]);
+    git(&root, &["commit", "-qm", "fixture"]);
+    let mut task = AgentTask::new(
+        "P2-M015-T0001",
+        "P2-M015",
+        AgentRole::Implementer,
+        "foreground launch fixture",
+    );
+    task.capabilities = vec![Capability::RunLocalCommands];
+    task.allowed_paths = vec!["README.md".into()];
+    let task_id = TaskId::parse(task.task_id.clone()).unwrap();
+    let graph = TaskGraph::from_tasks([task]).unwrap();
+    let task_store = FileTaskStore::from_path(root.join("tasks.snapshot"));
+    task_store.save(&graph).unwrap();
+    let mut audit_store = FileAuditStore::open(root.join("audit.log")).unwrap();
+
+    let error = launch_process_persisted(
+        &root,
+        &task_store,
+        &mut audit_store,
+        &task_id,
+        &FailingAdapter,
+        &[],
+        "HEAD",
+    )
+    .unwrap_err();
+    assert!(matches!(error, SliceError::Policy(_)));
+    assert_eq!(
+        audit_store.records()[0].event().kind(),
+        AuditEventKind::WorktreeObserved
+    );
+    assert_eq!(
+        audit_store.records()[0]
+            .event()
+            .fields()
+            .get("mode")
+            .map(String::as_str),
+        Some("created")
+    );
+    assert_eq!(
+        task_store
+            .load()
+            .unwrap()
+            .unwrap()
+            .get(&task_id)
+            .unwrap()
+            .state(),
+        TaskState::Failed
+    );
+    let manager = WorktreeManager::new(&root).unwrap();
+    assert!(manager.inspect(&task_id).unwrap().is_some());
+    manager.retire(&task_id).unwrap();
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn foreground_launch_rejects_missing_approval_before_worktree_creation() {
+    let root = unique_temp_repo();
+    git(&root, &["init", "-q"]);
+    git(
+        &root,
+        &["config", "user.email", "agentforge@example.invalid"],
+    );
+    git(&root, &["config", "user.name", "AgentForge Test"]);
+    std::fs::write(root.join("README.md"), "fixture\n").unwrap();
+    git(&root, &["add", "README.md"]);
+    git(&root, &["commit", "-qm", "fixture"]);
+    let mut task = AgentTask::new(
+        "P2-M015-T0002",
+        "P2-M015",
+        AgentRole::Implementer,
+        "approval fixture",
+    );
+    task.capabilities = vec![Capability::RunLocalCommands];
+    task.required_approvals = vec![ApprovalBoundary::ActivateImplementationPlan];
+    let task_id = TaskId::parse(task.task_id.clone()).unwrap();
+    let task_store = FileTaskStore::from_path(root.join("tasks.snapshot"));
+    task_store
+        .save(&TaskGraph::from_tasks([task]).unwrap())
+        .unwrap();
+    let mut audit_store = FileAuditStore::open(root.join("audit.log")).unwrap();
+
+    let error = launch_process_persisted(
+        &root,
+        &task_store,
+        &mut audit_store,
+        &task_id,
+        &FailingAdapter,
+        &[],
+        "HEAD",
+    )
+    .unwrap_err();
+    assert!(matches!(error, SliceError::Preflight(reason) if reason.contains("missing approval")));
+    assert!(
+        WorktreeManager::new(&root)
+            .unwrap()
+            .inspect(&task_id)
+            .unwrap()
+            .is_none()
+    );
+    assert!(audit_store.records().is_empty());
     std::fs::remove_dir_all(root).unwrap();
 }
 
