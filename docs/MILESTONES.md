@@ -53,6 +53,7 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 | P2-M018 | complete | README hardening and in-page reader | README warnings and operator guidance match the current alpha product, the GitHub About link points to Pages, and the public “Read the README” control opens an accessible local dialog with a canonical full-document link. |
 | P2-M019 | complete | Registry identity and distribution policy | Existing crates.io collisions are documented, binary distribution remains authoritative, and future package publication is gated behind a separate naming plan. |
 | P2-M020 | complete | AgentForge platform package identity | The future end-user Cargo package is named `agentforge-platform` while binaries, internal crates, and GitHub release artifacts remain compatible. |
+| P2-M021 | complete | Windows daemon CI reliability | Spawned and foreground daemon lifecycle tests are isolated and the exact cross-platform CI matrix is green. |
 
 ## Phase 1 — multi-agent scheduling and integration
 

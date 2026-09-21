@@ -1,6 +1,6 @@
 # Plan: P2-M021 — Windows daemon CI reliability
 
-Status: Approved
+Status: Complete
 Milestone: P2-M021
 Created: 2026-09-20
 Owner: AgentForge project
@@ -123,8 +123,15 @@ and test-only process cleanup. Worktree, task, audit, and adapter contracts rema
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
+Implementation commit: `97401eb712923acf08c88b0c09a3cc830daad928`
+CI run: `35567104109`
+CI result: green across repository policy, stable, MSRV, CLI smoke, Ubuntu, macOS, and Windows.
+Completed: 2026-09-20
 Notes:
+The repeated Windows cancellations were caused by concurrent foreground daemon lifecycle tests in
+one integration-test process. Each test had a unique repository root, but the Windows runner could
+leave one loopback listener transition in flight while another test thread tore down its listener;
+the spawned restart test consistently completed while the two foreground lifecycle tests hung. The
+test harness now serializes only daemon lifecycle ownership with a standard-library mutex, retains
+all start/status/stop assertions, and leaves unrelated tests parallel. Twenty repeated local
+parallel runs and the exact seven-job CI matrix passed.

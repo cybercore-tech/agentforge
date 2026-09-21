@@ -2,8 +2,14 @@
 
 ## Repository state
 
-- Active milestone: none. P2-M020 — AgentForge platform package identity — is complete.
+- Active milestone: none. P2-M021 — Windows daemon CI reliability — is complete.
 - Active plan: none (`.plans/ACTIVE` is intentionally absent between milestones).
+- P2-M021 isolated the concurrent Windows daemon lifecycle test race without weakening lifecycle
+  assertions. The foreground daemon tests now serialize only their listener ownership inside the
+  test binary; unrelated tests remain parallel.
+- P2-M021 implementation commit: `97401eb712923acf08c88b0c09a3cc830daad928`; exact CI
+  `35567104109` is green across repository policy, stable, MSRV, CLI smoke, Linux, macOS, and
+  Windows. Twenty repeated local parallel daemon-test runs and the full local gate passed.
 - P2-M020 selected `agentforge-platform` as the future end-user Cargo package identity while
   preserving the `forge`/`forged` binaries, internal crates, and GitHub release artifacts.
 - P2-M020 implementation commit: `02cf453ab778c4c2aa9e44d0c83d9378b8ac142e`; exact CI

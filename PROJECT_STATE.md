@@ -11,7 +11,19 @@ Phase 2 — operator experience.
 
 ## Active milestone
 
-No active milestone. P2-M020 — AgentForge platform package identity — is complete.
+No active milestone. P2-M021 — Windows daemon CI reliability — is complete.
+
+P2-M021 isolated the Windows daemon lifecycle integration harness after repeated exact-head CI
+runs showed concurrent foreground daemon tests hanging while the spawned restart test passed. The
+daemon lifecycle assertions remain unchanged; only the test-binary lifecycle ownership is
+serialized.
+
+## P2-M021 completion evidence
+
+- Approved plan: `.plans/P2-M021-windows-daemon-ci-reliability.plan.md`.
+- Implementation commit: `97401eb712923acf08c88b0c09a3cc830daad928`.
+- Exact implementation CI: `35567104109` — all seven jobs green, including Windows.
+- Twenty repeated local parallel daemon-test runs and the full local gate passed.
 
 The end-user workspace package is named `agentforge-platform`. All workspace crates remain private
 (`publish = false`); GitHub binary archives, `forge`/`forged`, internal crate names, and runtime
@@ -73,6 +85,7 @@ publication.
 - `P2-M016` — Daemon task-launch parity.
 - `P2-M017` — AgentForge GitHub Pages.
 - `P2-M018` — README hardening and in-page reader.
+- `P2-M021` — Windows daemon CI reliability.
 
 ## P2-M018 completion evidence
 
