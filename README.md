@@ -12,6 +12,9 @@ CI observations, audit records, and human decisions. 🧭
 
 [![CI](https://github.com/darkstardevx/agentforge/actions/workflows/ci.yml/badge.svg)](https://github.com/darkstardevx/agentforge/actions/workflows/ci.yml)
 [![Rust 1.85+](https://img.shields.io/badge/rust-1.85%2B-orange?logo=rust)](https://www.rust-lang.org/)
+[![Project site](https://img.shields.io/badge/project%20site-AgentForge-08111f?logo=github)](https://darkstardevx.github.io/agentforge/)
+
+**[Visit the AgentForge project site →](https://darkstardevx.github.io/agentforge/)**
 
 ## ⚠️ Pre-release warning
 

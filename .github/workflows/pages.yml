@@ -1,0 +1,54 @@
+name: AgentForge Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Pages artifact
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pages: read
+    steps:
+      - name: Check out exact head
+        uses: actions/checkout@v7
+
+      - name: Validate static site boundary
+        run: |
+          test -s site/index.html
+          test -s site/styles.css
+          grep -Fq 'id="main-content"' site/index.html
+          grep -Fq 'AgentForge' site/index.html
+          grep -Fq 'pre-release' site/index.html
+          grep -Fq 'prefers-reduced-motion' site/styles.css
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    name: Deploy Pages
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: \${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
