@@ -11,11 +11,11 @@ Phase 2 — operator experience.
 
 ## Active milestone
 
-None. P2-M019 — Registry identity and distribution policy is complete. The current workspace
-remains private (`publish = false`) and is distributed through GitHub binary archives or local
-source builds. The crates.io names `agentforge`, `agentforge-core`, and `agentforge-cli` are
-occupied by unrelated published packages; any future package publication or rename requires a new
-approved plan.
+P2-M020 — AgentForge platform package identity.
+
+The end-user workspace package is migrating from `agentforge-cli` to the selected future identity
+`agentforge-platform`. All workspace crates remain private (`publish = false`); GitHub binary
+archives, `forge`/`forged`, internal crate names, and runtime behavior remain unchanged.
 
 ## P2-M019 completion evidence
 

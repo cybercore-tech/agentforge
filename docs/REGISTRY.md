@@ -27,16 +27,23 @@ names are global and cannot be reused by this project while those packages exist
 - Project site: `https://darkstardevx.github.io/agentforge/`
 - CLI binary: `forge`
 - Optional local daemon binary: `forged`
+- Selected future Cargo package: `agentforge-platform` (not yet published)
 - Workspace crates: internal implementation units, not public crates at this time
 
 The repository, plans, task state, approvals, audit records, worktrees, gates, and exact-head CI
 evidence remain authoritative. The Pages site is an informational entry point, not a package
 registry.
 
+The identity migration does not make the package publishable by itself. As of this milestone,
+`cargo package -p agentforge-platform --offline` fails closed because its private path dependencies
+do not yet carry registry version requirements. That is an intentional blocker for a future
+publishability plan, not a reason to publish placeholder packages.
+
 ## Future crates.io gate
 
-Publishing a Rust package is intentionally deferred. Before any package becomes public, a new
-approved plan must:
+Publishing a Rust package is intentionally deferred. P2-M020 selects `agentforge-platform` as the
+future end-user package identity, but it remains private until a new publishability plan resolves
+its private path-dependency graph. Before any package becomes public, an approved plan must:
 
 1. inventory the then-current crates.io namespace with fresh `cargo search`/`cargo info` evidence;
 2. select names that are globally available and clearly distinguishable from unrelated projects;

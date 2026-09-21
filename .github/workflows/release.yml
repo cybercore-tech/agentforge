@@ -54,7 +54,7 @@ jobs:
           test "${tag_version}" = "${workspace_version}"
 
       - name: Build release binaries
-        run: cargo build --release --locked --target ${{ matrix.target }} -p agentforge-cli -p agentforge-daemon
+        run: cargo build --release --locked --target ${{ matrix.target }} -p agentforge-platform -p agentforge-daemon
 
       - name: Package release archive
         shell: bash

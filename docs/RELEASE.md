@@ -10,6 +10,9 @@ binaries. AgentForge does not currently publish crates to crates.io. The names `
 `cargo add agentforge` is not a supported installation path and must not be added to release
 instructions.
 
+The selected future end-user package identity is `agentforge-platform`. It is not published yet;
+the current source-install path is still `cargo install --path crates/agentforge-cli --locked`.
+
 Any future crates.io package requires a separate approved registry-identity plan with fresh name
 availability evidence, an explicit package naming scheme, dependency publication order, and
 verification of the resulting install instructions. Do not rename or publish workspace crates as

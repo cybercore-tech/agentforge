@@ -21,22 +21,6 @@ name = "agentforge-ci"
 version = "0.0.1"
 
 [[package]]
-name = "agentforge-cli"
-version = "0.0.1"
-dependencies = [
- "agentforge-adapter",
- "agentforge-audit",
- "agentforge-core",
- "agentforge-daemon",
- "agentforge-hud",
- "agentforge-intake",
- "agentforge-operator",
- "agentforge-orchestrator",
- "agentforge-state",
- "agentforge-worktree",
-]
-
-[[package]]
 name = "agentforge-core"
 version = "0.0.1"
 
@@ -93,6 +77,22 @@ dependencies = [
  "agentforge-audit",
  "agentforge-core",
  "agentforge-policy",
+ "agentforge-state",
+ "agentforge-worktree",
+]
+
+[[package]]
+name = "agentforge-platform"
+version = "0.0.1"
+dependencies = [
+ "agentforge-adapter",
+ "agentforge-audit",
+ "agentforge-core",
+ "agentforge-daemon",
+ "agentforge-hud",
+ "agentforge-intake",
+ "agentforge-operator",
+ "agentforge-orchestrator",
  "agentforge-state",
  "agentforge-worktree",
 ]

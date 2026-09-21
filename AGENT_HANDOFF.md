@@ -2,8 +2,10 @@
 
 ## Repository state
 
-- Active milestone: none; P2-M019 — Registry identity and distribution policy is complete.
-- Active plan: none (`.plans/ACTIVE` is intentionally absent after closure).
+- Active milestone: P2-M020 — AgentForge platform package identity.
+- Active plan: `.plans/P2-M020-agentforge-platform-package-identity.plan.md` (Approved).
+- P2-M020 selects `agentforge-platform` as the future end-user Cargo package identity while
+  preserving the `forge`/`forged` binaries, internal crates, and GitHub release artifacts.
 - P2-M019 implementation commit: `caa37debdd89ea6035723749b52db7a02fba081d`; exact CI
   `35559168897` is green across repository policy, stable, MSRV, CLI smoke, Ubuntu, macOS, and
   Windows.

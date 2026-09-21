@@ -97,10 +97,10 @@ jobs:
           rustup default stable
 
       - name: forge version
-        run: cargo run -p agentforge-cli --bin forge --locked -- version
+        run: cargo run -p agentforge-platform --bin forge --locked -- version
 
       - name: forge doctor
-        run: cargo run -p agentforge-cli --bin forge --locked -- doctor
+        run: cargo run -p agentforge-platform --bin forge --locked -- doctor
 
       - name: forged version
         run: cargo run -p agentforge-daemon --locked -- --version
@@ -138,4 +138,4 @@ jobs:
           --exclude agentforge-orchestrator
 
       - name: forge smoke on ${{ matrix.os }}
-        run: cargo run -p agentforge-cli --bin forge --locked -- version
+        run: cargo run -p agentforge-platform --bin forge --locked -- version

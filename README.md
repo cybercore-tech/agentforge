@@ -148,9 +148,9 @@ cargo test --workspace --locked
 Run the CLI from the checkout:
 
 ```bash
-cargo run -p agentforge-cli --bin forge -- version
-cargo run -p agentforge-cli --bin forge -- doctor
-cargo run -p agentforge-cli --bin forge -- status
+cargo run -p agentforge-platform --bin forge -- version
+cargo run -p agentforge-platform --bin forge -- doctor
+cargo run -p agentforge-platform --bin forge -- status
 ```
 
 For a local binary installation, build in release mode and place the binaries on your `PATH`:
@@ -160,7 +160,8 @@ cargo install --path crates/agentforge-cli --locked
 cargo install --path crates/agentforge-daemon --locked
 ```
 
-This installs `forge` and `forged` from the local checkout. 📦
+This installs `forge` and `forged` from the local checkout. The CLI package identity is
+`agentforge-platform`; its source directory remains `crates/agentforge-cli` for now. 📦
 
 These are local source installs, not crates.io packages. Verify the repository URL before running
 any install command; similarly named crates and projects are not affiliated with this repository.
@@ -428,7 +429,7 @@ from the repository and its audit evidence, the task is not ready to ship.
 | `crates/agentforge-scheduler` | Deterministic batches and serialized integration boundaries |
 | `crates/agentforge-hud` | Bounded read-only operator projections |
 | `crates/agentforge-operator` | Explicit task inspection, approvals, and lifecycle actions |
-| `crates/agentforge-cli` | `forge` command-line interface |
+| `crates/agentforge-cli` | `agentforge-platform` package and `forge` command-line interface |
 | `crates/agentforge-daemon` | `forged` loopback-only local daemon and protocol |
 | `.plans/` | Plan and milestone control records |
 | `docs/` | Contracts, architecture notes, ADRs, and operator guidance |
