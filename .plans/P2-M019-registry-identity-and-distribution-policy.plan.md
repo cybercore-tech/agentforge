@@ -69,15 +69,15 @@ that safe state while the project's public package names are decided deliberatel
 
 ## Acceptance criteria
 
-- [ ] The occupied crates.io names and unrelated ownership are clearly documented with a dated
+- [x] The occupied crates.io names and unrelated ownership are clearly documented with a dated
       evidence record and no implied affiliation.
-- [ ] A user cannot mistake `cargo add agentforge` for the official AgentForge installation path.
-- [ ] GitHub release archives and local source installation remain the only documented supported
+- [x] A user cannot mistake `cargo add agentforge` for the official AgentForge installation path.
+- [x] GitHub release archives and local source installation remain the only documented supported
       installation channels in this alpha phase.
-- [ ] All workspace crates remain private and no publication or package rename occurs in this
+- [x] All workspace crates remain private and no publication or package rename occurs in this
       milestone.
-- [ ] A future crates.io naming/publication change is explicitly gated behind a new approved plan.
-- [ ] Full local validation and exact-SHA CI evidence are recorded in the completion record.
+- [x] A future crates.io naming/publication change is explicitly gated behind a new approved plan.
+- [x] Full local validation and exact-SHA CI evidence are recorded in the completion record.
 
 ## Implementation sequence
 
