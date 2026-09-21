@@ -67,6 +67,8 @@ standalone service remains staging-ready groundwork, not a production deployment
   in a clean local checkout and remains operator-runnable via `npm run smoke:local`.
 - No Cloudflare deployment, production credential, real account ID, or remote command authority was
   used; Mission Control remains observation-only and AgentForge remains the local authority.
+- AgentForge closure commit: `571c8d26724b479ca2e9e0019ca4a31b240d8744`; exact CI `35621709316`
+  and Pages deployment `35621709313` are green for that closure SHA.
 
 P2-M022 prepared `agentforge-platform` for a future registry decision without publishing anything.
 The package now has complete metadata, explicit registry version requirements beside local paths,

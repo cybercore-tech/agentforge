@@ -32,6 +32,8 @@
   protocol and negative-path tests, explicit staging/production boundaries, a staging-only manual
   dry-run workflow, and deployment/recovery/security documentation. No Cloudflare deployment,
   production credential, real account ID, or remote command authority was used.
+- AgentForge closure commit `571c8d26724b479ca2e9e0019ca4a31b240d8744` has exact CI
+  `35621709316` and Pages deployment `35621709313` green.
 - P2-M022 prepared the `agentforge-platform` package without changing the private registry
   boundary. Metadata, license inclusion, explicit registry version requirements, and the opt-in
   offline archive preflight are now in place.
