@@ -7,7 +7,7 @@ It treats models as replaceable workers—not as the source of truth. The durabl
 the repository: plans, task contracts, permissions, isolated worktrees, quality-gate evidence,
 CI observations, audit records, and human decisions. 🧭
 
-> **Status:** `0.0.1-alpha` · P2-M019 registry identity work active · pre-release,
+> **Status:** `0.0.1-alpha` · P2-M019 registry identity policy complete · pre-release,
 > incomplete, and not release-ready
 
 [![CI](https://github.com/darkstardevx/agentforge/actions/workflows/ci.yml/badge.svg)](https://github.com/darkstardevx/agentforge/actions/workflows/ci.yml)
