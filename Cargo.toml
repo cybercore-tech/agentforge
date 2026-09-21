@@ -26,6 +26,7 @@ rust-version = "1.85"
 authors = ["AgentForge contributors"]
 description = "Local-first, model-agnostic agentic software-development environment"
 repository = "https://github.com/darkstardevx/agentforge"
+homepage = "https://darkstardevx.github.io/agentforge/"
 readme = "README.md"
 license = "MIT"
 

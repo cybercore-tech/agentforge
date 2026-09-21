@@ -18,6 +18,17 @@ availability evidence, an explicit package naming scheme, dependency publication
 verification of the resulting install instructions. Do not rename or publish workspace crates as
 part of an ordinary binary release.
 
+Before discussing publication, maintainers may run the offline package-shape check from the
+repository root:
+
+```bash
+CARGO_TARGET_DIR=/tmp/agentforge-cargo-target ./scripts/package-preflight
+```
+
+This uses the checked-in `.cargo/registry-preflight.toml` only to resolve private workspace
+dependencies locally while constructing an archive. It does not contact crates.io or publish
+anything, and a passing archive check does not authorize registry publication.
+
 ## Version policy
 
 The workspace version is the release version. Tags must use `vMAJOR.MINOR.PATCH` and must match the

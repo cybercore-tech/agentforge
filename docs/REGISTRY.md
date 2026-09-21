@@ -34,16 +34,18 @@ The repository, plans, task state, approvals, audit records, worktrees, gates, a
 evidence remain authoritative. The Pages site is an informational entry point, not a package
 registry.
 
-The identity migration does not make the package publishable by itself. As of this milestone,
-`cargo package -p agentforge-platform --offline` fails closed because its private path dependencies
-do not yet carry registry version requirements. That is an intentional blocker for a future
-publishability plan, not a reason to publish placeholder packages.
+The identity migration did not make the package publishable by itself. P2-M022 now supplies
+complete package metadata and explicit registry version requirements alongside the local paths.
+The opt-in `./scripts/package-preflight` command builds and inspects a package archive using
+`.cargo/registry-preflight.toml`, a local-only Cargo patch that resolves the still-private
+workspace crates without contacting crates.io. A normal package resolution without that fixture
+continues to fail closed because those internal packages are not published.
 
 ## Future crates.io gate
 
 Publishing a Rust package is intentionally deferred. P2-M020 selects `agentforge-platform` as the
-future end-user package identity, but it remains private until a new publishability plan resolves
-its private path-dependency graph. Before any package becomes public, an approved plan must:
+future end-user package identity, and P2-M022 prepares its metadata without changing that private
+boundary. Before any package becomes public, an approved plan must:
 
 1. inventory the then-current crates.io namespace with fresh `cargo search`/`cargo info` evidence;
 2. select names that are globally available and clearly distinguishable from unrelated projects;
@@ -52,6 +54,10 @@ its private path-dependency graph. Before any package becomes public, an approve
 4. define package metadata, dependency publication order, versioning, README links, and release
    verification; and
 5. update this policy before the first `cargo publish`.
+
+The local preflight is not publication evidence. It proves archive shape and manifest metadata only;
+it intentionally does not reserve a name, upload a package, or claim that the private dependency
+graph is available from the registry.
 
 No owner-transfer request, package yank, or attempt to impersonate an existing project is part of
 that future work. Until the gate is completed, use the GitHub release artifacts or build from the

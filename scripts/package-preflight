@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+target_dir="${CARGO_TARGET_DIR:-/tmp/agentforge-cargo-target}"
+version="$(cargo metadata --no-deps --format-version 1 | python -c 'import json,sys; data=json.load(sys.stdin); print(next(package["version"] for package in data["packages"] if package["name"] == "agentforge-platform"))')"
+archive="$target_dir/package/agentforge-platform-${version}.crate"
+
+CARGO_TARGET_DIR="$target_dir" cargo package \
+  -p agentforge-platform \
+  --allow-dirty \
+  --no-verify \
+  --offline \
+  --config .cargo/registry-preflight.toml
+
+test -f "$archive"
+tar -tzf "$archive" >"$target_dir/package/agentforge-platform-${version}.contents"
+
+grep -Fx "agentforge-platform-${version}/Cargo.toml" "$target_dir/package/agentforge-platform-${version}.contents"
+grep -Fx "agentforge-platform-${version}/README.md" "$target_dir/package/agentforge-platform-${version}.contents"
+grep -Fx "agentforge-platform-${version}/LICENSE" "$target_dir/package/agentforge-platform-${version}.contents"
+grep -Fx "agentforge-platform-${version}/src/main.rs" "$target_dir/package/agentforge-platform-${version}.contents"
+
+if grep -qE '(^|/)\.forge(/|$)' "$target_dir/package/agentforge-platform-${version}.contents"; then
+  echo "package contains project-local .forge state" >&2
+  exit 1
+fi
+
+echo "package preflight passed: $archive"

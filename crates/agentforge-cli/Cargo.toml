@@ -4,23 +4,32 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
+description.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+license-file = "../../LICENSE"
 publish = false
+
+keywords = ["agent", "automation", "orchestration", "development", "cli"]
+categories = ["command-line-utilities", "development-tools"]
+include = ["LICENSE", "README.md", "src/**", "tests/**"]
 
 [[bin]]
 name = "forge"
 path = "src/main.rs"
 
 [dependencies]
-agentforge-core = { path = "../agentforge-core" }
-agentforge-adapter = { path = "../agentforge-adapter" }
-agentforge-audit = { path = "../agentforge-audit" }
-agentforge-daemon = { path = "../agentforge-daemon" }
-agentforge-intake = { path = "../agentforge-intake" }
-agentforge-hud = { path = "../agentforge-hud" }
-agentforge-orchestrator = { path = "../agentforge-orchestrator" }
-agentforge-operator = { path = "../agentforge-operator" }
-agentforge-state = { path = "../agentforge-state" }
-agentforge-worktree = { path = "../agentforge-worktree" }
+agentforge-core = { path = "../agentforge-core", version = "0.0.1" }
+agentforge-adapter = { path = "../agentforge-adapter", version = "0.0.1" }
+agentforge-audit = { path = "../agentforge-audit", version = "0.0.1" }
+agentforge-daemon = { path = "../agentforge-daemon", version = "0.0.1" }
+agentforge-intake = { path = "../agentforge-intake", version = "0.0.1" }
+agentforge-hud = { path = "../agentforge-hud", version = "0.0.1" }
+agentforge-orchestrator = { path = "../agentforge-orchestrator", version = "0.0.1" }
+agentforge-operator = { path = "../agentforge-operator", version = "0.0.1" }
+agentforge-state = { path = "../agentforge-state", version = "0.0.1" }
+agentforge-worktree = { path = "../agentforge-worktree", version = "0.0.1" }
 
 [lints]
 workspace = true
