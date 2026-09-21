@@ -54,6 +54,7 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 | P2-M019 | complete | Registry identity and distribution policy | Existing crates.io collisions are documented, binary distribution remains authoritative, and future package publication is gated behind a separate naming plan. |
 | P2-M020 | complete | AgentForge platform package identity | The future end-user Cargo package is named `agentforge-platform` while binaries, internal crates, and GitHub release artifacts remain compatible. |
 | P2-M021 | complete | Windows daemon CI reliability | Spawned and foreground daemon lifecycle tests are isolated and the exact cross-platform CI matrix is green. |
+| P2-M022 | complete | Cargo publishability preparation | The future platform package has registry-aware metadata and an offline archive preflight while all crates remain private. |
 
 ## Phase 1 — multi-agent scheduling and integration
 

@@ -2,8 +2,16 @@
 
 ## Repository state
 
-- Active milestone: none. P2-M021 — Windows daemon CI reliability — is complete.
+- Active milestone: none. P2-M022 — Cargo publishability preparation — is complete.
 - Active plan: none (`.plans/ACTIVE` is intentionally absent between milestones).
+- P2-M022 prepared the `agentforge-platform` package without changing the private registry
+  boundary. Metadata, license inclusion, explicit registry version requirements, and the opt-in
+  offline archive preflight are now in place.
+- P2-M022 plan-boundary amendment: `00e7b5c`.
+- P2-M022 implementation commit: `5027f3b7d289d4efb07bbd6d768062ea82632147`; exact CI
+  `35569143760` is green across repository policy, stable, MSRV, CLI smoke, Linux, macOS, and
+  Windows. The package preflight produced and inspected a 16-file archive; normal offline registry
+  resolution still fails closed because internal crates remain unpublished.
 - P2-M021 isolated the concurrent Windows daemon lifecycle test race without weakening lifecycle
   assertions. The foreground daemon tests now serialize only their listener ownership inside the
   test binary; unrelated tests remain parallel.

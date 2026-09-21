@@ -1,6 +1,6 @@
 # Plan: P2-M022 — Cargo publishability preparation
 
-Status: Approved
+Status: Complete
 Milestone: P2-M022
 Created: 2026-09-20
 Owner: AgentForge project
@@ -129,8 +129,13 @@ daemon, worktree, task, audit, and agent contracts are not.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
+Implementation commit: `5027f3b7d289d4efb07bbd6d768062ea82632147`
+CI run: `35569143760`
+CI result: green across repository policy, stable, MSRV, CLI smoke, Ubuntu, macOS, and Windows.
+Completed: 2026-09-20
 Notes:
+`agentforge-platform` now exposes complete package metadata, includes the MIT license in its
+archive, and declares explicit registry version requirements alongside local paths. The opt-in
+`CARGO_TARGET_DIR=/tmp/agentforge-cargo-target ./scripts/package-preflight` command builds and
+inspects a 16-file archive using the local-only Cargo patch fixture. A normal offline package check
+still fails closed because the internal crates are unpublished; no registry state was changed.

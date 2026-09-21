@@ -11,7 +11,21 @@ Phase 2 — operator experience.
 
 ## Active milestone
 
-No active milestone. P2-M021 — Windows daemon CI reliability — is complete.
+No active milestone. P2-M022 — Cargo publishability preparation — is complete.
+
+P2-M022 prepared `agentforge-platform` for a future registry decision without publishing anything.
+The package now has complete metadata, explicit registry version requirements beside local paths,
+and an opt-in offline archive preflight. Internal crates remain private; normal registry resolution
+continues to fail closed until a separate approved publication-order decision.
+
+## P2-M022 completion evidence
+
+- Approved plan: `.plans/P2-M022-cargo-publishability-preparation.plan.md`.
+- Plan-boundary amendment: `00e7b5c`.
+- Implementation commit: `5027f3b7d289d4efb07bbd6d768062ea82632147`.
+- Exact implementation CI: `35569143760` — all seven jobs green, including Windows.
+- Package preflight: 16-file `agentforge-platform-0.0.1` archive created and inspected locally.
+- Normal offline package resolution remains intentionally blocked by unpublished internal crates.
 
 P2-M021 isolated the Windows daemon lifecycle integration harness after repeated exact-head CI
 runs showed concurrent foreground daemon tests hanging while the spawned restart test passed. The
@@ -86,6 +100,7 @@ publication.
 - `P2-M017` — AgentForge GitHub Pages.
 - `P2-M018` — README hardening and in-page reader.
 - `P2-M021` — Windows daemon CI reliability.
+- `P2-M022` — Cargo publishability preparation.
 
 ## P2-M018 completion evidence
 
