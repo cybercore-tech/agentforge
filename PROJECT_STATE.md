@@ -59,6 +59,8 @@ identifies the next bounded need.
   CLI smoke, Ubuntu, macOS, and Windows.
 - Exact closure Pages deployment: `35553972643` — artifact validation and deployment green for the
   same closure SHA.
+- Pages workflow repair: `7d2b45b`; exact CI `35554310599` and Pages deployment `35554310590` are
+  green, with the deployment environment URL expression validated on the repaired SHA.
 - The public site is live at `https://darkstardevx.github.io/agentforge/`. It is dependency-free,
   responsive, keyboard-accessible, reduced-motion aware, and keeps the alpha/pre-release warning
   visible. The repository and its durable evidence remain authoritative.

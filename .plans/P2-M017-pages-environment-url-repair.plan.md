@@ -32,7 +32,18 @@ valid HTTPS URL without changing the published site or deployment authority.
 
 ## Acceptance criteria
 
-- [ ] The workflow contains the native GitHub expression and no literal backslash.
-- [ ] Local gate passes.
-- [ ] Exact CI and Pages deployment are green for the repaired SHA.
-- [ ] Repair evidence is recorded and the active pointer is removed.
+- [x] The workflow contains the native GitHub expression and no literal backslash.
+- [x] Local gate passes.
+- [x] Exact CI and Pages deployment are green for the repaired SHA.
+- [x] Repair evidence is recorded and the active pointer is removed.
+
+## Completion record
+
+Repair commit: `7d2b45b`.
+Exact repair CI: `35554310599` — all seven jobs green across repository policy, stable, MSRV,
+CLI smoke, Ubuntu, macOS, and Windows.
+Exact repair Pages deployment: `35554310590` — artifact validation and deployment green with a
+valid environment URL for the repaired SHA.
+Completed: 2026-09-21
+Notes: The repair removed only the accidental literal backslash from the Pages environment URL
+expression; page content, permissions, and deployment source were unchanged.

@@ -20,6 +20,8 @@
   the public site is live at `https://darkstardevx.github.io/agentforge/`.
 - P2-M017 closure commit: `96e02c3`; exact closure CI `35553972640` and Pages deployment
   `35553972643` are green for that exact closure SHA.
+- P2-M017 Pages workflow repair: `7d2b45b`; exact CI `35554310599` and Pages deployment
+  `35554310590` are green, and the deployment environment URL is now a valid GitHub expression.
 - P2-M017 plan: `.plans/P2-M017-agentforge-github-pages.plan.md` — completed with the static
   forge-rail landing page, bounded Pages workflow, ADR, README discovery link, and preserved mockup.
 - P2-M015 implementation commit: `8992da820162e3bd410841dd8eeddd8e5f04a935`; exact CI
