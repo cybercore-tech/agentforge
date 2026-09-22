@@ -11,8 +11,22 @@ Phase 4 — remote workers and distributed execution.
 
 ## Active milestone
 
-No active milestone. P4-M002 — Durable remote-worker lease state — is complete. The remote-worker
-boundary remains transport-neutral and does not provide remote execution authority.
+No active milestone. P4-M003 — Deterministic remote dispatch planning — is complete. The
+remote-worker boundary remains transport-neutral and does not provide remote execution authority.
+
+## P4-M003 completion evidence
+
+- Approved plan: `.plans/P4-M003-remote-dispatch-planning.plan.md`.
+- Implementation commit: `ba06cc0c77c187c4ca63f8735f3e507603e4d6af`.
+- Local `./scripts/gate.sh full` passed for implementation and closure checkpoints, including
+  formatting, repository validation, plan policy, workspace Clippy, tests, and documentation tests.
+- `agentforge-scheduler::plan_remote_dispatch` now provides canonical task/worker ordering,
+  readiness and path-ownership checks, explicit expiry observation, capacity-aware assignment,
+  lease-generation evidence, and all-or-nothing lease-book mutation.
+- Eight focused scheduler tests cover deterministic assignment, readiness, conflicts, capacity,
+  expiry/reclaim, generation advancement, duplicate inputs, and failure atomicity.
+- No network, process, daemon, CLI, authentication, persistence, cloud mutation, or remote
+  execution authority was introduced. No remote CI run was requested.
 
 ## P4-M002 completion evidence
 

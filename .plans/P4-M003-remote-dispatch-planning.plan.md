@@ -1,6 +1,6 @@
 # Plan: P4-M003 — Deterministic remote dispatch planning
 
-Status: Approved
+Status: Complete
 Milestone: P4-M003
 Created: 2026-09-21
 Owner: AgentForge project
@@ -161,8 +161,13 @@ ADR-0036 will record why planning is deterministic and why lease mutation is all
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
-Notes:
+Implementation commit: `ba06cc0c77c187c4ca63f8735f3e507603e4d6af`
+CI run: Not run; no remote push was requested.
+CI result: Local `./scripts/gate.sh full` passed for implementation and closure checkpoints.
+Completed: 2026-09-21
+Notes: Added deterministic `agentforge-scheduler::plan_remote_dispatch` with typed requests,
+assignments, and batches. Planning orders tasks/workers canonically, validates readiness and path
+ownership, expires leases at caller-supplied time, uses core lease invariants, and commits only on
+full success. Eight focused tests cover determinism, readiness, path conflicts, capacity,
+generation advancement, duplicate inputs, expiry, and all-or-nothing failure. No transport,
+process, daemon, CLI, persistence, or remote execution authority was added.

@@ -2,9 +2,16 @@
 
 ## Repository state
 
-- Active milestone: none. P4-M002 — Durable remote-worker lease state — is complete; the
+- Active milestone: none. P4-M003 — Deterministic remote dispatch planning — is complete; the
   remote-worker boundary remains transport-neutral and does not provide remote execution authority.
 - Active plan: none (`.plans/ACTIVE` is intentionally absent between milestones).
+- P4-M003 implementation commit: `ba06cc0c77c187c4ca63f8735f3e507603e4d6af`; local
+  `./scripts/gate.sh full` passed for implementation and closure checkpoints.
+- P4-M003 adds `agentforge-scheduler::plan_remote_dispatch` with canonical task/worker ordering,
+  readiness/path checks, explicit expiry, lease-generation evidence, worker-capacity enforcement,
+  and all-or-nothing lease-book mutation. Eight focused scheduler tests pass. No network,
+  process, daemon, CLI, authentication, persistence, cloud mutation, or remote execution authority
+  was added; no remote CI run was requested.
 - P4-M002 implementation commit: `82626529ff5cdb6ae0d63aeafa43c2fa0490a143`; local
   `./scripts/gate.sh full` passed for implementation and closure checkpoints.
 - P4-M002 adds validated lease restoration and deterministic lease iteration in core plus a separate
