@@ -1,6 +1,6 @@
 # Plan: P4-M003 — Deterministic remote dispatch planning
 
-Status: Draft
+Status: Approved
 Milestone: P4-M003
 Created: 2026-09-21
 Owner: AgentForge project
