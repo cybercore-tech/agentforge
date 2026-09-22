@@ -71,6 +71,7 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 | --- | --- | --- | --- |
 | P4-M001 | complete | Remote worker contract and lease foundation | A versioned, transport-neutral worker descriptor and deterministic fail-closed task-lease state machine exist without network or remote execution authority. |
 | P4-M002 | complete | Durable remote-worker lease state | A separate checksummed lease snapshot restores ownership, generations, expiry, and terminal state across restart, with explicit caller-supplied expiry recovery and no transport authority. |
+| P4-M003 | in progress | Deterministic remote dispatch planning | Ready tasks can be assigned to supplied workers in canonical order with path, capacity, lease-generation, and all-or-nothing mutation guarantees, without transport or execution authority. |
 
 ## Phase 1 — multi-agent scheduling and integration
 

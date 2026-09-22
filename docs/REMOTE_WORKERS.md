@@ -1,9 +1,9 @@
 # Remote workers
 
 P4-M001 establishes the domain contract needed before AgentForge can support distributed
-execution. P4-M002 adds durable local lease state. The contract remains transport-neutral and
-lives in `agentforge-core::remote`; it does not open a network connection or grant a cloud service
-authority over a local project.
+execution. P4-M002 adds durable local lease state, and P4-M003 adds deterministic local dispatch
+planning. The contract remains transport-neutral and lives in `agentforge-core::remote`; it does
+not open a network connection or grant a cloud service authority over a local project.
 
 ## Worker descriptor
 
@@ -84,3 +84,22 @@ The initial API is exposed from `agentforge_core::remote`:
 - `LeaseStore` and `FileLeaseStore` for the separate durable lease snapshot.
 
 All invalid values fail closed with `RemoteWorkerError` before lease state changes.
+
+## Local dispatch planning
+
+`agentforge_scheduler::plan_remote_dispatch` is the local admission seam between ready task
+records and remote-worker leases. The caller supplies worker descriptors, lease requests, the
+current `LeaseBook`, and `observed_at_ms`. The planner then:
+
+1. validates readiness, duplicate identities, and requested path ownership;
+2. orders tasks by task ID and workers by worker ID;
+3. expires due leases using only the supplied observation time;
+4. uses `LeaseBook::grant` to enforce worker capacity, task ownership, lease windows, and
+   generations; and
+5. commits the cloned lease book only after every request succeeds.
+
+The returned assignment evidence identifies the task, worker, lease, and generation. A capacity,
+conflict, readiness, or lease failure leaves the caller's original lease book unchanged. The
+planner does not start a process, persist state automatically, contact a worker, or infer remote
+identity from reachability. A caller may persist the committed book with `FileLeaseStore` after a
+successful decision.
