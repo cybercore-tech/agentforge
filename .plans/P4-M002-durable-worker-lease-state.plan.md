@@ -1,6 +1,6 @@
 # Plan: P4-M002 — Durable remote-worker lease state
 
-Status: Draft
+Status: Approved
 Milestone: P4-M002
 Created: 2026-09-21
 Owner: AgentForge project
