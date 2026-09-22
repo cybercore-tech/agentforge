@@ -4,7 +4,12 @@
 //! remain owned by agentforge-core.
 
 use agentforge_core::agent::{AgentRole, AgentTask, ApprovalBoundary, Capability};
-use agentforge_core::task::{TaskGraph, TaskGraphError, TaskRecord, TaskState};
+use agentforge_core::remote::{
+    LeaseBook, LeaseId, LeaseState, RemoteWorkerError, RemoteWorkerId, TaskLease,
+};
+use agentforge_core::task::{
+    TaskGraph, TaskGraphError, TaskId, TaskIdError, TaskRecord, TaskState,
+};
 use std::fmt;
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
@@ -12,11 +17,13 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 const MAGIC: &[u8; 8] = b"AFGST01\0";
+const LEASE_MAGIC: &[u8; 8] = b"AFGLS01\0";
 const HEADER_BYTES: usize = 18;
 const CHECKSUM_BYTES: usize = 8;
 const MAX_SNAPSHOT_BYTES: usize = 64 * 1024 * 1024;
 const MAX_STRING_BYTES: usize = 1024 * 1024;
 const MAX_TASKS: usize = 100_000;
+const MAX_LEASES: usize = 100_000;
 const MAX_LIST_ITEMS: usize = 100_000;
 static TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
@@ -25,6 +32,11 @@ pub const SNAPSHOT_VERSION: u16 = 1;
 
 /// Default project-relative task-state snapshot path.
 pub const DEFAULT_RELATIVE_PATH: &str = ".forge/state/tasks.snapshot";
+/// Default project-relative remote-lease snapshot path.
+pub const DEFAULT_LEASE_RELATIVE_PATH: &str = ".forge/state/remote-leases.snapshot";
+
+/// Current durable remote-lease snapshot schema version.
+pub const LEASE_SNAPSHOT_VERSION: u16 = 1;
 
 /// Persistence boundary for task graphs.
 pub trait TaskStore {
@@ -139,6 +151,117 @@ impl TaskStore for FileTaskStore {
     }
 }
 
+/// Persistence boundary for remote-worker lease books.
+pub trait LeaseStore {
+    /// Loads the current lease book, returning None when no durable state exists.
+    ///
+    /// # Errors
+    ///
+    /// Returns StateError for I/O, snapshot-format, or restored-domain failures.
+    fn load(&self) -> Result<Option<LeaseBook>, StateError>;
+
+    /// Persists one validated lease book.
+    ///
+    /// # Errors
+    ///
+    /// Returns StateError for invalid lease state, encoding limits, or I/O failures.
+    fn save(&self, leases: &LeaseBook) -> Result<(), StateError>;
+}
+
+/// Project-local file implementation of LeaseStore.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FileLeaseStore {
+    path: PathBuf,
+}
+
+impl FileLeaseStore {
+    /// Creates a store using the default remote-lease path beneath a project root.
+    #[must_use]
+    pub fn for_project_root(root: impl AsRef<Path>) -> Self {
+        Self {
+            path: root.as_ref().join(DEFAULT_LEASE_RELATIVE_PATH),
+        }
+    }
+
+    /// Creates a store for an explicit snapshot path.
+    #[must_use]
+    pub fn from_path(path: impl Into<PathBuf>) -> Self {
+        Self { path: path.into() }
+    }
+
+    /// Returns the durable lease snapshot path.
+    #[must_use]
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    fn temporary_path(&self) -> PathBuf {
+        let sequence = TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        let file_name = self
+            .path
+            .file_name()
+            .and_then(|value| value.to_str())
+            .unwrap_or("remote-leases.snapshot");
+
+        self.path.with_file_name(format!(
+            ".{file_name}.tmp-{}-{sequence}",
+            std::process::id()
+        ))
+    }
+}
+
+impl LeaseStore for FileLeaseStore {
+    fn load(&self) -> Result<Option<LeaseBook>, StateError> {
+        let metadata = match fs::metadata(&self.path) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(StateError::Io(error)),
+        };
+
+        let maximum_file_bytes = MAX_SNAPSHOT_BYTES + HEADER_BYTES + CHECKSUM_BYTES;
+        if metadata.len() > maximum_file_bytes as u64 {
+            return Err(StateError::Format(StateFormatError::SnapshotTooLarge {
+                declared: metadata.len(),
+                maximum: maximum_file_bytes as u64,
+            }));
+        }
+
+        let bytes = fs::read(&self.path)?;
+        decode_lease_snapshot(&bytes).map(Some)
+    }
+
+    fn save(&self, leases: &LeaseBook) -> Result<(), StateError> {
+        let bytes = encode_lease_snapshot(leases)?;
+
+        if let Some(parent) = self.path.parent() {
+            if !parent.as_os_str().is_empty() {
+                fs::create_dir_all(parent)?;
+            }
+        }
+
+        let temporary = self.temporary_path();
+        let save_result = (|| -> Result<(), StateError> {
+            let mut file = OpenOptions::new()
+                .create_new(true)
+                .write(true)
+                .open(&temporary)?;
+            file.write_all(&bytes)?;
+            file.sync_all()?;
+            drop(file);
+
+            fs::rename(&temporary, &self.path)?;
+            sync_parent_directory(&self.path)?;
+            Ok(())
+        })();
+
+        if save_result.is_err() {
+            let _ = fs::remove_file(&temporary);
+        }
+
+        save_result
+    }
+}
+
 #[cfg(unix)]
 fn sync_parent_directory(path: &Path) -> Result<(), StateError> {
     if let Some(parent) = path.parent() {
@@ -164,6 +287,10 @@ pub enum StateError {
     Format(StateFormatError),
     /// Restored or saved graph violates domain invariants.
     Graph(TaskGraphError),
+    /// Restored or saved remote-worker lease state violates domain invariants.
+    Remote(RemoteWorkerError),
+    /// A persisted task identifier is invalid.
+    TaskId(TaskIdError),
 }
 
 impl fmt::Display for StateError {
@@ -172,6 +299,8 @@ impl fmt::Display for StateError {
             Self::Io(error) => write!(formatter, "state I/O error: {error}"),
             Self::Format(error) => write!(formatter, "state format error: {error}"),
             Self::Graph(error) => write!(formatter, "state graph error: {error}"),
+            Self::Remote(error) => write!(formatter, "state remote-worker error: {error}"),
+            Self::TaskId(error) => write!(formatter, "state task ID error: {error}"),
         }
     }
 }
@@ -182,6 +311,8 @@ impl std::error::Error for StateError {
             Self::Io(error) => Some(error),
             Self::Format(error) => Some(error),
             Self::Graph(error) => Some(error),
+            Self::Remote(error) => Some(error),
+            Self::TaskId(error) => Some(error),
         }
     }
 }
@@ -195,6 +326,18 @@ impl From<std::io::Error> for StateError {
 impl From<StateFormatError> for StateError {
     fn from(error: StateFormatError) -> Self {
         Self::Format(error)
+    }
+}
+
+impl From<RemoteWorkerError> for StateError {
+    fn from(error: RemoteWorkerError) -> Self {
+        Self::Remote(error)
+    }
+}
+
+impl From<TaskIdError> for StateError {
+    fn from(error: TaskIdError) -> Self {
+        Self::TaskId(error)
     }
 }
 
@@ -295,6 +438,14 @@ fn encode_snapshot(graph: &TaskGraph) -> Result<Vec<u8>, StateError> {
 }
 
 fn wrap_payload(payload: Vec<u8>) -> Result<Vec<u8>, StateError> {
+    wrap_versioned_payload(payload, MAGIC, SNAPSHOT_VERSION)
+}
+
+fn wrap_versioned_payload(
+    payload: Vec<u8>,
+    magic: &[u8; 8],
+    version: u16,
+) -> Result<Vec<u8>, StateError> {
     if payload.len() > MAX_SNAPSHOT_BYTES {
         return Err(StateError::Format(StateFormatError::SnapshotTooLarge {
             declared: payload.len() as u64,
@@ -304,8 +455,8 @@ fn wrap_payload(payload: Vec<u8>) -> Result<Vec<u8>, StateError> {
 
     let checksum = checksum(&payload);
     let mut bytes = Vec::with_capacity(HEADER_BYTES + payload.len().saturating_add(CHECKSUM_BYTES));
-    bytes.extend_from_slice(MAGIC);
-    write_u16(&mut bytes, SNAPSHOT_VERSION);
+    bytes.extend_from_slice(magic);
+    write_u16(&mut bytes, version);
     write_u64(&mut bytes, payload.len() as u64);
     bytes.extend_from_slice(&payload);
     write_u64(&mut bytes, checksum);
@@ -313,16 +464,24 @@ fn wrap_payload(payload: Vec<u8>) -> Result<Vec<u8>, StateError> {
 }
 
 fn decode_snapshot(bytes: &[u8]) -> Result<TaskGraph, StateError> {
+    decode_payload(decode_framed_payload(bytes, MAGIC, SNAPSHOT_VERSION)?)
+}
+
+fn decode_framed_payload<'a>(
+    bytes: &'a [u8],
+    magic: &[u8; 8],
+    version: u16,
+) -> Result<&'a [u8], StateError> {
     let mut reader = Reader::new(bytes);
 
-    if reader.take(MAGIC.len())? != MAGIC {
+    if reader.take(magic.len())? != magic {
         return Err(StateError::Format(StateFormatError::BadMagic));
     }
 
-    let version = reader.read_u16()?;
-    if version != SNAPSHOT_VERSION {
+    let found_version = reader.read_u16()?;
+    if found_version != version {
         return Err(StateError::Format(StateFormatError::UnsupportedVersion {
-            found: version,
+            found: found_version,
         }));
     }
 
@@ -347,7 +506,84 @@ fn decode_snapshot(bytes: &[u8]) -> Result<TaskGraph, StateError> {
         return Err(StateError::Format(StateFormatError::ChecksumMismatch));
     }
 
-    decode_payload(payload)
+    Ok(payload)
+}
+
+fn encode_lease_snapshot(leases: &LeaseBook) -> Result<Vec<u8>, StateError> {
+    leases.validate()?;
+
+    let records = leases.leases().collect::<Vec<_>>();
+    let mut payload = Vec::new();
+    write_count(&mut payload, records.len(), MAX_LEASES)?;
+    for lease in records {
+        encode_lease_record(&mut payload, lease)?;
+    }
+
+    wrap_versioned_payload(payload, LEASE_MAGIC, LEASE_SNAPSHOT_VERSION)
+}
+
+fn decode_lease_snapshot(bytes: &[u8]) -> Result<LeaseBook, StateError> {
+    let payload = decode_framed_payload(bytes, LEASE_MAGIC, LEASE_SNAPSHOT_VERSION)?;
+    let mut reader = Reader::new(payload);
+    let lease_count = reader.read_count(MAX_LEASES)?;
+    let mut leases = Vec::with_capacity(lease_count);
+    for _ in 0..lease_count {
+        leases.push(decode_lease_record(&mut reader)?);
+    }
+    if !reader.is_empty() {
+        return Err(StateError::Format(StateFormatError::TrailingBytes));
+    }
+
+    LeaseBook::restore(leases).map_err(StateError::Remote)
+}
+
+fn encode_lease_record(bytes: &mut Vec<u8>, lease: &TaskLease) -> Result<(), StateError> {
+    write_string(bytes, lease.lease_id().as_str())?;
+    write_string(bytes, lease.task_id().as_str())?;
+    write_string(bytes, lease.worker_id().as_str())?;
+    write_u64(bytes, lease.generation());
+    write_u64(bytes, lease.issued_at_ms());
+    write_u64(bytes, lease.expires_at_ms());
+    write_u8(bytes, encode_lease_state(lease.state()));
+    Ok(())
+}
+
+fn decode_lease_record(reader: &mut Reader<'_>) -> Result<TaskLease, StateError> {
+    let lease_id = LeaseId::parse(reader.read_string()?)?;
+    let task_id = TaskId::parse(reader.read_string()?)?;
+    let worker_id = RemoteWorkerId::parse(reader.read_string()?)?;
+    let generation = reader.read_u64()?;
+    let issued_at_ms = reader.read_u64()?;
+    let expires_at_ms = reader.read_u64()?;
+    let state = decode_lease_state(reader.read_u8()?)?;
+
+    TaskLease::restore(
+        lease_id,
+        task_id,
+        worker_id,
+        generation,
+        issued_at_ms,
+        expires_at_ms,
+        state,
+    )
+    .map_err(StateError::Remote)
+}
+
+fn encode_lease_state(state: LeaseState) -> u8 {
+    match state {
+        LeaseState::Active => 0,
+        LeaseState::Released => 1,
+        LeaseState::Expired => 2,
+    }
+}
+
+fn decode_lease_state(tag: u8) -> Result<LeaseState, StateError> {
+    match tag {
+        0 => Ok(LeaseState::Active),
+        1 => Ok(LeaseState::Released),
+        2 => Ok(LeaseState::Expired),
+        _ => Err(invalid_tag("lease state", tag)),
+    }
 }
 
 fn decode_payload(payload: &[u8]) -> Result<TaskGraph, StateError> {
@@ -745,12 +981,18 @@ impl<'a> Reader<'a> {
 #[cfg(test)]
 mod tests {
     use super::{
-        CHECKSUM_BYTES, FileTaskStore, HEADER_BYTES, MAGIC, MAX_SNAPSHOT_BYTES, SNAPSHOT_VERSION,
-        StateError, StateFormatError, TaskStore, decode_snapshot, encode_record, encode_snapshot,
-        wrap_payload, write_count,
+        CHECKSUM_BYTES, FileLeaseStore, FileTaskStore, HEADER_BYTES, LEASE_MAGIC,
+        LEASE_SNAPSHOT_VERSION, LeaseStore, MAGIC, MAX_LEASES, MAX_SNAPSHOT_BYTES,
+        SNAPSHOT_VERSION, StateError, StateFormatError, TaskStore, decode_lease_snapshot,
+        decode_snapshot, encode_lease_record, encode_lease_snapshot, encode_record,
+        encode_snapshot, wrap_payload, wrap_versioned_payload, write_count,
     };
     use agentforge_core::agent::{AgentRole, AgentTask, ApprovalBoundary, Capability};
-    use agentforge_core::task::{TaskGraph, TaskRecord, TaskState};
+    use agentforge_core::remote::{
+        LeaseBook, LeaseId, LeaseState, RemoteWorkerDescriptor, RemoteWorkerId, TaskLease,
+        WorkerCapability,
+    };
+    use agentforge_core::task::{TaskGraph, TaskId, TaskRecord, TaskState};
     use std::fs;
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -794,6 +1036,91 @@ mod tests {
         .expect("valid second record");
 
         TaskGraph::from_records([second, first]).expect("valid graph")
+    }
+
+    fn sample_worker() -> RemoteWorkerDescriptor {
+        RemoteWorkerDescriptor::new(
+            RemoteWorkerId::parse("worker-a").expect("valid worker ID"),
+            "linux-x86_64",
+            vec![WorkerCapability::parse("rust").expect("valid capability")],
+            4,
+        )
+        .expect("valid worker")
+    }
+
+    fn sample_leases() -> LeaseBook {
+        let worker = sample_worker();
+        let mut book = LeaseBook::new();
+        book.grant(
+            &worker,
+            LeaseId::parse("lease-active").expect("valid lease ID"),
+            TaskId::parse("P4-M002-T0001").expect("valid task ID"),
+            1_000,
+            5_000,
+        )
+        .expect("active lease");
+        let released = LeaseId::parse("lease-released").expect("valid lease ID");
+        book.grant(
+            &worker,
+            released.clone(),
+            TaskId::parse("P4-M002-T0002").expect("valid task ID"),
+            1_000,
+            5_000,
+        )
+        .expect("released lease");
+        book.release(&released, worker.worker_id(), 1, 1_500)
+            .expect("release lease");
+        book.grant(
+            &worker,
+            LeaseId::parse("lease-expired").expect("valid lease ID"),
+            TaskId::parse("P4-M002-T0003").expect("valid task ID"),
+            1_000,
+            2_000,
+        )
+        .expect("expired lease");
+        book.expire_due(2_000);
+        book
+    }
+
+    fn active_lease_book() -> LeaseBook {
+        let worker = sample_worker();
+        let mut book = LeaseBook::new();
+        book.grant(
+            &worker,
+            LeaseId::parse("lease-active").expect("valid lease ID"),
+            TaskId::parse("P4-M002-T0001").expect("valid task ID"),
+            1_000,
+            5_000,
+        )
+        .expect("active lease");
+        book
+    }
+
+    fn update_checksum(bytes: &mut [u8]) {
+        let payload_length = u64::from_le_bytes(
+            bytes[MAGIC.len() + 2..HEADER_BYTES]
+                .try_into()
+                .expect("payload length field"),
+        ) as usize;
+        let checksum_offset = HEADER_BYTES + payload_length;
+        let checksum = super::checksum(&bytes[HEADER_BYTES..checksum_offset]);
+        bytes[checksum_offset..checksum_offset + CHECKSUM_BYTES]
+            .copy_from_slice(&checksum.to_le_bytes());
+    }
+
+    fn first_lease_field_offsets(bytes: &[u8]) -> (usize, usize) {
+        let mut cursor = HEADER_BYTES + 4;
+        for _ in 0..3 {
+            let length = u32::from_le_bytes(
+                bytes[cursor..cursor + 4]
+                    .try_into()
+                    .expect("string length field"),
+            ) as usize;
+            cursor += 4 + length;
+        }
+        let generation_offset = cursor;
+        let state_offset = cursor + 8 + 8 + 8;
+        (generation_offset, state_offset)
     }
 
     fn temp_root() -> PathBuf {
@@ -922,5 +1249,246 @@ mod tests {
         let store = FileTaskStore::for_project_root(&root);
 
         assert_eq!(store.load().expect("missing state is valid"), None);
+    }
+
+    #[test]
+    fn lease_snapshot_round_trip_preserves_all_states() {
+        let leases = sample_leases();
+        let bytes = encode_lease_snapshot(&leases).expect("encode lease snapshot");
+        let restored = decode_lease_snapshot(&bytes).expect("decode lease snapshot");
+
+        assert_eq!(restored, leases);
+        assert_eq!(restored.leases().count(), 3);
+        assert_eq!(
+            restored
+                .get(&LeaseId::parse("lease-active").expect("valid lease ID"))
+                .expect("active lease")
+                .state(),
+            LeaseState::Active
+        );
+    }
+
+    #[test]
+    fn lease_snapshot_bytes_are_deterministic_independent_of_grant_order() {
+        let first = sample_leases();
+        let worker = sample_worker();
+        let mut second = LeaseBook::new();
+        let released = LeaseId::parse("lease-released").expect("valid lease ID");
+        second
+            .grant(
+                &worker,
+                LeaseId::parse("lease-expired").expect("valid lease ID"),
+                TaskId::parse("P4-M002-T0003").expect("valid task ID"),
+                1_000,
+                2_000,
+            )
+            .expect("expired lease");
+        second.expire_due(2_000);
+        second
+            .grant(
+                &worker,
+                released.clone(),
+                TaskId::parse("P4-M002-T0002").expect("valid task ID"),
+                1_000,
+                5_000,
+            )
+            .expect("released lease");
+        second
+            .release(&released, worker.worker_id(), 1, 1_500)
+            .expect("release lease");
+        second
+            .grant(
+                &worker,
+                LeaseId::parse("lease-active").expect("valid lease ID"),
+                TaskId::parse("P4-M002-T0001").expect("valid task ID"),
+                1_000,
+                5_000,
+            )
+            .expect("active lease");
+
+        assert_eq!(
+            encode_lease_snapshot(&first).expect("first encoding"),
+            encode_lease_snapshot(&second).expect("second encoding")
+        );
+    }
+
+    #[test]
+    fn lease_store_round_trip_replaces_and_preserves_task_snapshot() {
+        let root = temp_root();
+        let lease_store = FileLeaseStore::for_project_root(&root);
+        let task_store = FileTaskStore::for_project_root(&root);
+        let leases = sample_leases();
+        let graph = sample_graph();
+
+        task_store.save(&graph).expect("save task graph");
+        lease_store.save(&leases).expect("save leases");
+        assert_eq!(
+            lease_store.load().expect("load leases"),
+            Some(leases.clone())
+        );
+        assert_eq!(
+            task_store.load().expect("task state remains intact"),
+            Some(graph)
+        );
+
+        let replacement = active_lease_book();
+        lease_store.save(&replacement).expect("replace leases");
+        assert_eq!(
+            lease_store.load().expect("load replacement"),
+            Some(replacement)
+        );
+        assert!(lease_store.path().is_file());
+
+        fs::remove_dir_all(root).expect("cleanup temp state");
+    }
+
+    #[test]
+    fn missing_lease_state_returns_none() {
+        let root = temp_root();
+        let store = FileLeaseStore::for_project_root(&root);
+
+        assert_eq!(store.load().expect("missing lease state is valid"), None);
+    }
+
+    #[test]
+    fn restart_recovery_requires_explicit_expiry_observation() {
+        let leases = active_lease_book();
+        let restored =
+            decode_lease_snapshot(&encode_lease_snapshot(&leases).expect("encode lease snapshot"))
+                .expect("restore lease snapshot");
+        let lease_id = LeaseId::parse("lease-active").expect("valid lease ID");
+
+        assert_eq!(
+            restored.get(&lease_id).expect("restored lease").state(),
+            LeaseState::Active
+        );
+
+        let mut recovered = restored;
+        assert_eq!(recovered.expire_due(5_000), vec![lease_id.clone()]);
+        assert_eq!(
+            recovered.get(&lease_id).expect("expired lease").state(),
+            LeaseState::Expired
+        );
+    }
+
+    #[test]
+    fn lease_snapshot_corruption_and_invalid_domain_values_fail_closed() {
+        let valid = encode_lease_snapshot(&active_lease_book()).expect("encode lease snapshot");
+
+        let mut bad_magic = valid.clone();
+        bad_magic[0] ^= 0x01;
+        assert!(matches!(
+            decode_lease_snapshot(&bad_magic),
+            Err(StateError::Format(StateFormatError::BadMagic))
+        ));
+
+        let mut bad_version = valid.clone();
+        bad_version[LEASE_MAGIC.len()..LEASE_MAGIC.len() + 2]
+            .copy_from_slice(&(LEASE_SNAPSHOT_VERSION + 1).to_le_bytes());
+        assert!(matches!(
+            decode_lease_snapshot(&bad_version),
+            Err(StateError::Format(
+                StateFormatError::UnsupportedVersion { .. }
+            ))
+        ));
+
+        let mut bad_checksum = valid.clone();
+        bad_checksum[HEADER_BYTES] ^= 0x01;
+        assert!(matches!(
+            decode_lease_snapshot(&bad_checksum),
+            Err(StateError::Format(StateFormatError::ChecksumMismatch))
+        ));
+
+        let mut truncated = valid.clone();
+        truncated.truncate(truncated.len() - 1);
+        assert!(matches!(
+            decode_lease_snapshot(&truncated),
+            Err(StateError::Format(StateFormatError::UnexpectedEof))
+                | Err(StateError::Format(StateFormatError::ChecksumMismatch))
+        ));
+
+        let mut trailing = valid.clone();
+        trailing.push(0);
+        assert!(matches!(
+            decode_lease_snapshot(&trailing),
+            Err(StateError::Format(StateFormatError::TrailingBytes))
+        ));
+
+        let mut oversized = valid.clone();
+        let declared = (MAX_SNAPSHOT_BYTES as u64) + 1;
+        oversized[MAGIC.len() + 2..HEADER_BYTES].copy_from_slice(&declared.to_le_bytes());
+        assert!(matches!(
+            decode_lease_snapshot(&oversized),
+            Err(StateError::Format(
+                StateFormatError::SnapshotTooLarge { .. }
+            ))
+        ));
+
+        let mut invalid_tag = valid.clone();
+        let (_, state_offset) = first_lease_field_offsets(&invalid_tag);
+        invalid_tag[state_offset] = 99;
+        update_checksum(&mut invalid_tag);
+        assert!(matches!(
+            decode_lease_snapshot(&invalid_tag),
+            Err(StateError::Format(StateFormatError::InvalidTag {
+                kind: "lease state",
+                ..
+            }))
+        ));
+
+        let mut zero_generation = valid.clone();
+        let (generation_offset, _) = first_lease_field_offsets(&zero_generation);
+        zero_generation[generation_offset..generation_offset + 8].fill(0);
+        update_checksum(&mut zero_generation);
+        assert!(matches!(
+            decode_lease_snapshot(&zero_generation),
+            Err(StateError::Remote(_))
+        ));
+
+        let mut invalid_utf8 = valid.clone();
+        let first_id_byte = HEADER_BYTES + 4 + 4;
+        invalid_utf8[first_id_byte] = 0xff;
+        update_checksum(&mut invalid_utf8);
+        assert!(matches!(
+            decode_lease_snapshot(&invalid_utf8),
+            Err(StateError::Format(StateFormatError::InvalidUtf8))
+        ));
+    }
+
+    #[test]
+    fn duplicate_active_tasks_are_rejected_during_restore() {
+        let worker = RemoteWorkerId::parse("worker-a").expect("valid worker ID");
+        let task_id = TaskId::parse("P4-M002-T0001").expect("valid task ID");
+        let first = TaskLease::restore(
+            LeaseId::parse("lease-a").expect("valid lease ID"),
+            task_id.clone(),
+            worker.clone(),
+            1,
+            1_000,
+            5_000,
+            LeaseState::Active,
+        )
+        .expect("valid first lease");
+        let second = TaskLease::restore(
+            LeaseId::parse("lease-b").expect("valid lease ID"),
+            task_id,
+            worker,
+            2,
+            1_000,
+            5_000,
+            LeaseState::Active,
+        )
+        .expect("valid second lease");
+        let mut payload = Vec::new();
+        write_count(&mut payload, 2, MAX_LEASES).expect("write lease count");
+        encode_lease_record(&mut payload, &first).expect("encode first lease");
+        encode_lease_record(&mut payload, &second).expect("encode second lease");
+        let bytes = wrap_versioned_payload(payload, LEASE_MAGIC, LEASE_SNAPSHOT_VERSION)
+            .expect("wrap lease snapshot");
+
+        assert!(matches!(
+            decode_lease_snapshot(&bytes),
+            Err(StateError::Remote(_))
+        ));
     }
 }

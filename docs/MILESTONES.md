@@ -70,6 +70,7 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 | ID | Status | Milestone | Acceptance signal |
 | --- | --- | --- | --- |
 | P4-M001 | complete | Remote worker contract and lease foundation | A versioned, transport-neutral worker descriptor and deterministic fail-closed task-lease state machine exist without network or remote execution authority. |
+| P4-M002 | in progress | Durable remote-worker lease state | A separate checksummed lease snapshot restores ownership, generations, expiry, and terminal state across restart, with explicit caller-supplied expiry recovery and no transport authority. |
 
 ## Phase 1 — multi-agent scheduling and integration
 

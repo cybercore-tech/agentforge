@@ -251,6 +251,31 @@ pub struct TaskLease {
 }
 
 impl TaskLease {
+    /// Restores a previously persisted lease after validating its immutable fields.
+    pub fn restore(
+        lease_id: LeaseId,
+        task_id: TaskId,
+        worker_id: RemoteWorkerId,
+        generation: u64,
+        issued_at_ms: u64,
+        expires_at_ms: u64,
+        state: LeaseState,
+    ) -> Result<Self, RemoteWorkerError> {
+        if generation == 0 {
+            return Err(RemoteWorkerError::InvalidGeneration { found: generation });
+        }
+        validate_lease_window(issued_at_ms, expires_at_ms)?;
+        Ok(Self {
+            lease_id,
+            task_id,
+            worker_id,
+            generation,
+            issued_at_ms,
+            expires_at_ms,
+            state,
+        })
+    }
+
     /// Returns the lease identity.
     #[must_use]
     pub fn lease_id(&self) -> &LeaseId {
@@ -313,6 +338,70 @@ impl LeaseBook {
         Self {
             leases: BTreeMap::new(),
         }
+    }
+
+    /// Restores a lease book from validated persisted records.
+    pub fn restore<I>(leases: I) -> Result<Self, RemoteWorkerError>
+    where
+        I: IntoIterator<Item = TaskLease>,
+    {
+        let mut book = Self::new();
+        for lease in leases {
+            if book.leases.contains_key(&lease.lease_id) {
+                return Err(RemoteWorkerError::DuplicateLease {
+                    lease_id: lease.lease_id,
+                });
+            }
+            if lease.state == LeaseState::Active
+                && book.leases.values().any(|existing| {
+                    existing.state == LeaseState::Active && existing.task_id == lease.task_id
+                })
+            {
+                let existing = book
+                    .leases
+                    .values()
+                    .find(|existing| {
+                        existing.state == LeaseState::Active && existing.task_id == lease.task_id
+                    })
+                    .expect("active lease conflict must have an existing lease");
+                return Err(RemoteWorkerError::TaskAlreadyLeased {
+                    task_id: lease.task_id,
+                    lease_id: existing.lease_id.clone(),
+                });
+            }
+            book.leases.insert(lease.lease_id.clone(), lease);
+        }
+        book.validate()?;
+        Ok(book)
+    }
+
+    /// Validates all records currently held by the lease book.
+    pub fn validate(&self) -> Result<(), RemoteWorkerError> {
+        let mut active_tasks = BTreeMap::new();
+        for lease in self.leases.values() {
+            if lease.generation == 0 {
+                return Err(RemoteWorkerError::InvalidGeneration {
+                    found: lease.generation,
+                });
+            }
+            validate_lease_window(lease.issued_at_ms, lease.expires_at_ms)?;
+            if lease.state == LeaseState::Active
+                && active_tasks
+                    .insert(lease.task_id.clone(), lease.lease_id.clone())
+                    .is_some()
+            {
+                return Err(RemoteWorkerError::TaskAlreadyLeased {
+                    task_id: lease.task_id.clone(),
+                    lease_id: lease.lease_id.clone(),
+                });
+            }
+        }
+        Ok(())
+    }
+
+    /// Returns all lease records in deterministic lease-identity order.
+    pub fn leases(&self) -> impl Iterator<Item = &TaskLease> {
+        self.leases.values()
     }
 
     /// Grants one bounded lease to an eligible worker.
@@ -692,6 +781,11 @@ pub enum RemoteWorkerError {
     },
     /// The task's generation counter cannot advance.
     GenerationExhausted,
+    /// A restored lease has an invalid zero generation.
+    InvalidGeneration {
+        /// Generation found in the persisted record.
+        found: u64,
+    },
 }
 
 impl fmt::Display for RemoteWorkerError {
@@ -769,6 +863,12 @@ impl fmt::Display for RemoteWorkerError {
                 "renewal expiry {requested_expiry_ms}ms does not extend {current_expiry_ms}ms"
             ),
             Self::GenerationExhausted => formatter.write_str("task lease generation is exhausted"),
+            Self::InvalidGeneration { found } => {
+                write!(
+                    formatter,
+                    "task lease generation must be positive, found {found}"
+                )
+            }
         }
     }
 }
