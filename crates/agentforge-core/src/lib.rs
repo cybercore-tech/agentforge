@@ -4,6 +4,8 @@
 
 /// Provider-neutral agent governance contracts.
 pub mod agent;
+/// Transport-neutral remote-worker and task-lease semantics.
+pub mod remote;
 /// Deterministic task graph and lifecycle semantics.
 pub mod task;
 
