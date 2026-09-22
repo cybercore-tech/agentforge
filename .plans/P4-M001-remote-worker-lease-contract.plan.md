@@ -1,6 +1,6 @@
 # Plan: P4-M001 — Remote worker contract and lease foundation
 
-Status: Draft
+Status: Approved
 Milestone: P4-M001
 Created: 2026-09-21
 Owner: AgentForge project
