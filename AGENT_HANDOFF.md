@@ -2,10 +2,18 @@
 
 ## Repository state
 
-- Active milestone: none. P4-M001 — Remote worker contract and lease foundation — is complete;
-  the remote-worker boundary remains transport-neutral and does not provide remote execution
-  authority.
+- Active milestone: none. P4-M002 — Durable remote-worker lease state — is complete; the
+  remote-worker boundary remains transport-neutral and does not provide remote execution authority.
 - Active plan: none (`.plans/ACTIVE` is intentionally absent between milestones).
+- P4-M002 implementation commit: `82626529ff5cdb6ae0d63aeafa43c2fa0490a143`; local
+  `./scripts/gate.sh full` passed for implementation and closure checkpoints.
+- P4-M002 adds validated lease restoration and deterministic lease iteration in core plus a separate
+  bounded, checksummed, atomically replaced `.forge/state/remote-leases.snapshot` through
+  `agentforge-state::FileLeaseStore`. Recovery is explicitly `load -> expire_due(observed_at_ms) ->
+  continue`; no clock is read during load, and task state remains independent.
+- P4-M002 corruption, bounds, semantic-conflict, and restart-recovery tests pass. No network,
+  daemon, CLI, authentication, cloud mutation, or remote execution authority was added; no remote
+  CI run was requested.
 - P4-M001 implementation commit: `2027608`; local `./scripts/gate.sh full` passed for the
   implementation and closure checkpoints, including workspace Clippy, tests, and documentation
   tests. The focused `agentforge-core` suite passed 29 tests.

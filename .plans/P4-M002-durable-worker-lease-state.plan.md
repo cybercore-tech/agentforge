@@ -1,6 +1,6 @@
 # Plan: P4-M002 — Durable remote-worker lease state
 
-Status: Approved
+Status: Complete
 Milestone: P4-M002
 Created: 2026-09-21
 Owner: AgentForge project
@@ -155,8 +155,13 @@ requires an explicit caller-supplied timestamp.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
-Notes:
+Implementation commit: `82626529ff5cdb6ae0d63aeafa43c2fa0490a143`
+CI run: Not run; no remote push was requested.
+CI result: Local `./scripts/gate.sh full` passed for implementation and closure checkpoints.
+Completed: 2026-09-21
+Notes: Added validated core lease restoration, deterministic lease iteration, and the separate
+checksummed/atomic `FileLeaseStore` at `.forge/state/remote-leases.snapshot`. Recovery remains
+explicit: `load -> expire_due(observed_at_ms) -> continue`. State tests cover round trips,
+determinism, replacement, missing state, explicit expiry, corruption, bounds, invalid UTF-8,
+invalid tags, zero generations, and duplicate active tasks. No network, daemon, CLI, or remote
+execution authority was added.

@@ -11,8 +11,24 @@ Phase 4 — remote workers and distributed execution.
 
 ## Active milestone
 
-No active milestone. P4-M001 — Remote worker contract and lease foundation — is complete. The
-remote-worker boundary remains transport-neutral and does not provide remote execution authority.
+No active milestone. P4-M002 — Durable remote-worker lease state — is complete. The remote-worker
+boundary remains transport-neutral and does not provide remote execution authority.
+
+## P4-M002 completion evidence
+
+- Approved plan: `.plans/P4-M002-durable-worker-lease-state.plan.md`.
+- Implementation commit: `82626529ff5cdb6ae0d63aeafa43c2fa0490a143`.
+- Local `./scripts/gate.sh full` passed for implementation and closure checkpoints, including
+  formatting, repository validation, plan policy, workspace Clippy, tests, and documentation tests.
+- `agentforge-state` now provides a separate checksummed, bounded, atomically replaced
+  `.forge/state/remote-leases.snapshot` through `LeaseStore`/`FileLeaseStore`.
+- Restart recovery is explicit and clock-free during load: `load -> expire_due(observed_at_ms) ->
+  continue`; active ownership, generations, timestamps, and terminal states are preserved.
+- Corruption, incompatible versions, bounds violations, invalid identities/tags/generations,
+  duplicate active tasks, truncation, and trailing bytes fail closed. Task snapshots remain
+  independent.
+- No network, daemon protocol, CLI, authentication, cloud mutation, or remote execution authority
+  was introduced. No remote CI run was requested.
 
 ## P4-M001 completion evidence
 
