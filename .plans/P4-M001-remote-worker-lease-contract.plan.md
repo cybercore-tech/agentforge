@@ -1,6 +1,6 @@
 # Plan: P4-M001 — Remote worker contract and lease foundation
 
-Status: Approved
+Status: Complete
 Milestone: P4-M001
 Created: 2026-09-21
 Owner: AgentForge project
@@ -148,8 +148,11 @@ execution or production distribution.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
-Notes:
+Implementation commit: `2027608`.
+CI run: Local `./scripts/gate.sh full` on the implementation checkpoint and closure checkpoint.
+CI result: Green; formatting, repository validation, plan policy, workspace Clippy, tests, and
+documentation tests passed. The focused `agentforge-core` suite passed 29 tests.
+Completed: 2026-09-21
+Notes: P4-M001 adds a transport-neutral, versioned remote-worker descriptor and deterministic
+in-memory lease state machine. It intentionally adds no network, persistence, cloud mutation,
+remote command execution, or authentication authority.

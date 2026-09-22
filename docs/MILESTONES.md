@@ -65,6 +65,12 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 | P3-M003 | complete | Cybercore connector release hardening | The connector has provenance-aware CLI output, supported-platform CI, inspected packaging, license/support policy, and a tag-gated checksummed release workflow without cloud deployment side effects. |
 | P3-M004 | complete | Mission Control production-readiness foundations | Fail-closed environment preflight, disposable migration/API/live-event smoke, negative-path coverage, and an explicitly gated staging dry-run workflow exist without production mutation. |
 
+## Phase 4 — remote workers and distributed execution
+
+| ID | Status | Milestone | Acceptance signal |
+| --- | --- | --- | --- |
+| P4-M001 | complete | Remote worker contract and lease foundation | A versioned, transport-neutral worker descriptor and deterministic fail-closed task-lease state machine exist without network or remote execution authority. |
+
 ## Phase 1 — multi-agent scheduling and integration
 
 | ID | Status | Milestone | Acceptance signal |

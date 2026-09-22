@@ -2,9 +2,16 @@
 
 ## Repository state
 
-- Active milestone: none. P3-M004 — Mission Control production-readiness foundations — is complete;
-  the standalone service remains staging-ready groundwork, not a production deployment.
+- Active milestone: none. P4-M001 — Remote worker contract and lease foundation — is complete;
+  the remote-worker boundary remains transport-neutral and does not provide remote execution
+  authority.
 - Active plan: none (`.plans/ACTIVE` is intentionally absent between milestones).
+- P4-M001 implementation commit: `2027608`; local `./scripts/gate.sh full` passed for the
+  implementation and closure checkpoints, including workspace Clippy, tests, and documentation
+  tests. The focused `agentforge-core` suite passed 29 tests.
+- P4-M001 adds validated worker descriptors, deterministic capabilities, and an in-memory lease
+  state machine. It intentionally adds no network, persistence, cloud mutation, remote command
+  execution, or authentication authority.
 - P3-M001 implementation commit: `07eafdf5851b32b92a392d7ab9f2465f71f5e860` in the standalone
   `cybercore-mission-control` repository; remote `main` resolves to the exact SHA.
 - P3-M001 validation passed with Cloudflare Workers Types `5.20260921.1`, Wrangler `4.135.0`

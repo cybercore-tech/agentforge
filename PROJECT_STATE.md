@@ -7,12 +7,25 @@
 
 ## Current phase
 
-Phase 3 — external systems and Mission Control.
+Phase 4 — remote workers and distributed execution.
 
 ## Active milestone
 
-No active milestone. P3-M004 — Mission Control production-readiness foundations — is complete; the
-standalone service remains staging-ready groundwork, not a production deployment.
+No active milestone. P4-M001 — Remote worker contract and lease foundation — is complete. The
+remote-worker boundary remains transport-neutral and does not provide remote execution authority.
+
+## P4-M001 completion evidence
+
+- Approved plan: `.plans/P4-M001-remote-worker-lease-contract.plan.md`.
+- Implementation commit: `2027608`.
+- Local `./scripts/gate.sh full` passed for the implementation checkpoint and closure checkpoint,
+  including formatting, repository validation, plan policy, workspace Clippy, tests, and
+  documentation tests.
+- The focused `agentforge-core` suite passed 29 tests covering descriptor validation, deterministic
+  capabilities, lease exclusivity, concurrency limits, owner/generation checks, bounded renewal,
+  explicit expiry, release, and reclaim.
+- No network, cloud mutation, remote command execution, persistence, secret, or authentication
+  authority was introduced.
 
 ## P3-M001 completion evidence
 
