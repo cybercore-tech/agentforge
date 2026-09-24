@@ -29,6 +29,13 @@ All notable AgentForge changes are documented here. The format follows
 
 ### Fixed
 
+- Audit-log corruption when two writers appended concurrently: for example, `forge task approve`
+  while a daemon execution was running. That made the next open fail the integrity check. Appends
+  now take a short lock, verify other writers' records, and renumber a stale event instead of
+  corrupting the chain, and an execution's records are written as one batch. A race that could
+  expose a half-written header when creating a new log is also fixed (P0-M013, ADR-0047).
+- `forge task approve` (and other operator actions) failing with "audit log is missing" on a fresh
+  project. The log is now created on first use (P0-M013).
 - The release workflow's publish job failing with `not a git repository` (it has no checkout;
   `gh release create` now gets `--repo`). `SHA256SUMS` now lists bare archive names so
   `sha256sum -c SHA256SUMS` works in a download folder (P5-M001).

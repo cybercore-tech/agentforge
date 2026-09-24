@@ -564,6 +564,7 @@ paths and restored reliable CI:
 - **P2-M033** `forge hud` shows recent agent runs. Built by Claude Code and the first milestone
   landed through `forge task integrate`;
 - **P1-M008** merge approvals come after review and are bound to the reviewed commit;
+- **P0-M013** the audit log is safe with concurrent writers and is created on first use;
 - **P4-M004** remote-worker leases are operable and audited from `forge` and `forged`, and leased
   tasks cannot run locally;
 - **P5-M001** the first tagged release,

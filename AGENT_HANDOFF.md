@@ -2,7 +2,11 @@
 
 ## Repository state
 
-- Active milestone: none. P4-M004 is complete (`b3b816e`; CI `36023401117`, `36023737955`, and
+- Active milestone: none. P0-M013 is complete (`89be554` and `e559f02`; CI `36027216240`,
+  `36027530893`, and `36027544754`). Audit appends are locked, refresh, and renumber, so multiple
+  writers are safe. Attempt logs use `append_batch`. Operator actions create the audit log on first
+  use. Next: P4-M005, the same-host worker process.
+- P4-M004 is complete (`b3b816e`; CI `36023401117`, `36023737955`, and
   `36023749957`). Leases are operable: `.forge/workers/*.conf`, `forge lease ...`, a local-run
   guard, and the daemon sweep. Open findings 9 (audit append coordination) and 10 (no audit log on a
   fresh project) are good small next milestones, and they come before the P4 worker process.

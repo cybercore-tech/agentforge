@@ -1,6 +1,6 @@
 # Plan: P0-M013 — Coordinated audit appends and first-use audit logs
 
-Status: Approved
+Status: Complete
 Milestone: P0-M013
 Created: 2026-09-24
 Owner: AgentForge project
@@ -159,10 +159,10 @@ MILESTONES at closure.
 
 ## Acceptance criteria
 
-- [ ] Concurrent writers can no longer corrupt the audit log; proven by reproduction, stress, and
+- [x] Concurrent writers can no longer corrupt the audit log; proven by reproduction, stress, and
       cross-process tests.
-- [ ] Operator commands work on a fresh project.
-- [ ] ADR-0047 and docs; findings 9 and 10 resolved; CI evidence; closed and tagged.
+- [x] Operator commands work on a fresh project.
+- [x] ADR-0047 and docs; findings 9 and 10 resolved; CI evidence; closed and tagged.
 
 ## Amendment 1 (2026-09-24)
 
@@ -175,8 +175,21 @@ non-test code is unchanged. Both files are added to the boundary for the fixture
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
+Implementation commit: `89be554` (coordinated appends, first-use logs) and `e559f02` (Windows
+lock semantics)
+CI run: on `89be554`, `36026689136`, `36026865132`, and `36026879213` all failed only
+`windows-2022`. On `e559f02`, `36027216240` (push) plus `36027530893` and `36027544754`
+(dispatched) all passed.
+CI result: green on all seven jobs in all three runs on `e559f02`
+Completed: 2026-09-24
 Notes:
+- The reproduction test failed on the old code: the stale append reused sequence 1. The threaded
+  test also exposed `open`'s partial-header window (`UnsupportedVersion(107)`), and atomic
+  creation fixed it.
+- The first CI round showed a Windows-only failure: a lock being deleted reports `PermissionDenied`
+  (delete pending), not `AlreadyExists`. It is the same class as P2-M023. It was fixed for both the
+  audit append lock and the lease lock.
+- Amendment 1 added the daemon test fixtures, which needed a task snapshot once first-use logs
+  required one.
+- The concurrency test was repeated 20 times locally with no failures. The three-process CLI test
+  produced exactly 32 records in a valid chain.

@@ -13,15 +13,20 @@ agent-built milestones, Phase 4 remote-worker wiring, the P3 tool gateway, and P
 
 ## Active milestone
 
-No active milestone. P4-M004 — remote-worker leases in the CLI and daemon — is complete.
+No active milestone. P0-M013 — coordinated audit appends and first-use audit logs — is complete.
 `v0.1.0` is the latest release, and every completed milestone is tagged `milestone/<ID>`.
 
 ## Known issues
 
-- Dogfooding finding 9: audit appends are not coordinated across processes. A CLI command
-  appending while the daemon executes can make the execution reuse a sequence number.
-- Dogfooding finding 10: `forge task approve` fails on a fresh project until something creates
-  `.forge/audit.log`.
+None open. Dogfooding findings 1–10 are resolved; see `docs/DOGFOODING.md`.
+
+## P0-M013 completion evidence
+
+- Approved plan: `.plans/P0-M013-coordinated-audit-appends.plan.md` (Amendment 1); ADR-0047.
+- Implementation commits: `89be554` and `e559f02` (Windows delete-pending lock contention). CI
+  `36027216240`, `36027530893`, and `36027544754` on `e559f02` are green on all seven jobs.
+- The corruption was reproduced on the old code before the fix. A threaded stress test and a
+  three-process CLI test keep one verified chain.
 
 ## P4-M004 completion evidence
 
