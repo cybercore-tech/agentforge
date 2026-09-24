@@ -2,6 +2,7 @@
 
 use std::collections::BTreeMap;
 use std::fmt;
+use std::fs;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -33,6 +34,18 @@ impl CiObservationRequest {
             workflow: workflow.into(),
             commit_sha: commit_sha.into(),
         }
+    }
+
+    /// Returns the repository identity passed to the provider.
+    #[must_use]
+    pub fn repository(&self) -> &str {
+        &self.repository
+    }
+
+    /// Returns the workflow identity passed to the provider.
+    #[must_use]
+    pub fn workflow(&self) -> &str {
+        &self.workflow
     }
 
     fn validate(&self) -> Result<String, CiObservationError> {
@@ -254,6 +267,18 @@ pub enum CiStatus {
     Completed,
 }
 
+impl CiStatus {
+    /// Stable protocol label.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Queued => "queued",
+            Self::InProgress => "in_progress",
+            Self::Completed => "completed",
+        }
+    }
+}
+
 /// Provider terminal conclusion.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CiConclusion {
@@ -271,6 +296,22 @@ pub enum CiConclusion {
     ActionRequired,
     /// The provider reported a neutral result.
     Neutral,
+}
+
+impl CiConclusion {
+    /// Stable protocol label.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Success => "success",
+            Self::Failure => "failure",
+            Self::Cancelled => "cancelled",
+            Self::Skipped => "skipped",
+            Self::TimedOut => "timed_out",
+            Self::ActionRequired => "action_required",
+            Self::Neutral => "neutral",
+        }
+    }
 }
 
 /// Deterministic category assigned to failed CI evidence.
@@ -294,6 +335,24 @@ pub enum FailureCategory {
     Infrastructure,
     /// Evidence did not justify a more specific category.
     Unknown,
+}
+
+impl FailureCategory {
+    /// Stable identity matching the AGENTS.md failure taxonomy.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::SemanticTest => "semantic_test",
+            Self::CompilationType => "compilation_type",
+            Self::FormattingLint => "formatting_lint",
+            Self::GeneratedContentCorruption => "generated_content_corruption",
+            Self::DependencyToolchain => "dependency_toolchain",
+            Self::DocumentationTextPolicy => "documentation_text_policy",
+            Self::WorkflowGovernance => "workflow_governance",
+            Self::Infrastructure => "infrastructure",
+            Self::Unknown => "unknown",
+        }
+    }
 }
 
 /// A stable classifier result for one job.
@@ -729,4 +788,206 @@ fn validate_status_conclusion(
             "status and conclusion disagree",
         )),
     }
+}
+
+/// Project-relative path of the reviewed CI provider profile.
+pub const CI_PROVIDER_RELATIVE_PATH: &str = ".forge/ci/provider.conf";
+const MAX_PROVIDER_BYTES: u64 = 64 * 1024;
+const MAX_PROVIDER_ARGUMENTS: usize = 64;
+const MAX_PROVIDER_ENVIRONMENT: usize = 64;
+const MAX_PROVIDER_TIMEOUT_MS: u64 = 60 * 60 * 1000;
+const MAX_PROVIDER_OUTPUT_BYTES: usize = 64 * 1024 * 1024;
+
+/// CI provider profile loading or validation failure.
+#[derive(Debug)]
+pub enum CiProviderError {
+    /// No provider profile is configured for the project.
+    Missing(PathBuf),
+    /// The profile is invalid.
+    Invalid(String),
+    /// Filesystem I/O failed.
+    Io(io::Error),
+}
+
+impl fmt::Display for CiProviderError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Missing(path) => write!(f, "no CI provider profile at {}", path.display()),
+            Self::Invalid(reason) => write!(f, "invalid CI provider profile: {reason}"),
+            Self::Io(error) => write!(f, "CI provider profile I/O error: {error}"),
+        }
+    }
+}
+
+impl std::error::Error for CiProviderError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        if let Self::Io(error) = self {
+            Some(error)
+        } else {
+            None
+        }
+    }
+}
+
+/// Loads the reviewed provider command from `.forge/ci/provider.conf`.
+///
+/// The profile uses the agent-profile `key=value` form: `version=1`, an absolute `executable`,
+/// repeated literal `argument` values, repeated `env.<NAME>` values, and optional `timeout_ms`
+/// (at most one hour) and `max_output_bytes`.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CiProviderStore {
+    project_root: PathBuf,
+}
+
+impl CiProviderStore {
+    /// Creates a store rooted at a project directory.
+    #[must_use]
+    pub fn new(project_root: impl Into<PathBuf>) -> Self {
+        Self {
+            project_root: project_root.into(),
+        }
+    }
+
+    /// Returns the provider profile path.
+    #[must_use]
+    pub fn path(&self) -> PathBuf {
+        self.project_root.join(CI_PROVIDER_RELATIVE_PATH)
+    }
+
+    /// Loads and validates the provider profile.
+    pub fn load(&self) -> Result<CommandCiMonitorConfig, CiProviderError> {
+        let path = self.path();
+        let metadata = match fs::symlink_metadata(&path) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                return Err(CiProviderError::Missing(path));
+            }
+            Err(error) => return Err(CiProviderError::Io(error)),
+        };
+        if metadata.file_type().is_symlink() || !metadata.is_file() {
+            return Err(CiProviderError::Invalid(format!(
+                "not a regular file: {}",
+                path.display()
+            )));
+        }
+        if metadata.len() > MAX_PROVIDER_BYTES {
+            return Err(CiProviderError::Invalid(format!(
+                "exceeds {MAX_PROVIDER_BYTES} bytes"
+            )));
+        }
+        let text = fs::read_to_string(&path).map_err(CiProviderError::Io)?;
+        parse_provider(&text)
+    }
+}
+
+fn parse_provider(text: &str) -> Result<CommandCiMonitorConfig, CiProviderError> {
+    let invalid =
+        |line: usize, reason: &str| CiProviderError::Invalid(format!("line {line}: {reason}"));
+    let mut version = None;
+    let mut executable = None;
+    let mut arguments = Vec::new();
+    let mut environment = BTreeMap::new();
+    let mut timeout_ms = None;
+    let mut max_output_bytes = None;
+
+    for (index, line) in text.lines().enumerate() {
+        let number = index + 1;
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let Some((key, value)) = line.split_once('=') else {
+            return Err(invalid(number, "must use key=value"));
+        };
+        if value.chars().any(char::is_control) {
+            return Err(invalid(number, "contains a control character"));
+        }
+        match key {
+            "version" => {
+                let parsed = value
+                    .parse::<u32>()
+                    .map_err(|_| invalid(number, "invalid version"))?;
+                if version.replace(parsed).is_some() {
+                    return Err(invalid(number, "repeats version"));
+                }
+            }
+            "executable" => {
+                if executable.replace(PathBuf::from(value)).is_some() {
+                    return Err(invalid(number, "repeats executable"));
+                }
+            }
+            "argument" => {
+                if arguments.len() == MAX_PROVIDER_ARGUMENTS {
+                    return Err(invalid(number, "too many arguments"));
+                }
+                arguments.push(value.to_owned());
+            }
+            "timeout_ms" => {
+                let parsed = value
+                    .parse::<u64>()
+                    .ok()
+                    .filter(|value| (1..=MAX_PROVIDER_TIMEOUT_MS).contains(value))
+                    .ok_or_else(|| invalid(number, "timeout_ms is out of range"))?;
+                if timeout_ms.replace(parsed).is_some() {
+                    return Err(invalid(number, "repeats timeout_ms"));
+                }
+            }
+            "max_output_bytes" => {
+                let parsed = value
+                    .parse::<usize>()
+                    .ok()
+                    .filter(|value| (1..=MAX_PROVIDER_OUTPUT_BYTES).contains(value))
+                    .ok_or_else(|| invalid(number, "max_output_bytes is out of range"))?;
+                if max_output_bytes.replace(parsed).is_some() {
+                    return Err(invalid(number, "repeats max_output_bytes"));
+                }
+            }
+            key if key.starts_with("env.") => {
+                let name = &key["env.".len()..];
+                if name.is_empty()
+                    || name.contains('=')
+                    || name.chars().any(char::is_control)
+                    || name.starts_with("AGENTFORGE_CI_")
+                {
+                    return Err(invalid(number, "invalid or reserved environment key"));
+                }
+                if environment.len() == MAX_PROVIDER_ENVIRONMENT && !environment.contains_key(name)
+                {
+                    return Err(invalid(number, "too many environment values"));
+                }
+                if environment
+                    .insert(name.to_owned(), value.to_owned())
+                    .is_some()
+                {
+                    return Err(invalid(number, "repeats an environment key"));
+                }
+            }
+            _ => return Err(invalid(number, &format!("unknown key {key}"))),
+        }
+    }
+
+    if version != Some(1) {
+        return Err(CiProviderError::Invalid("requires version=1".into()));
+    }
+    let executable =
+        executable.ok_or_else(|| CiProviderError::Invalid("missing executable".into()))?;
+    if !executable.is_absolute() || !executable.is_file() {
+        return Err(CiProviderError::Invalid(format!(
+            "executable must be an existing absolute file: {}",
+            executable.display()
+        )));
+    }
+    let mut config = CommandCiMonitorConfig::new(executable)
+        .with_timeout(Duration::from_millis(timeout_ms.unwrap_or(60_000)))
+        .with_max_output_bytes(max_output_bytes.unwrap_or(1024 * 1024));
+    for argument in arguments {
+        config = config.with_argument(argument);
+    }
+    for (key, value) in environment {
+        config = config.with_environment(key, value);
+    }
+    config
+        .validate()
+        .map_err(|error| CiProviderError::Invalid(error.to_string()))?;
+    Ok(config)
 }

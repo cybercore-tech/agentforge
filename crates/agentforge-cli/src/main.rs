@@ -55,6 +55,7 @@ fn main() -> ExitCode {
         Some("task") => task_command(args.collect()),
         Some("agent") => agent_command(args.collect()),
         Some("gate") => gate_command(args.collect()),
+        Some("ci") => ci_command(args.collect()),
         Some("run") => run_command(args.collect()),
         Some("daemon") => daemon_command(args.collect()),
         Some("worktree") => worktree_command(args.collect()),
@@ -73,7 +74,7 @@ fn main() -> ExitCode {
 
 fn print_usage() {
     println!(
-        "usage: forge <version|doctor|status|init <root>|intake <root> [--task] [--input-file <path>]|blueprint validate <root>|task create|inspect|launch|diff|approve|integrate|accept|cancel|retry ...|agent list|validate|inspect <root> [<profile>]|gate list <root>|run <root> <task-id> <absolute-executable> [--interactive] [--pty]|run <root> <task-id> --profile <profile> [--interactive] [--pty]|daemon start|restart|status|run|launch|stop ...|worktree create|inspect|list|retire ...|hud <root> [--watch [--interval-ms <milliseconds>]]>"
+        "usage: forge <version|doctor|status|init <root>|intake <root> [--task] [--input-file <path>]|blueprint validate <root>|task create|inspect|launch|diff|approve|integrate|accept|cancel|retry ...|agent list|validate|inspect <root> [<profile>]|gate list <root>|ci observe <root> <repository> <workflow> <sha> [--task <task-id>]|run <root> <task-id> <absolute-executable> [--interactive] [--pty]|run <root> <task-id> --profile <profile> [--interactive] [--pty]|daemon start|restart|status|run|launch|stop ...|worktree create|inspect|list|retire ...|hud <root> [--watch [--interval-ms <milliseconds>]]>"
     );
 }
 
@@ -108,6 +109,80 @@ fn gate_command(arguments: Vec<String>) -> ExitCode {
             eprintln!("gate requires: list <root>");
             print_usage();
             ExitCode::from(2)
+        }
+    }
+}
+
+fn ci_command(arguments: Vec<String>) -> ExitCode {
+    let usage = "ci requires: observe <root> <repository> <workflow> <sha> [--task <task-id>]";
+    let task_id = match arguments.get(5..) {
+        Some([]) => None,
+        Some([flag, value]) if flag == "--task" => match TaskId::parse(value.clone()) {
+            Ok(task_id) => Some(task_id),
+            Err(error) => {
+                eprintln!("invalid task ID: {error}");
+                return ExitCode::from(2);
+            }
+        },
+        _ => {
+            eprintln!("{usage}");
+            print_usage();
+            return ExitCode::from(2);
+        }
+    };
+    if arguments.first().map(String::as_str) != Some("observe") {
+        eprintln!("{usage}");
+        print_usage();
+        return ExitCode::from(2);
+    }
+    let request = agentforge_ci::CiObservationRequest::new(
+        arguments[2].clone(),
+        arguments[3].clone(),
+        arguments[4].clone(),
+    );
+    match agentforge_operator::observe_ci(&arguments[1], &request, task_id.as_ref()) {
+        Ok(observation) => {
+            let run = &observation.run;
+            println!(
+                "ci run={} sha={} status={} conclusion={}",
+                run.provider_id(),
+                run.head_sha(),
+                run.status().as_str(),
+                run.conclusion()
+                    .map_or("none", agentforge_ci::CiConclusion::as_str)
+            );
+            for job in run.jobs() {
+                let classification = observation
+                    .classifications
+                    .iter()
+                    .find(|(name, _)| name == job.name())
+                    .map(|(_, classification)| {
+                        format!(" category={}", classification.category().as_str())
+                    })
+                    .unwrap_or_default();
+                println!(
+                    "job {:?} status={} conclusion={}{classification}",
+                    job.name(),
+                    job.status().as_str(),
+                    job.conclusion()
+                        .map_or("none", agentforge_ci::CiConclusion::as_str)
+                );
+            }
+            println!(
+                "recorded CiObserved and {} FailureClassified event(s)",
+                observation.classifications.len()
+            );
+            if observation.pending() {
+                ExitCode::from(3)
+            } else if observation.succeeded() {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::from(1)
+            }
+        }
+        Err(error) => {
+            eprintln!("ci observe failed: {error}");
+            ExitCode::from(1)
         }
     }
 }

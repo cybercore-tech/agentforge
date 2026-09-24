@@ -128,6 +128,50 @@ documentation/text policy, workflow/governance, infrastructure, or unknown—wit
 specificity precedence. Classification is evidence for later review, not root-cause proof or repair
 authority. Provider authentication and network behavior remain outside the workspace command.
 
+## Operator CI observation
+
+P1-M005 makes the monitor and classifier reachable from the CLI. A project declares its provider
+command once, in `.forge/ci/provider.conf`, using the bounded agent-profile format (`version=1`,
+absolute `executable`, literal `argument` values, `env.NAME=value`, optional `timeout_ms` up to one
+hour, and `max_output_bytes`). `AGENTFORGE_CI_*` names are reserved for the request variables.
+
+```bash
+forge ci observe <root> <repository> <workflow> <40-hex-sha> [--task <task-id>]
+```
+
+One call runs the provider once and selects exactly one run for the SHA. It then records:
+
+- one `CiObserved` audit event with `repository`, `workflow`, `sha`, `run`, `status`, and
+  `conclusion` (plus the task ID with `--task`); and
+- one `FailureClassified` event per job whose conclusion is `failure`, with `stage=ci`, `job`,
+  `category`, and the matched `marker`.
+
+It prints the run and one line per job, then exits 0 for a successful run, 1 for any other
+completed conclusion or an observation error, 3 while the run is queued or in progress, and 2 for
+usage errors. Missing, stale, ambiguous, or malformed evidence records nothing. Observation never
+changes task state or starts a repair. The project must be initialized; the audit log is created
+on first observation, as the run paths do.
+
+### Reference GitHub provider
+
+`scripts/ci-provider-github` adapts an authenticated GitHub CLI to the protocol. When re-runs or
+manual dispatches produce several runs for one workflow and SHA, it reports only the most recently
+created run. Failed jobs carry a bounded excerpt of the failed-step log lines that look like errors,
+panics, or lint output. Because providers run with a cleared environment, the profile passes what
+`gh` needs:
+
+```text
+version=1
+executable=/usr/bin/python3
+argument=/path/to/agentforge/scripts/ci-provider-github
+env.PATH=/usr/bin:/bin
+env.HOME=/home/operator
+timeout_ms=180000
+```
+
+Add `env.GH_TOKEN=...` only if `gh auth` is not configured for that `HOME`. The profile then holds
+a credential: keep it out of version control and readable only by the operator.
+
 ## Exact-head evidence
 
 A green run is evidence only for the commit SHA that produced it.

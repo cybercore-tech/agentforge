@@ -1,6 +1,10 @@
 //! Explicit, audited operator actions over durable AgentForge task state.
 
 use agentforge_audit::{AuditEvent, AuditEventKind, AuditStore, FileAuditStore};
+use agentforge_ci::{
+    CiConclusion, CiMonitor, CiObservationRequest, CiProviderStore, CiRun, CiStatus,
+    CommandCiMonitor, FailureClassification, FailureClassifier,
+};
 use agentforge_core::agent::ApprovalBoundary;
 use agentforge_core::task::{TaskGraph, TaskId, TaskState};
 use agentforge_state::{FileTaskStore, TaskStore};
@@ -103,6 +107,131 @@ pub fn inspect_tasks(
         return Err(OperatorError::new("task not found"));
     }
     Ok(result)
+}
+
+/// One recorded exact-SHA CI observation with classified failed jobs.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CiObservation {
+    /// The single provider run selected for the exact SHA.
+    pub run: CiRun,
+    /// Classification for each job whose conclusion is `failure`, in provider job order.
+    pub classifications: Vec<(String, FailureClassification)>,
+}
+
+impl CiObservation {
+    /// Returns whether the run completed successfully.
+    #[must_use]
+    pub fn succeeded(&self) -> bool {
+        self.run.conclusion() == Some(CiConclusion::Success)
+    }
+
+    /// Returns whether the provider has not reached a terminal conclusion yet.
+    #[must_use]
+    pub fn pending(&self) -> bool {
+        self.run.status() != CiStatus::Completed
+    }
+}
+
+/// Observes exactly one CI run for a commit through the project's reviewed provider, classifies
+/// its failed jobs, and records the evidence. Nothing is recorded when observation fails, and
+/// classification never changes task state.
+pub fn observe_ci(
+    root: impl AsRef<Path>,
+    request: &CiObservationRequest,
+    task_id: Option<&TaskId>,
+) -> Result<CiObservation, OperatorError> {
+    let root = root.as_ref();
+    if let Some(task_id) = task_id {
+        if load_graph(root)?.get(task_id).is_none() {
+            return Err(OperatorError::new("task not found"));
+        }
+    }
+    // Observation is often the first evidence in a project, so the log is created on first
+    // use as the run paths do; an uninitialized project still fails closed.
+    if !root.join(".forge").is_dir() {
+        return Err(OperatorError::new(
+            "project is not initialized: .forge directory is missing",
+        ));
+    }
+    let mut audit = FileAuditStore::open(root.join(AUDIT_RELATIVE_PATH))
+        .map_err(|error| OperatorError::new(error.to_string()))?;
+    let config = CiProviderStore::new(root)
+        .load()
+        .map_err(|error| OperatorError::new(error.to_string()))?;
+    let run = CommandCiMonitor::new(config)
+        .observe_exact(request, root)
+        .map_err(|error| OperatorError::new(error.to_string()))?;
+    let classifications = run
+        .jobs()
+        .iter()
+        .filter(|job| job.conclusion() == Some(CiConclusion::Failure))
+        .map(|job| (job.name().to_owned(), FailureClassifier::classify(job)))
+        .collect::<Vec<_>>();
+
+    let with_task = |event: AuditEvent| match task_id {
+        Some(task_id) => event.with_task_id(task_id.as_str()),
+        None => event,
+    };
+    let sequence = next_sequence(&audit);
+    let observed = with_task(
+        AuditEvent::new(
+            sequence,
+            format!("ci-observed-{sequence}"),
+            AuditEventKind::CiObserved,
+            "operator",
+            1,
+        )
+        .with_field("repository", audit_text(request.repository()))
+        .with_field("workflow", audit_text(request.workflow()))
+        .with_field("sha", run.head_sha())
+        .with_field("run", audit_text(run.provider_id()))
+        .with_field("status", run.status().as_str())
+        .with_field(
+            "conclusion",
+            run.conclusion().map_or("none", CiConclusion::as_str),
+        ),
+    );
+    audit
+        .append(observed)
+        .map_err(|error| OperatorError::new(error.to_string()))?;
+    for (job, classification) in &classifications {
+        let sequence = next_sequence(&audit);
+        let event = with_task(
+            AuditEvent::new(
+                sequence,
+                format!("ci-failure-classified-{sequence}"),
+                AuditEventKind::FailureClassified,
+                "operator",
+                1,
+            )
+            .with_field("stage", "ci")
+            .with_field("sha", run.head_sha())
+            .with_field("job", audit_text(job))
+            .with_field("category", classification.category().as_str())
+            .with_field("marker", classification.matched_marker().unwrap_or("none")),
+        );
+        audit
+            .append(event)
+            .map_err(|error| OperatorError::new(error.to_string()))?;
+    }
+    Ok(CiObservation {
+        run,
+        classifications,
+    })
+}
+
+/// Audit fields must be non-empty, bounded, and free of control characters.
+fn audit_text(value: &str) -> String {
+    let text: String = value
+        .chars()
+        .map(|c| if c.is_control() { ' ' } else { c })
+        .take(512)
+        .collect();
+    if text.trim().is_empty() {
+        "unspecified".to_owned()
+    } else {
+        text
+    }
 }
 
 /// Records one explicit approval for a task-required boundary.

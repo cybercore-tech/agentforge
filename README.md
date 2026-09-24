@@ -301,6 +301,15 @@ forge gate list /path/to/project
 
 See [`docs/GATES.md`](docs/GATES.md).
 
+Record exact-SHA CI evidence, with every failed job classified before any repair, through a reviewed
+provider command in `.forge/ci/provider.conf` (a GitHub CLI reference provider is included):
+
+```bash
+forge ci observe /path/to/project owner/repo "AgentForge CI" <40-hex-sha> [--task <task-id>]
+```
+
+See [`docs/CI.md`](docs/CI.md#operator-ci-observation).
+
 For a supervised local daemon:
 
 ```bash

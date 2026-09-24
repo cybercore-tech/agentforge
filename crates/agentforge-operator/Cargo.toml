@@ -8,6 +8,7 @@ publish = false
 
 [dependencies]
 agentforge-audit = { path = "../agentforge-audit" }
+agentforge-ci = { path = "../agentforge-ci" }
 agentforge-core = { path = "../agentforge-core" }
 agentforge-state = { path = "../agentforge-state" }
 agentforge-worktree = { path = "../agentforge-worktree" }

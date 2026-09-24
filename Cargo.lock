@@ -64,6 +64,7 @@ name = "agentforge-operator"
 version = "0.0.1"
 dependencies = [
  "agentforge-audit",
+ "agentforge-ci",
  "agentforge-core",
  "agentforge-state",
  "agentforge-worktree",
@@ -88,6 +89,7 @@ version = "0.0.1"
 dependencies = [
  "agentforge-adapter",
  "agentforge-audit",
+ "agentforge-ci",
  "agentforge-core",
  "agentforge-daemon",
  "agentforge-gate",
