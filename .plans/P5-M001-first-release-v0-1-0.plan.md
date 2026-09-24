@@ -1,6 +1,6 @@
 # Plan: P5-M001 — First release, v0.1.0
 
-Status: Draft
+Status: Approved
 Milestone: P5-M001
 Created: 2026-09-24
 Owner: AgentForge project
