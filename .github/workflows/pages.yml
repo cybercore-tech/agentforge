@@ -20,9 +20,18 @@ jobs:
     steps:
       - name: Check out exact head
         uses: actions/checkout@v7
+        with:
+          # Full history lets the updates feed date milestones from their closure commits.
+          fetch-depth: 0
+
+      - name: Generate updates feed
+        run: ./scripts/site-updates --output site/updates.json
 
       - name: Validate static site boundary
         run: |
+          test -s site/updates.json
+          grep -Fq 'id="updates"' site/index.html
+          grep -Fq 'updates.json' site/script.js
           test -s site/index.html
           test -s site/styles.css
           test -s site/script.js

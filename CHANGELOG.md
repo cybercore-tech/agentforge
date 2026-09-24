@@ -17,6 +17,9 @@ All notable AgentForge changes are documented here. The format follows
   coordinator (P1-M006).
 - Remote-worker lease contract, durable lease state, and deterministic dispatch planning as
   transport-neutral foundations (P4-M001 to P4-M003).
+- A *What's new* section on the project site with recently shipped milestones, work in progress,
+  phase progress, and upcoming release notes, generated from repository records at deploy time
+  (P2-M026).
 
 ### Changed
 

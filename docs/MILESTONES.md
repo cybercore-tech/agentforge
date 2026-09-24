@@ -58,6 +58,7 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 | P2-M023 | complete | Bounded daemon lifecycle tests and CI job timeouts | Daemon lifecycle tests cannot block without bound, a stalled client cannot wedge the daemon, every CI job has a timeout, and the exact seven-job matrix is green. |
 | P2-M024 | complete | Daemon long-running requests | Daemon run/launch executions longer than the control timeout succeed, status stays available during them, overlapping executions and stop are refused, and no client error suggests removing live metadata. |
 | P2-M025 | complete | Canonical repository identity | Repository metadata, README, CHANGELOG, registry docs, and the Pages site point at `cybercore-tech/agentforge`, and Pages deploys from the new repository. |
+| P2-M026 | active | Project site updates feed | The project site shows recently shipped milestones, work in progress, phase progress, and unreleased features, generated from repository records at deploy time and validated in CI. |
 
 ## Phase 3 — external systems and Mission Control
 

@@ -18,7 +18,10 @@ CI observations, audit records, and human decisions. 🧭
 [![Rust 1.85+](https://img.shields.io/badge/rust-1.85%2B-orange?logo=rust)](https://www.rust-lang.org/)
 [![Project site](https://img.shields.io/badge/project%20site-AgentForge-08111f?logo=github)](https://cybercore-tech.github.io/agentforge/)
 
-**[Visit the AgentForge project site →](https://cybercore-tech.github.io/agentforge/)**
+**[Visit the AgentForge project site →](https://cybercore-tech.github.io/agentforge/)**. Its
+[What's new](https://cybercore-tech.github.io/agentforge/#updates) section shows recently shipped
+milestones, work in progress, phase progress, and upcoming release notes, generated from this
+repository's own records.
 
 ## ⚠️ Pre-release warning
 
@@ -518,6 +521,7 @@ Clippy, tests, and documentation tests. Do not bypass hooks or validation with `
 - [Governance](docs/GOVERNANCE.md)
 - [Milestones](docs/MILESTONES.md)
 - [Release process](docs/RELEASE.md)
+- [Project site and updates feed](docs/SITE.md)
 - [Package identity and distribution](docs/REGISTRY.md)
 - [Architecture notes](docs/architecture/README.md)
 - [Architecture decision records](docs/adr/README.md)
@@ -536,7 +540,8 @@ paths and restored reliable CI:
 - **P1-M005** `forge ci observe` records classified CI evidence;
 - **P1-M006** `forge task launch-batch` runs disjoint tasks concurrently;
 - **P2-M024** daemon executions of any length, with keepalives and a single execution slot;
-- **P2-M025** the canonical repository moved to `cybercore-tech/agentforge`.
+- **P2-M025** the canonical repository moved to `cybercore-tech/agentforge`;
+- **P2-M026** the project site gained a generated *What's new* section.
 
 Candidate next milestones, each still requiring its own approved plan:
 

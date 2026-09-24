@@ -20,6 +20,7 @@
       <nav class="site-nav" aria-label="Primary navigation">
         <a class="active" href="#top">Overview</a>
         <a href="#workflow">Workflow</a>
+        <a href="#updates">Updates</a>
         <a href="https://github.com/cybercore-tech/agentforge/tree/main/docs">Docs</a>
         <a href="https://github.com/cybercore-tech/agentforge">GitHub <span aria-hidden="true">↗</span></a>
       </nav>
@@ -127,6 +128,31 @@
             <ul class="signal-list"><li>Exact commits</li><li>Full logs</li><li>Verifiable artifacts</li></ul>
           </article>
         </div>
+      </section>
+
+      <section class="section section-updates shell" id="updates" aria-labelledby="updates-title">
+        <div class="section-heading compact-heading">
+          <p class="eyebrow">WHAT'S NEW</p>
+          <h2 id="updates-title">Shipped, milestone by milestone.</h2>
+          <p class="updates-summary" id="updates-summary">Every entry below is generated from the repository's own milestone records, plans, and changelog when the site is published.</p>
+        </div>
+        <div class="updates-grid" id="updates-grid" hidden>
+          <div class="updates-column">
+            <h3 class="updates-subhead">Recently shipped</h3>
+            <ol class="update-timeline" id="updates-recent"></ol>
+            <div class="updates-active" id="updates-active-wrap" hidden>
+              <h3 class="updates-subhead">In progress</h3>
+              <ul class="update-timeline" id="updates-active"></ul>
+            </div>
+          </div>
+          <aside class="updates-column updates-side" aria-label="Project progress and upcoming release notes">
+            <h3 class="updates-subhead">Phase progress</h3>
+            <ul class="phase-progress" id="updates-phases"></ul>
+            <h3 class="updates-subhead">Coming in the next release</h3>
+            <div class="unreleased" id="updates-unreleased"></div>
+          </aside>
+        </div>
+        <p class="updates-links">Full history: <a href="https://github.com/cybercore-tech/agentforge/blob/main/docs/MILESTONES.md">milestones</a> <span aria-hidden="true">·</span> <a href="https://github.com/cybercore-tech/agentforge/blob/main/CHANGELOG.md">changelog</a> <span aria-hidden="true">·</span> <a href="https://github.com/cybercore-tech/agentforge/tree/main/docs/adr">decision records</a></p>
       </section>
 
       <section class="operator-callout shell" aria-labelledby="operator-title">

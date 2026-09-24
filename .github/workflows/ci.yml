@@ -39,6 +39,9 @@ jobs:
       - name: Validate plan-first policy
         run: cargo run -p xtask --locked -- validate-plan-policy
 
+      - name: Validate site updates feed sources
+        run: ./scripts/site-updates --output "$RUNNER_TEMP/updates.json"
+
   stable-code:
     name: Stable code gate
     timeout-minutes: 30

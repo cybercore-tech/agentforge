@@ -1,0 +1,165 @@
+#!/usr/bin/env python3
+"""Generate the project site's updates feed (site/updates.json).
+
+The feed is built only from records every milestone closure already maintains:
+
+- docs/MILESTONES.md: phases and their milestone tables (ID, status, title, signal);
+- .plans/<ID>-*.plan.md: the completion date ("Completed: YYYY-MM-DD"), falling back to the
+  date of the last commit that touched the plan file;
+- CHANGELOG.md: the Unreleased section's Added/Changed/Fixed entries.
+
+Standard library only. Exits non-zero instead of writing an empty or partial feed.
+"""
+
+import argparse
+import json
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+RECENT_LIMIT = 8
+PHASE_HEADING = re.compile(r"^## Phase (\d+) — (.+)$")
+ROW = re.compile(r"^\| (P\d+-M\d{3}) \| ([a-z]+) \| (.+?) \| (.+) \|$")
+DATE = re.compile(r"^Completed:\s*(\d{4}-\d{2}-\d{2})", re.MULTILINE)
+STATUSES = {"planned", "active", "complete", "blocked", "split", "superseded"}
+
+
+def fail(message):
+    print(f"site-updates: {message}", file=sys.stderr)
+    sys.exit(1)
+
+
+def parse_milestones(text):
+    phases = []
+    current = None
+    for line in text.splitlines():
+        heading = PHASE_HEADING.match(line)
+        if heading:
+            current = {
+                "number": int(heading.group(1)),
+                "name": heading.group(2).strip(),
+                "milestones": [],
+            }
+            phases.append(current)
+            continue
+        if line.startswith("## "):
+            current = None
+            continue
+        row = ROW.match(line)
+        if row and current is not None:
+            milestone_id, status, title, signal = (part.strip() for part in row.groups())
+            if status not in STATUSES:
+                fail(f"{milestone_id} has unknown status {status!r}")
+            current["milestones"].append(
+                {"id": milestone_id, "status": status, "title": title, "signal": signal}
+            )
+    phases = [phase for phase in phases if phase["milestones"]]
+    if not phases:
+        fail("no milestone tables parsed from docs/MILESTONES.md")
+    ids = [m["id"] for phase in phases for m in phase["milestones"]]
+    if len(ids) != len(set(ids)):
+        fail("duplicate milestone IDs in docs/MILESTONES.md")
+    return sorted(phases, key=lambda phase: phase["number"])
+
+
+def git_date(path, fmt="%cs"):
+    try:
+        completed = subprocess.run(
+            ["git", "log", "-1", f"--format={fmt}", "--", str(path)],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    value = completed.stdout.strip()
+    return value or None
+
+
+def completion(milestone_id):
+    """Returns (date, closure timestamp) for a completed milestone."""
+    plans = sorted((ROOT / ".plans").glob(f"{milestone_id}-*.plan.md"))
+    # The last commit touching a plan is its closure; its timestamp orders same-day milestones.
+    stamps = [stamp for stamp in (git_date(plan, "%cI") for plan in plans) if stamp]
+    stamp = max(stamps) if stamps else ""
+    for plan in plans:
+        match = DATE.search(plan.read_text(encoding="utf-8"))
+        if match:
+            return match.group(1), stamp
+    # Older plans record completion in free text; the closure commit date is the next best record.
+    return (stamp[:10] or None), stamp
+
+
+def parse_unreleased(text):
+    section = re.search(r"^## \[Unreleased\]\s*$(.*?)(?=^## \[)", text, re.MULTILINE | re.DOTALL)
+    if not section:
+        fail("CHANGELOG.md has no [Unreleased] section")
+    groups = {}
+    current = None
+    for line in section.group(1).splitlines():
+        if line.startswith("### "):
+            current = groups.setdefault(line[4:].strip(), [])
+        elif line.startswith("- ") and current is not None:
+            current.append(line[2:].strip())
+        elif line.startswith("  ") and line.strip() and current:
+            current[-1] = f"{current[-1]} {line.strip()}"
+    return groups
+
+
+def build():
+    milestones_text = (ROOT / "docs/MILESTONES.md").read_text(encoding="utf-8")
+    changelog_text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    phases = parse_milestones(milestones_text)
+    closed_at = {}
+    for phase in phases:
+        for milestone in phase["milestones"]:
+            milestone["phase"] = phase["number"]
+            plans = sorted((ROOT / ".plans").glob(f"{milestone['id']}-*.plan.md"))
+            if plans:
+                milestone["plan"] = plans[0].relative_to(ROOT).as_posix()
+            if milestone["status"] == "complete":
+                milestone["completed"], closed_at[milestone["id"]] = completion(milestone["id"])
+        phase["complete"] = sum(m["status"] == "complete" for m in phase["milestones"])
+        phase["total"] = len(phase["milestones"])
+
+    everything = [m for phase in phases for m in phase["milestones"]]
+    completed = [m for m in everything if m["status"] == "complete"]
+    # Newest completion first; the closure commit timestamp orders milestones within a day.
+    recent = sorted(
+        completed,
+        key=lambda m: (m.get("completed") or "", closed_at.get(m["id"], "")),
+        reverse=True,
+    )[:RECENT_LIMIT]
+    return {
+        "version": 1,
+        "source_commit": os.environ.get("GITHUB_SHA") or None,
+        "totals": {"complete": len(completed), "total": len(everything)},
+        "phases": [
+            {key: phase[key] for key in ("number", "name", "complete", "total")}
+            for phase in phases
+        ],
+        "recent": recent,
+        "in_progress": [m for m in everything if m["status"] == "active"],
+        "unreleased": parse_unreleased(changelog_text),
+    }
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--output", default=str(ROOT / "site/updates.json"))
+    arguments = parser.parse_args()
+    feed = build()
+    Path(arguments.output).write_text(json.dumps(feed, indent=2) + "\n", encoding="utf-8")
+    totals = feed["totals"]
+    print(
+        f"site-updates: {totals['complete']}/{totals['total']} milestones complete, "
+        f"{len(feed['recent'])} recent, {len(feed['in_progress'])} in progress -> {arguments.output}"
+    )
+
+
+if __name__ == "__main__":
+    main()
