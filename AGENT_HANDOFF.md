@@ -2,14 +2,19 @@
 
 ## Repository state
 
-- Active milestone: none. P5-M001 is complete: **`v0.1.0` is published** from `b1f1cab`. The first
+- Active milestone: none. P1-M008 is complete (`f066697`; CI `36020725173` and `36020936985`). **New
+  integration order:** diff → accept → `task approve ... merge_protected_branch` (bound to the
+  head; never before launch) → integrate. A branch that moves after approval must be approved
+  again.
+- P5-M001 is complete: **`v0.1.0` is published** from `b1f1cab`. The first
   tag run's publish job failed on a workflow defect, fixed in `0eb777b`; see `docs/RELEASE.md` "If
   the publish job fails". The next release tag is the first to exercise the fixed publish job, so
   watch it. Release tags (`vX.Y.Z`) are separate from `milestone/<ID>` tags.
 - P2-M033 (HUD view of agent runs) is complete: commit `29484bc` by Claude
   Code, landed through `forge task integrate`; CI `36010816304` and `36011038882` are green. Every
   completed milestone through P2-M033 is tagged. Record every required approval, including
-  `merge_protected_branch`, before `forge task launch` (finding 8).
+  `merge_protected_branch`, before `forge task launch` (finding 8; superseded by P1-M008, which
+  records the merge approval after accept).
 - P2-M032 (macOS daemon stop flake) is complete. Commit `e3c4bbe`, and four CI runs are green
   including macOS. **Closure ends
   with `scripts/tag-milestone <ID>` (check the dry-run subject reads "close ...") and pushing the tag**

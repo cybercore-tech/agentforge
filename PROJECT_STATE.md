@@ -13,14 +13,20 @@ agent-built milestones, Phase 4 remote-worker wiring, the P3 tool gateway, and P
 
 ## Active milestone
 
-No active milestone. P5-M001 — first release v0.1.0 — is complete: `v0.1.0` is published. Every
-completed milestone is tagged `milestone/<ID>`.
+No active milestone. P1-M008 — post-review approvals bound to the reviewed commit — is complete.
+`v0.1.0` is the latest release, and every completed milestone is tagged `milestone/<ID>`.
 
 ## Known issues
 
-- Dogfooding finding 8: `forge task launch` requires the merge approval before the agent runs, so
-  the approval record does not prove a review. Other findings are resolved; see
-  `docs/DOGFOODING.md`.
+None open. Dogfooding findings 1–8 are resolved; see `docs/DOGFOODING.md`.
+
+## P1-M008 completion evidence
+
+- Approved plan: `.plans/P1-M008-post-review-approvals.plan.md`; ADR-0045.
+- Implementation commit: `f066697`. CI `36020725173` (push) and `36020936985` (dispatched) are
+  green on all seven jobs.
+- Scratch-repo dogfood with the real binaries: a late commit after approval was refused, and
+  integration fast-forwarded exactly the re-approved head.
 
 ## P5-M001 completion evidence
 

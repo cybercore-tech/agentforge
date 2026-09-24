@@ -1,6 +1,6 @@
 # Plan: P1-M008 — Post-review approvals bound to the reviewed commit
 
-Status: Approved
+Status: Complete
 Milestone: P1-M008
 Created: 2026-09-24
 Owner: AgentForge project
@@ -157,15 +157,23 @@ CHANGELOG, and MILESTONES at closure.
 
 ## Acceptance criteria
 
-- [ ] Agents launch without post-execution approvals on every launch path.
-- [ ] Post-execution approvals require acceptance and are bound to the reviewed head.
-- [ ] Integration merges only the approved commit, checked under the integration lock.
-- [ ] ADR-0045, docs, and finding 8 resolved; CI evidence recorded; closed and tagged.
+- [x] Agents launch without post-execution approvals on every launch path.
+- [x] Post-execution approvals require acceptance and are bound to the reviewed head.
+- [x] Integration merges only the approved commit, checked under the integration lock.
+- [x] ADR-0045, docs, and finding 8 resolved; CI evidence recorded; closed and tagged.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
-Notes:
+Implementation commit: `f066697`
+CI run: `36020725173` (push) and `36020936985` (dispatched repeat)
+CI result: green on all seven jobs in both runs
+Completed: 2026-09-24
+Notes: Operator-authored as planned. The manual scratch-repo dogfood used the real binaries:
+- launch ran with no approvals recorded;
+- an approval before accept was refused with the order to follow;
+- after accept, the approval was bound to `4e8968d`;
+- a late commit made `integrate` fail with both SHAs, and `main` stayed at its base;
+- re-approving bound `d8270c0`, and `integrate` fast-forwarded exactly to `d8270c0`.
+
+Dogfooding finding 8 is resolved. No accepted task with a legacy merge approval was pending in
+this repository.

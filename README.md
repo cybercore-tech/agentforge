@@ -563,6 +563,7 @@ paths and restored reliable CI:
 - **P2-M030** every completed milestone is tagged (`milestone/<ID>`) on its closure commit;
 - **P2-M033** `forge hud` shows recent agent runs. Built by Claude Code and the first milestone
   landed through `forge task integrate`;
+- **P1-M008** merge approvals come after review and are bound to the reviewed commit;
 - **P5-M001** the first tagged release,
   [`v0.1.0`](https://github.com/cybercore-tech/agentforge/releases/tag/v0.1.0), with checksummed
   archives for Linux, macOS, and Windows.

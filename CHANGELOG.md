@@ -6,6 +6,14 @@ All notable AgentForge changes are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Merge, release, and deployment approvals are post-execution (P1-M008, ADR-0045). Agents launch
+  without them. They can be recorded only after `forge task accept`, each is bound to the reviewed
+  task branch head (`forge task approve` prints it, and `forge task inspect` lists it), and
+  `forge task integrate` fast-forwards exactly that commit, re-checked under the integration lock.
+  Merge approvals recorded earlier must be given again.
+
 ### Fixed
 
 - The release workflow's publish job failing with `not a git repository` (it has no checkout;

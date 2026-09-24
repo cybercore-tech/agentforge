@@ -95,6 +95,7 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 | P1-M005 | complete | CI observation wiring | Operators record exact-SHA CI evidence and classified failed jobs in the audit log through a reviewed provider command, without CI gaining task authority. |
 | P1-M006 | complete | Concurrent batch launch | Disjoint ready tasks launch concurrently from one command with a single state coordinator; overlapping and over-limit tasks are deferred deterministically. |
 | P1-M007 | complete | Task-declared required gates | Tasks run exactly their declared gates, missing gate profiles fail preflight before any side effect, and blueprint defaults need a configured profile; implemented by a real agent through AgentForge. |
+| P1-M008 | complete | Post-review approvals bound to the reviewed commit | Agents launch without merge/release/deploy approvals; those approvals are recorded only after accept, bound to the reviewed head, and `integrate` merges exactly that commit. |
 
 ## Phase 5 — release and deployment orchestration
 
