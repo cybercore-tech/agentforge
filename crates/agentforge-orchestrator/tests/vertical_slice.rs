@@ -667,3 +667,53 @@ fn a_duplicate_required_gate_runs_once() {
     assert_eq!(events_of(&audit, AuditEventKind::GateFinished).len(), 2);
     cleanup(repo);
 }
+
+#[test]
+fn agent_output_is_persisted_as_evidence_and_referenced_by_the_audit() {
+    let failing = prepared_repo(&[]);
+    let (result, audit) = run_prepared(&failing, "/usr/bin/false");
+    let execution = result.unwrap();
+    assert!(
+        !execution.succeeded(),
+        "a non-zero agent exit is not success"
+    );
+    let stdout = execution.evidence.stdout_log.clone().expect("stdout log");
+    let stderr = execution.evidence.stderr_log.clone().expect("stderr log");
+    assert!(stdout.starts_with(agentforge_orchestrator::EVIDENCE_RELATIVE_PATH));
+    assert!(failing.root.join(&stdout).is_file());
+    assert!(failing.root.join(&stderr).is_file());
+    let finished = events_of(&audit, AuditEventKind::AgentFinished);
+    assert_eq!(finished.len(), 1);
+    let fields = finished[0].fields();
+    assert_eq!(fields.get("exit_code").map(String::as_str), Some("1"));
+    assert_eq!(
+        fields.get("termination").map(String::as_str),
+        Some("exited")
+    );
+    assert_eq!(
+        fields.get("stdout_log").map(String::as_str),
+        Some(stdout.to_string_lossy().as_ref())
+    );
+    assert!(
+        !failing
+            .root
+            .join(".forge/worktrees")
+            .join(failing.task_id.as_str())
+            .join(".forge/evidence")
+            .exists(),
+        "evidence never lands inside the task worktree"
+    );
+    cleanup(failing);
+
+    let passing = prepared_repo(&[]);
+    let (result, _) = run_prepared(&passing, "/usr/bin/true");
+    let execution = result.unwrap();
+    assert!(execution.succeeded());
+    assert!(
+        passing
+            .root
+            .join(execution.evidence.stdout_log.expect("stdout log"))
+            .is_file()
+    );
+    cleanup(passing);
+}

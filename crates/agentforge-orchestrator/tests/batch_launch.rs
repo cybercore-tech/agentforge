@@ -346,3 +346,25 @@ fn capacity_limits_the_batch() {
             .all(|deferred| deferred.reason == DeferReason::Capacity)
     );
 }
+
+#[test]
+fn a_non_zero_agent_exit_fails_the_batch_outcome_and_keeps_evidence() {
+    let project = Project::new(vec![task("P1-M006-T0001", "src")], &[]);
+    let adapter =
+        ProcessAdapter::new(ProcessAdapterConfig::new("false", "/usr/bin/false")).unwrap();
+    let (result, _) = project.launch(&adapter, &BTreeMap::new(), 4);
+    let batch = result.unwrap();
+    assert!(!batch.succeeded());
+    match &batch.outcomes[0] {
+        BatchTaskOutcome::Launched { evidence, .. } => {
+            assert!(
+                project
+                    .root
+                    .join(evidence.stdout_log.as_ref().unwrap())
+                    .is_file()
+            );
+        }
+        other => panic!("expected a launched outcome, got {other:?}"),
+    }
+    assert_eq!(project.state("P1-M006-T0001"), TaskState::Running);
+}

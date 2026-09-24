@@ -187,6 +187,54 @@ fn ci_command(arguments: Vec<String>) -> ExitCode {
     }
 }
 
+const FAILURE_TAIL_LINES: usize = 20;
+
+/// Formats an agent's exit status for operator output.
+fn agent_exit_label(report: &agentforge_adapter::ExecutionReport) -> String {
+    let exit = report
+        .exit_code()
+        .map_or_else(|| "none".to_owned(), |code| code.to_string());
+    format!("agent-exit={exit} termination={:?}", report.termination())
+}
+
+/// Prints the agent's exit status and evidence log paths. When the agent did not exit cleanly, it
+/// also prints the last lines of its stderr (or stdout when stderr is empty) so the operator sees
+/// why without opening the logs.
+fn report_agent(
+    report: &agentforge_adapter::ExecutionReport,
+    evidence: &agentforge_orchestrator::AgentEvidence,
+) {
+    println!("{}", agent_exit_label(report));
+    match (&evidence.stdout_log, &evidence.stderr_log, &evidence.error) {
+        (Some(stdout), Some(stderr), _) => println!(
+            "evidence stdout={} stderr={}",
+            stdout.display(),
+            stderr.display()
+        ),
+        (_, _, Some(error)) => eprintln!("agent output could not be persisted: {error}"),
+        _ => {}
+    }
+    if agentforge_orchestrator::agent_exited_cleanly(report) {
+        return;
+    }
+    let source = if report.stderr().is_empty() {
+        report.stdout()
+    } else {
+        report.stderr()
+    };
+    let text = String::from_utf8_lossy(source);
+    let lines = text.lines().collect::<Vec<_>>();
+    let tail = &lines[lines.len().saturating_sub(FAILURE_TAIL_LINES)..];
+    eprintln!(
+        "agent did not exit cleanly ({}); the task stays running with its evidence. Last {} line(s):",
+        agent_exit_label(report),
+        tail.len()
+    );
+    for line in tail {
+        eprintln!("  | {line}");
+    }
+}
+
 /// Prints one line per orchestrated gate and returns whether all gates passed.
 fn report_gates(execution: &agentforge_orchestrator::ProcessExecution) -> bool {
     for gate in &execution.gates {
@@ -1412,6 +1460,7 @@ fn task_launch_batch_command(arguments: &[String]) -> ExitCode {
                 gates,
                 worktree,
                 worktree_created,
+                evidence,
             } => {
                 let passed = gates.iter().filter(|gate| gate.passed()).count();
                 println!(
@@ -1423,6 +1472,7 @@ fn task_launch_batch_command(arguments: &[String]) -> ExitCode {
                     gates.len(),
                     worktree.display()
                 );
+                report_agent(report, evidence);
             }
             agentforge_orchestrator::BatchTaskOutcome::AdapterFailed { task_id, error } => {
                 println!("failed {task_id} error={error}");
@@ -1633,7 +1683,8 @@ fn task_launch_command(arguments: &[String]) -> ExitCode {
                 launch.worktree_created,
                 launch.worktree.path().display()
             );
-            let gates_passed = report_gates(&launch.execution);
+            report_agent(&launch.execution.report, &launch.execution.evidence);
+            report_gates(&launch.execution);
             println!(
                 "recovery: inspect with `forge task inspect {} {}` and review with `forge task diff {} {}`",
                 root.display(),
@@ -1641,7 +1692,7 @@ fn task_launch_command(arguments: &[String]) -> ExitCode {
                 root.display(),
                 task_id
             );
-            if gates_passed {
+            if launch.execution.succeeded() {
                 ExitCode::SUCCESS
             } else {
                 ExitCode::from(1)
@@ -2087,7 +2138,9 @@ fn run_command(arguments: Vec<String>) -> ExitCode {
                 execution.report.task_id(),
                 execution.report.termination()
             );
-            if report_gates(&execution) {
+            report_agent(&execution.report, &execution.evidence);
+            report_gates(&execution);
+            if execution.succeeded() {
                 ExitCode::SUCCESS
             } else {
                 ExitCode::from(1)

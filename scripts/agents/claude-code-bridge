@@ -20,6 +20,8 @@ Options:
 """
 
 import argparse
+import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -137,6 +139,49 @@ def boundary_violations(paths, allowed, forbidden):
     return sorted(
         path for path in paths if not within(path, allowed) or (forbidden and within(path, forbidden))
     )
+
+
+def worktree_target_dir(git_dir, common_dir, base, current=None):
+    """The isolated Cargo target directory for a linked worktree, matching scripts/gate.sh.
+
+    Returns None for the main checkout or when the caller already chose a target directory.
+    """
+    if current or git_dir == common_dir or not base:
+        return None
+    return str(Path(base) / "agentforge-worktrees" / Path(git_dir).name)
+
+
+def git_output(*arguments):
+    return subprocess.run(["git", *arguments], check=True, capture_output=True, text=True).stdout.strip()
+
+
+def cargo_target_base():
+    try:
+        metadata = subprocess.run(
+            ["cargo", "metadata", "--no-deps", "--offline", "--format-version", "1"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return json.loads(metadata).get("target_directory")
+
+
+def agent_environment():
+    """The agent's environment: inherited, plus an isolated CARGO_TARGET_DIR in linked worktrees,
+    so builds the agent runs directly cannot collide with other checkouts (P2-M029)."""
+    environment = dict(os.environ)
+    target = worktree_target_dir(
+        git_output("rev-parse", "--path-format=absolute", "--git-dir"),
+        git_output("rev-parse", "--path-format=absolute", "--git-common-dir"),
+        cargo_target_base(),
+        environment.get("CARGO_TARGET_DIR"),
+    )
+    if target:
+        environment["CARGO_TARGET_DIR"] = target
+        print(f"claude-code-bridge: agent CARGO_TARGET_DIR={target}", flush=True)
+    return environment
 
 
 def changed_paths():
@@ -282,6 +327,13 @@ def self_test():
         "crates/example/secret/key"
     ]
     assert "P9-M001-T0001" in instructions(sample, Path("/tmp/msg"))
+    common = "/repo/.git"
+    assert worktree_target_dir(common, common, "/target") is None, "main checkout keeps its target"
+    assert (
+        worktree_target_dir("/repo/.git/worktrees/P1-M007-T0003", common, "/target")
+        == "/target/agentforge-worktrees/P1-M007-T0003"
+    )
+    assert worktree_target_dir("/repo/.git/worktrees/x", common, "/target", "/chosen") is None
     print("claude-code-bridge self-test passed")
     return 0
 
@@ -331,7 +383,13 @@ def main():
             return 0
 
         print(f"claude-code-bridge: running Claude Code for {task['task_id']}", flush=True)
-        agent = subprocess.run(command, stdin=subprocess.DEVNULL, capture_output=True, text=True)
+        agent = subprocess.run(
+            command,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            env=agent_environment(),
+        )
         sys.stdout.write(agent.stdout)
         sys.stderr.write(agent.stderr)
         if agent.returncode != 0:

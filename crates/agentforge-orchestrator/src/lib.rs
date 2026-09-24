@@ -118,9 +118,37 @@ pub struct ProcessExecution {
     /// Project gate results in lexical gate order. Empty when the project declares no gates or
     /// the agent did not exit successfully.
     pub gates: Vec<GateRun>,
+    /// Where the agent's full output was persisted.
+    pub evidence: AgentEvidence,
+}
+
+/// Project-relative locations of one agent run's persisted output.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct AgentEvidence {
+    /// Captured stdout, relative to the project root.
+    pub stdout_log: Option<PathBuf>,
+    /// Captured stderr, relative to the project root.
+    pub stderr_log: Option<PathBuf>,
+    /// Why the output could not be persisted, if it could not.
+    pub error: Option<String>,
+}
+
+/// Project-relative directory for agent run evidence.
+pub const EVIDENCE_RELATIVE_PATH: &str = ".forge/evidence";
+
+/// Returns whether the agent process exited normally with status zero.
+#[must_use]
+pub fn agent_exited_cleanly(report: &ExecutionReport) -> bool {
+    report.termination() == ExecutionTermination::Exited && report.exit_code() == Some(0)
 }
 
 impl ProcessExecution {
+    /// Returns whether the agent exited cleanly and every executed gate passed.
+    #[must_use]
+    pub fn succeeded(&self) -> bool {
+        agent_exited_cleanly(&self.report) && self.gates_passed()
+    }
+
     /// Returns whether every executed gate passed. True when no gate ran.
     #[must_use]
     pub fn gates_passed(&self) -> bool {
@@ -296,6 +324,8 @@ pub enum BatchTaskOutcome {
         worktree: PathBuf,
         /// Whether this launch created the worktree.
         worktree_created: bool,
+        /// Where the agent's full output was persisted.
+        evidence: Box<AgentEvidence>,
     },
     /// The adapter could not run the agent; the task is `failed`.
     AdapterFailed {
@@ -324,10 +354,11 @@ impl BatchTaskOutcome {
         }
     }
 
-    /// Returns whether the task launched and every gate passed.
+    /// Returns whether the task launched, its agent exited cleanly, and every gate passed.
     #[must_use]
     pub fn succeeded(&self) -> bool {
-        matches!(self, Self::Launched { gates, .. } if gates.iter().all(GateRun::passed))
+        matches!(self, Self::Launched { report, gates, .. }
+            if agent_exited_cleanly(report) && gates.iter().all(GateRun::passed))
     }
 }
 
@@ -491,13 +522,7 @@ pub fn launch_batch_persisted<A: AgentAdapter + Sync>(
     for (entry, result) in prepared.into_iter().zip(results) {
         match result {
             Ok((report, gate_runs)) => {
-                append_fields(
-                    &mut log,
-                    "agent-finished",
-                    AuditEventKind::AgentFinished,
-                    &entry.task,
-                    &[("termination", "observed"), ("batch", "true")],
-                )?;
+                let evidence = record_agent_finished(&root, &entry.task, &report, &mut log, true)?;
                 record_gate_evidence(
                     &mut graph,
                     &entry.task_id,
@@ -511,6 +536,7 @@ pub fn launch_batch_persisted<A: AgentAdapter + Sync>(
                     gates: gate_runs,
                     worktree: entry.worktree,
                     worktree_created: entry.worktree_created,
+                    evidence: Box::new(evidence),
                 });
             }
             Err(error) => {
@@ -783,18 +809,9 @@ fn execute_process_attempt<A: AgentAdapter>(
     });
     match result {
         Ok(report) => {
-            append_event(
-                &mut audit,
-                "agent-finished",
-                AuditEventKind::AgentFinished,
-                &task,
-                "termination",
-                "observed",
-            )
-            .map_err(|error| (error, audit.clone()))?;
-            let agent_succeeded = report.termination() == ExecutionTermination::Exited
-                && report.exit_code() == Some(0);
-            let gate_runs = if agent_succeeded {
+            let evidence = record_agent_finished(&root, &task, &report, &mut audit, false)
+                .map_err(|error| (error, audit.clone()))?;
+            let gate_runs = if agent_exited_cleanly(&report) {
                 run_gates(&gates, report.worktree_path())
             } else {
                 Vec::new()
@@ -805,6 +822,7 @@ fn execute_process_attempt<A: AgentAdapter>(
                 report,
                 audit,
                 gates: gate_runs,
+                evidence,
             })
         }
         Err(error) => {
@@ -821,6 +839,80 @@ fn execute_process_attempt<A: AgentAdapter>(
             Err((SliceError::Policy(error.to_string()), audit))
         }
     }
+}
+
+/// Persists the agent's captured output under `.forge/evidence/<task>/` and appends
+/// `AgentFinished` with the exit status and log paths. Writing the logs is best-effort: a failure
+/// is recorded in the event instead of aborting state persistence.
+fn record_agent_finished(
+    root: &Path,
+    task: &AgentTask,
+    report: &ExecutionReport,
+    log: &mut AuditLog,
+    batch: bool,
+) -> Result<AgentEvidence, SliceError> {
+    let sequence = log.next_sequence();
+    let relative = Path::new(EVIDENCE_RELATIVE_PATH).join(&task.task_id);
+    let stdout_log = relative.join(format!("{sequence}-stdout.log"));
+    let stderr_log = relative.join(format!("{sequence}-stderr.log"));
+    let written = std::fs::create_dir_all(root.join(&relative))
+        .and_then(|()| std::fs::write(root.join(&stdout_log), report.stdout()))
+        .and_then(|()| std::fs::write(root.join(&stderr_log), report.stderr()));
+    let evidence = match written {
+        Ok(()) => AgentEvidence {
+            stdout_log: Some(stdout_log),
+            stderr_log: Some(stderr_log),
+            error: None,
+        },
+        Err(error) => AgentEvidence {
+            error: Some(error.to_string()),
+            ..AgentEvidence::default()
+        },
+    };
+    let termination = match report.termination() {
+        ExecutionTermination::Exited => "exited",
+        ExecutionTermination::TimedOut => "timed_out",
+        ExecutionTermination::OutputLimitExceeded => "output_limit_exceeded",
+    };
+    let exit_code = report
+        .exit_code()
+        .map_or_else(|| "none".to_owned(), |code| code.to_string());
+    let mut fields = vec![
+        ("termination", termination.to_owned()),
+        ("exit_code", exit_code),
+        (
+            "output_truncated",
+            if report.output_truncated() {
+                "true"
+            } else {
+                "false"
+            }
+            .to_owned(),
+        ),
+    ];
+    match (&evidence.stdout_log, &evidence.stderr_log, &evidence.error) {
+        (Some(stdout), Some(stderr), _) => {
+            fields.push(("stdout_log", stdout.to_string_lossy().into_owned()));
+            fields.push(("stderr_log", stderr.to_string_lossy().into_owned()));
+        }
+        (_, _, Some(error)) => fields.push(("evidence_error", audit_text(error))),
+        _ => {}
+    }
+    if batch {
+        fields.push(("batch", "true".to_owned()));
+    }
+    let borrowed = fields
+        .iter()
+        .map(|(key, value)| (*key, value.as_str()))
+        .collect::<Vec<_>>();
+    append_fields(
+        log,
+        "agent-finished",
+        AuditEventKind::AgentFinished,
+        task,
+        &borrowed,
+    )?;
+    Ok(evidence)
 }
 
 /// Selects the project gates a task must pass.

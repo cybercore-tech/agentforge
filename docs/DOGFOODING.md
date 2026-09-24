@@ -18,7 +18,8 @@ gates, review, accept, integrate. This file is the run log and the list of frict
 1. **A non-zero agent exit is nearly invisible.** `forge task launch` prints only
    `termination=Exited` and exits 0 when the bridge exits 4 (path violation). The evidence is
    recorded, but the operator is not told. The CLI should print the agent's exit code and exit
-   non-zero (follow-up).
+   non-zero. **Resolved in P2-M029:** the CLI prints `agent-exit=<n>` and a failure tail, and exits
+   1.
 2. **The repository gate was not hermetic inside worktrees.** This was the first real run: task
    `P1-M007-T0001`, Claude Code, 230 s, 2026-09-24. The agent implemented the milestone. When the
    bridge committed, the pre-commit hook ran the gate, and test fixtures inherited the hook's
@@ -40,7 +41,8 @@ gates, review, accept, integrate. This file is the run log and the list of frict
    P2-M028: a linked worktree's gate uses `<target>/agentforge-worktrees/<name>`.
 4. **Agent and bridge output is not kept anywhere.** `forge task launch` neither prints nor
    persists the adapter's stdout/stderr, so diagnosing the first run needed forensics on the branch
-   and config (follow-up, together with finding 1).
+   and config. **Resolved in P2-M029:** output is saved under `.forge/evidence/<task>/` and
+   referenced by `AgentFinished`.
 5. **The blueprint's default gate made the plan's compatibility claim false.** Found by the agent
    in attempt `P1-M007-T0002`: `forge init` defaults every task to gate `full`, so strict
    required-gate preflight would have broken nearly every CLI-created task. The agent stayed in
@@ -48,7 +50,8 @@ gates, review, accept, integrate. This file is the run log and the list of frict
 6. **The agent can bypass gate isolation by running `cargo` directly.** In `T0002` Claude Code
    ran `cargo test` in its worktree, which wrote to the shared target directory and broke the main
    checkout's next gate again. `T0003` used an operator-side profile override
-   (`env.CARGO_TARGET_DIR`); the bridge will set it itself (P2-M029).
+   (`env.CARGO_TARGET_DIR`). **Resolved in P2-M029:** the bridge sets the isolated target dir for
+   the agent.
 7. **Integration authority must be declared when the task is created.** `forge task integrate`
    correctly refused `T0003` because its contract lacked the `merge_protected_branch` capability
    and approval. The operator also retired the worktree by chaining commands with `;`, so the

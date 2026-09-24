@@ -42,11 +42,12 @@ Worktree creation is sequential, so Git's worktree metadata is never written con
 
 ### Output and exit codes
 
-The command prints one line per `launched`, `failed`, `skipped`, and `deferred` task, then a summary.
-It exits 0 when every selected task launched and all of its gates passed. As with `forge task
-launch`, a non-zero agent exit is recorded as evidence and does not by itself fail the command. It
-exits 1 when any task was skipped, failed to launch, or failed a gate, and 2 for usage errors. With
-no ready tasks it prints `no ready tasks` and exits 0.
+The command prints one line per `launched`, `failed`, `skipped`, and `deferred` task, then a
+summary. Each launched task also shows its agent exit code and evidence log paths, plus the last 20
+lines of output when its agent failed. The command exits 0 only when every selected task launched,
+its agent exited 0, and all of its gates passed. A non-zero agent exit stays evidence (the task
+remains `running`) but fails the command since P2-M029. It exits 2 for usage errors. With no ready
+tasks it prints `no ready tasks` and exits 0.
 
 ### Interrupted batches
 

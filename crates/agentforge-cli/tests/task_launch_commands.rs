@@ -78,6 +78,89 @@ fn task_launch_prepares_and_runs_one_real_foreground_task() {
 }
 
 #[test]
+fn task_launch_reports_a_failing_agent_and_persists_its_output() {
+    let root = temporary_repo();
+    let root_text = root.to_str().expect("root");
+    assert!(forge(&root, &["init", root_text]).status.success());
+    let created = forge(
+        &root,
+        &[
+            "task",
+            "create",
+            root_text,
+            "P2-M029-T0001",
+            "P2-M029",
+            "implementer",
+            "failing agent",
+            "--allowed",
+            "README.md",
+            "--capability",
+            "run_local_commands",
+        ],
+    );
+    assert!(created.status.success(), "{created:?}");
+    fs::create_dir_all(root.join(".forge/agents")).expect("agent directory");
+    fs::write(
+        root.join(".forge/agents/failing.conf"),
+        format!(
+            "version=1\nexecutable={}\nenv.AGENTFORGE_CLI_FIXTURE_MODE=fail\n",
+            env!("CARGO_BIN_EXE_agentforge-cli-fixture")
+        ),
+    )
+    .expect("agent profile");
+
+    let launched = forge(
+        &root,
+        &[
+            "task",
+            "launch",
+            root_text,
+            "P2-M029-T0001",
+            "--profile",
+            "failing",
+        ],
+    );
+    assert_eq!(launched.status.code(), Some(1), "{launched:?}");
+    let stdout = String::from_utf8_lossy(&launched.stdout);
+    let stderr = String::from_utf8_lossy(&launched.stderr);
+    assert!(
+        stdout.contains("agent-exit=3 termination=Exited"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("evidence stdout=.forge/evidence/P2-M029-T0001/"),
+        "{stdout}"
+    );
+    assert!(stderr.contains("agent did not exit cleanly"), "{stderr}");
+    assert!(
+        stderr.contains("  | fixture failing by request"),
+        "{stderr}"
+    );
+    let evidence = root.join(".forge/evidence/P2-M029-T0001");
+    let logs = fs::read_dir(&evidence)
+        .expect("evidence directory")
+        .map(|entry| {
+            entry
+                .expect("entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect::<Vec<_>>();
+    let stderr_log = logs
+        .iter()
+        .find(|name| name.ends_with("-stderr.log"))
+        .expect("stderr log");
+    assert_eq!(
+        fs::read_to_string(evidence.join(stderr_log)).expect("stderr log"),
+        "fixture failing by request\n"
+    );
+    let inspected = forge(&root, &["task", "inspect", root_text, "P2-M029-T0001"]);
+    assert!(String::from_utf8_lossy(&inspected.stdout).contains("state=running"));
+    fs::remove_dir_all(root).expect("cleanup");
+}
+
+#[test]
 fn task_launch_rejects_missing_approval_without_creating_worktree() {
     let root = temporary_repo();
     let root_text = root.to_str().expect("root");

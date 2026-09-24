@@ -858,7 +858,18 @@ fn execute_with_adapter(
 
 fn gate_summary(execution: &ProcessExecution) -> String {
     let passed = execution.gates.iter().filter(|gate| gate.passed()).count();
-    let mut summary = format!("gates={passed}/{}", execution.gates.len());
+    let exit = execution
+        .report
+        .exit_code()
+        .map_or_else(|| "none".to_owned(), |code| code.to_string());
+    let mut summary = format!("agent-exit={exit}");
+    if let Some(stdout) = &execution.evidence.stdout_log {
+        summary.push_str(&format!(" stdout-log={}", stdout.display()));
+    }
+    if let Some(stderr) = &execution.evidence.stderr_log {
+        summary.push_str(&format!(" stderr-log={}", stderr.display()));
+    }
+    summary.push_str(&format!(" gates={passed}/{}", execution.gates.len()));
     if let Some(failed) = execution.gates.iter().find(|gate| !gate.passed()) {
         summary.push_str(&format!(
             " failed-gate={} outcome={}",

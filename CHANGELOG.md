@@ -20,11 +20,18 @@ All notable AgentForge changes are documented here. The format follows
 - A *What's new* section on the project site with recently shipped milestones, work in progress,
   phase progress, and upcoming release notes, generated from repository records at deploy time
   (P2-M026).
+- `docs/OPERATIONS.md`, a single operations reference for workflows, scripts, hooks, remotes, CI
+  evidence, agent runs, and recovery (P2-M029).
 - `scripts/agents/claude-code-bridge`, which runs Claude Code as an AgentForge agent with strict
   prompt decoding, a post-run path boundary check, and bridge-owned commits (P2-M027).
 
 ### Changed
 
+- `forge run`, `forge task launch`, and `forge task launch-batch` print each agent's exit code and
+  evidence log paths, show the last 20 lines of output when an agent fails, and exit 1 unless every
+  agent exited 0 and all gates passed. Each run's full stdout/stderr is saved under
+  `.forge/evidence/<task>/` and referenced by `AgentFinished`. The Claude Code bridge isolates the
+  agent's Cargo target directory in worktrees (P2-M029).
 - Tasks that declare `required_gates` run exactly those gates, and a missing gate profile fails
   preflight before any side effect. Blueprint default gates are copied into new tasks only when a
   matching profile exists (P1-M007). This milestone was implemented by Claude Code through AgentForge.

@@ -528,6 +528,9 @@ Clippy, tests, and documentation tests. Do not bypass hooks or validation with `
 - [Milestones](docs/MILESTONES.md)
 - [Release process](docs/RELEASE.md)
 - [Project site and updates feed](docs/SITE.md)
+- [Operations reference](docs/OPERATIONS.md): workflows, scripts, hooks, remotes, CI evidence,
+  agent runs, and recovery
+- [Dogfooding log](docs/DOGFOODING.md)
 - [Package identity and distribution](docs/REGISTRY.md)
 - [Architecture notes](docs/architecture/README.md)
 - [Architecture decision records](docs/adr/README.md)
@@ -548,7 +551,10 @@ paths and restored reliable CI:
 - **P2-M024** daemon executions of any length, with keepalives and a single execution slot;
 - **P2-M025** the canonical repository moved to `cybercore-tech/agentforge`;
 - **P2-M026** the project site gained a generated *What's new* section;
-- **P2-M027** a real agent (Claude Code) builds AgentForge through AgentForge.
+- **P2-M027** a real agent (Claude Code) builds AgentForge through AgentForge. Its first
+  milestone was **P1-M007** (task-declared required gates);
+- **P2-M028** the repository gate is hermetic under Git hooks and in worktrees;
+- **P2-M029** every agent run shows its exit code and keeps its full output as evidence.
 
 Candidate next milestones, each still requiring its own approved plan:
 

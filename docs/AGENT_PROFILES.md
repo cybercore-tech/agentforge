@@ -91,6 +91,13 @@ max_output_bytes=8388608
 
 Add `argument=--model` and `argument=<model>` to pin a model. Use `--dry-run` (reads a prompt on
 stdin and prints the instructions) to preview what the agent will be told, and `--self-test` (also
-run in CI) to check the decoder and path rules. The path check runs after the agent, so it is a
+run in CI) to check the decoder and path rules. In a linked worktree the bridge also gives the
+agent an isolated `CARGO_TARGET_DIR` (`<target>/agentforge-worktrees/<worktree name>`, the same one
+`scripts/gate.sh` uses), so builds the agent runs directly cannot collide with other checkouts.
+
+Every run's full stdout and stderr, whether bridge or agent, are saved under
+`.forge/evidence/<task-id>/` and referenced by the `AgentFinished` audit event. `forge task launch`
+prints the agent's exit code and the log paths. When the agent fails, it prints the last lines of
+output and exits 1. The path check runs after the agent, so it is a
 commit guard, not a sandbox. See [`DOGFOODING.md`](DOGFOODING.md) for a full run on AgentForge
 itself.
