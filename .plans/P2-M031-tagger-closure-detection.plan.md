@@ -1,6 +1,6 @@
 # Plan: P2-M031 — Tagger closure detection fix
 
-Status: Draft
+Status: Approved
 Milestone: P2-M031
 Created: 2026-09-24
 Owner: AgentForge project
