@@ -97,6 +97,7 @@ dependency.
 - `crates/agentforge-ci/tests/ci_provider.rs`
 - `crates/agentforge-operator/Cargo.toml`
 - `crates/agentforge-operator/src/lib.rs`
+- `crates/agentforge-cli/Cargo.toml`
 - `crates/agentforge-cli/src/main.rs`
 - `crates/agentforge-cli/src/bin/agentforge-cli-fixture.rs` (fixture CI provider modes)
 - `crates/agentforge-cli/tests/ci_commands.rs`
@@ -134,7 +135,9 @@ dependency.
 
 - Provider or protocol errors are reported with the existing `CiObservationError` text and do not
   touch the audit log.
-- A missing audit log (uninitialized project) fails closed.
+- An uninitialized project (no `.forge/` directory) fails closed. The audit log is created on
+  first observation, as the run paths already do, because CI evidence is often a project's first
+  audit record.
 
 ## Documentation impact
 
