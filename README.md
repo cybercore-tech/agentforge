@@ -340,6 +340,11 @@ foreground `forge task launch` pilot. `forge daemon run` remains available for t
 prepared-worktree contract. Neither command accepts work, integrates branches, or retires
 worktrees implicitly.
 
+Daemon executions can run as long as the agent's profile allows. The daemon runs one execution at
+a time, keeps answering `forge daemon status` during it, and refuses a second execution or a
+`forge daemon stop` until the run finishes. See
+[`docs/DAEMON.md`](docs/DAEMON.md#long-running-executions).
+
 Startup waits for a bounded, verified loopback endpoint. Stale or malformed metadata remains
 fail-closed and requires explicit operator inspection; AgentForge never silently adopts or kills
 an ambiguous daemon.

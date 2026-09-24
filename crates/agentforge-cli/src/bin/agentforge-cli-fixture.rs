@@ -10,6 +10,15 @@ fn main() {
             return;
         }
     }
+    if std::env::var("AGENTFORGE_CLI_FIXTURE_MODE").as_deref() == Ok("sleep") {
+        let millis: u64 = std::env::var("AGENTFORGE_FIXTURE_SLEEP_MS")
+            .expect("AGENTFORGE_FIXTURE_SLEEP_MS")
+            .parse()
+            .expect("sleep milliseconds");
+        std::thread::sleep(std::time::Duration::from_millis(millis));
+        println!("fixture slept {millis} ms");
+        return;
+    }
     if std::env::var("AGENTFORGE_CLI_FIXTURE_MODE").as_deref() == Ok("rendezvous") {
         rendezvous();
         return;

@@ -13,6 +13,8 @@ use std::io::{self, Read, Write};
 use std::net::{IpAddr, SocketAddr, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::mpsc::{self, RecvTimeoutError};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use std::{ffi::OsStr, thread};
 
@@ -25,6 +27,12 @@ const START_TIMEOUT: Duration = Duration::from_secs(5);
 // wait so a client that connects and stalls cannot block later requests,
 // including a cooperative stop, on this single-threaded accept loop.
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(1);
+// Executions run the agent and its gates before the final response, so they
+// have no fixed total deadline here (the agent profile bounds the agent). The
+// daemon proves liveness with a keepalive frame every interval, and the client
+// gives up only after the idle timeout passes without any frame.
+const KEEPALIVE_INTERVAL: Duration = Duration::from_secs(1);
+const EXECUTION_IDLE_TIMEOUT: Duration = Duration::from_secs(10);
 const DAEMON_DIR: &str = ".forge/daemon";
 const ENDPOINT_FILE: &str = "endpoint";
 const LOCK_FILE: &str = "lock";
@@ -67,6 +75,11 @@ pub enum DaemonError {
     StartTimeout(PathBuf),
     /// A cooperative stop did not clear the daemon endpoint within the bounded window.
     StopTimeout(PathBuf),
+    /// The daemon is executing another task; the request was refused without side effects.
+    Busy(String),
+    /// The daemon stopped responding after accepting an execution request. The task may still
+    /// be running or may have finished; its durable state is authoritative.
+    ExecutionInterrupted(String),
 }
 
 impl fmt::Display for DaemonError {
@@ -93,6 +106,11 @@ impl fmt::Display for DaemonError {
                 formatter,
                 "daemon did not stop within the shutdown timeout for {}",
                 root.display()
+            ),
+            Self::Busy(reason) => write!(formatter, "daemon is busy: {reason}"),
+            Self::ExecutionInterrupted(reason) => write!(
+                formatter,
+                "daemon stopped responding during execution ({reason}); the daemon metadata was not changed; check the task with `forge task inspect` and the daemon with `forge daemon status`"
             ),
         }
     }
@@ -225,7 +243,7 @@ pub fn run_task(
             "daemon executable path must be absolute".into(),
         ));
     }
-    match send_request(
+    match send_execution_request(
         root.as_ref(),
         Request::Run {
             task_id: task_id.clone(),
@@ -237,6 +255,8 @@ pub fn run_task(
         Response::Status => Err(DaemonError::Protocol("unexpected run response".into())),
         Response::Stop => Err(DaemonError::Protocol("unexpected run response".into())),
         Response::Error(message) => Err(DaemonError::Execution(message)),
+        Response::Busy(message) => Err(DaemonError::Busy(message)),
+        Response::Pending => Err(DaemonError::Protocol("unexpected keepalive".into())),
     }
 }
 
@@ -247,7 +267,7 @@ pub fn run_profile(
     profile: &str,
 ) -> Result<String, DaemonError> {
     validate_profile_id(profile)?;
-    match send_request(
+    match send_execution_request(
         root.as_ref(),
         Request::RunProfile {
             task_id: task_id.clone(),
@@ -259,6 +279,8 @@ pub fn run_profile(
         Response::Status => Err(DaemonError::Protocol("unexpected run response".into())),
         Response::Stop => Err(DaemonError::Protocol("unexpected run response".into())),
         Response::Error(message) => Err(DaemonError::Execution(message)),
+        Response::Busy(message) => Err(DaemonError::Busy(message)),
+        Response::Pending => Err(DaemonError::Protocol("unexpected keepalive".into())),
     }
 }
 
@@ -315,7 +337,7 @@ pub fn launch_task(
         ));
     }
     validate_base_ref(base_ref)?;
-    match send_request(
+    match send_execution_request(
         root.as_ref(),
         Request::Launch {
             task_id: task_id.clone(),
@@ -328,6 +350,8 @@ pub fn launch_task(
         Response::Status => Err(DaemonError::Protocol("unexpected launch response".into())),
         Response::Stop => Err(DaemonError::Protocol("unexpected launch response".into())),
         Response::Error(message) => Err(DaemonError::Execution(message)),
+        Response::Busy(message) => Err(DaemonError::Busy(message)),
+        Response::Pending => Err(DaemonError::Protocol("unexpected keepalive".into())),
     }
 }
 
@@ -340,7 +364,7 @@ pub fn launch_profile(
 ) -> Result<String, DaemonError> {
     validate_profile_id(profile)?;
     validate_base_ref(base_ref)?;
-    match send_request(
+    match send_execution_request(
         root.as_ref(),
         Request::LaunchProfile {
             task_id: task_id.clone(),
@@ -353,6 +377,8 @@ pub fn launch_profile(
         Response::Status => Err(DaemonError::Protocol("unexpected launch response".into())),
         Response::Stop => Err(DaemonError::Protocol("unexpected launch response".into())),
         Response::Error(message) => Err(DaemonError::Execution(message)),
+        Response::Busy(message) => Err(DaemonError::Busy(message)),
+        Response::Pending => Err(DaemonError::Protocol("unexpected keepalive".into())),
     }
 }
 
@@ -361,6 +387,7 @@ pub fn stop(root: impl AsRef<Path>) -> Result<(), DaemonError> {
     let root = root.as_ref();
     match send_request(root, Request::Stop) {
         Ok(Response::Stop) => wait_until_stopped(root),
+        Ok(Response::Busy(message)) => Err(DaemonError::Busy(message)),
         // A stop response can be lost while the daemon is already tearing down
         // its listener. Continue observing the endpoint instead of racing a
         // restart against cooperative cleanup.
@@ -442,6 +469,33 @@ fn send_request(root: &Path, request: Request) -> Result<Response, DaemonError> 
     parse_response(&response).map_err(DaemonError::Protocol)
 }
 
+/// Sends an execution request and reads keepalive frames until the final response. Transport
+/// failures before the request is written mean the endpoint is unreachable; failures after it
+/// mean the daemon stopped responding mid-execution, which is never reported as stale metadata.
+fn send_execution_request(root: &Path, request: Request) -> Result<Response, DaemonError> {
+    let endpoint = read_endpoint(root)?;
+    let mut stream = TcpStream::connect_timeout(&endpoint.address, CONNECT_TIMEOUT)
+        .map_err(|error| map_transport_error(root, error))?;
+    stream
+        .set_write_timeout(Some(CONNECT_TIMEOUT))
+        .map_err(|error| map_transport_error(root, error))?;
+    stream
+        .write_all(request.encode().as_bytes())
+        .and_then(|()| stream.flush())
+        .map_err(|error| map_transport_error(root, error))?;
+    stream
+        .set_read_timeout(Some(EXECUTION_IDLE_TIMEOUT))
+        .map_err(|error| DaemonError::ExecutionInterrupted(error.to_string()))?;
+    loop {
+        let frame = read_frame(&mut stream)
+            .map_err(|error| DaemonError::ExecutionInterrupted(error.to_string()))?;
+        match parse_response(&frame).map_err(DaemonError::Protocol)? {
+            Response::Pending => {}
+            response => return Ok(response),
+        }
+    }
+}
+
 fn map_transport_error(root: &Path, error: io::Error) -> DaemonError {
     if matches!(
         error.kind(),
@@ -462,8 +516,30 @@ fn map_transport_error(root: &Path, error: io::Error) -> DaemonError {
     }
 }
 
+/// The single execution slot: the task ID of the execution in progress, if any.
+type ExecutionSlot = Arc<Mutex<Option<String>>>;
+
+/// Clears the execution slot when the worker finishes, including on panic.
+struct SlotGuard(ExecutionSlot);
+
+impl Drop for SlotGuard {
+    fn drop(&mut self) {
+        if let Ok(mut slot) = self.0.lock() {
+            *slot = None;
+        }
+    }
+}
+
+fn slot_holder(slot: &ExecutionSlot) -> Option<String> {
+    slot.lock().map_or_else(
+        |poisoned| poisoned.into_inner().clone(),
+        |guard| guard.clone(),
+    )
+}
+
 struct Server {
     root: PathBuf,
+    active: ExecutionSlot,
     listener: TcpListener,
     endpoint_path: PathBuf,
     lock_path: PathBuf,
@@ -526,6 +602,7 @@ impl Server {
         write_endpoint(&endpoint_path, &endpoint)?;
         Ok(Self {
             root,
+            active: Arc::new(Mutex::new(None)),
             listener,
             endpoint_path,
             lock_path,
@@ -554,50 +631,122 @@ impl Server {
                     continue;
                 }
             };
-            let stop = matches!(request, Request::Stop);
-            let response = self.handle(request);
-            let _ = write_response(&mut stream, &response);
-            if stop {
-                return Ok(());
+            match request {
+                Request::Status => {
+                    let _ = write_response(&mut stream, &Response::Status);
+                }
+                Request::Stop => {
+                    // Never exit while an execution owns task state; the operator retries
+                    // once it finishes.
+                    if let Some(task) = slot_holder(&self.active) {
+                        let _ = write_response(
+                            &mut stream,
+                            &Response::Busy(format!(
+                                "executing task {task}; stop after it finishes"
+                            )),
+                        );
+                        continue;
+                    }
+                    let _ = write_response(&mut stream, &Response::Stop);
+                    return Ok(());
+                }
+                execution => self.start_execution(execution, stream),
             }
         }
         Ok(())
     }
 
-    fn handle(&self, request: Request) -> Response {
-        match request {
-            Request::Status => Response::Status,
-            Request::Stop => Response::Stop,
-            Request::Run {
-                task_id,
-                executable,
-            } => match execute_task(&self.root, &task_id, &executable) {
-                Ok(message) => Response::Run(message),
-                Err(error) => Response::Error(error.to_string()),
-            },
-            Request::RunProfile { task_id, profile } => {
-                match execute_profile(&self.root, &task_id, &profile) {
-                    Ok(message) => Response::Run(message),
-                    Err(error) => Response::Error(error.to_string()),
+    /// Hands one execution request to a worker thread if the slot is free. The slot is only
+    /// taken on this (accept-loop) thread, so the busy check and `Stop` cannot race.
+    fn start_execution(&self, request: Request, mut stream: TcpStream) {
+        let task = request
+            .task_id()
+            .map(ToString::to_string)
+            .unwrap_or_default();
+        {
+            let mut slot = self
+                .active
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            if let Some(current) = slot.as_ref() {
+                let _ = write_response(
+                    &mut stream,
+                    &Response::Busy(format!("executing task {current}; retry after it finishes")),
+                );
+                return;
+            }
+            *slot = Some(task);
+        }
+        let guard = SlotGuard(Arc::clone(&self.active));
+        let root = self.root.clone();
+        thread::spawn(move || {
+            let _guard = guard;
+            serve_execution(&root, request, stream);
+        });
+    }
+}
+
+/// Runs one execution on a helper thread while streaming keepalive frames to the client, then
+/// writes the final response. A client that disconnects does not stop the execution.
+fn serve_execution(root: &Path, request: Request, mut stream: TcpStream) {
+    let (sender, receiver) = mpsc::channel();
+    let execution_root = root.to_path_buf();
+    thread::spawn(move || {
+        let _ = sender.send(execute_request(&execution_root, request));
+    });
+    let mut client_connected = true;
+    let response = loop {
+        match receiver.recv_timeout(KEEPALIVE_INTERVAL) {
+            Ok(response) => break response,
+            Err(RecvTimeoutError::Timeout) => {
+                if client_connected {
+                    client_connected = write_response(&mut stream, &Response::Pending).is_ok();
                 }
             }
-            Request::Launch {
-                task_id,
-                executable,
-                base_ref,
-            } => match execute_launch_task(&self.root, &task_id, &executable, &base_ref) {
-                Ok(message) => Response::Launch(message),
-                Err(error) => Response::Error(error.to_string()),
-            },
-            Request::LaunchProfile {
-                task_id,
-                profile,
-                base_ref,
-            } => match execute_launch_profile(&self.root, &task_id, &profile, &base_ref) {
-                Ok(message) => Response::Launch(message),
-                Err(error) => Response::Error(error.to_string()),
-            },
+            Err(RecvTimeoutError::Disconnected) => {
+                break Response::Error("daemon execution thread panicked".into());
+            }
         }
+    };
+    if client_connected {
+        let _ = write_response(&mut stream, &response);
+    }
+}
+
+fn execute_request(root: &Path, request: Request) -> Response {
+    match request {
+        Request::Status | Request::Stop => {
+            Response::Error("control requests are not executions".into())
+        }
+        Request::Run {
+            task_id,
+            executable,
+        } => match execute_task(root, &task_id, &executable) {
+            Ok(message) => Response::Run(message),
+            Err(error) => Response::Error(error.to_string()),
+        },
+        Request::RunProfile { task_id, profile } => {
+            match execute_profile(root, &task_id, &profile) {
+                Ok(message) => Response::Run(message),
+                Err(error) => Response::Error(error.to_string()),
+            }
+        }
+        Request::Launch {
+            task_id,
+            executable,
+            base_ref,
+        } => match execute_launch_task(root, &task_id, &executable, &base_ref) {
+            Ok(message) => Response::Launch(message),
+            Err(error) => Response::Error(error.to_string()),
+        },
+        Request::LaunchProfile {
+            task_id,
+            profile,
+            base_ref,
+        } => match execute_launch_profile(root, &task_id, &profile, &base_ref) {
+            Ok(message) => Response::Launch(message),
+            Err(error) => Response::Error(error.to_string()),
+        },
     }
 }
 
@@ -745,6 +894,16 @@ enum Request {
 }
 
 impl Request {
+    fn task_id(&self) -> Option<&TaskId> {
+        match self {
+            Self::Status | Self::Stop => None,
+            Self::Run { task_id, .. }
+            | Self::RunProfile { task_id, .. }
+            | Self::Launch { task_id, .. }
+            | Self::LaunchProfile { task_id, .. } => Some(task_id),
+        }
+    }
+
     fn encode(&self) -> String {
         match self {
             Self::Status => format!("{PROTOCOL}\tSTATUS\n"),
@@ -780,6 +939,10 @@ enum Response {
     Run(String),
     Launch(String),
     Error(String),
+    /// Execution keepalive; the final response follows.
+    Pending,
+    /// Refused because an execution is in progress; nothing was changed.
+    Busy(String),
 }
 
 fn write_response(stream: &mut TcpStream, response: &Response) -> io::Result<()> {
@@ -789,6 +952,8 @@ fn write_response(stream: &mut TcpStream, response: &Response) -> io::Result<()>
         Response::Run(message) => format!("{PROTOCOL}\tOK\tRUN\t{}\n", sanitize(message)),
         Response::Launch(message) => format!("{PROTOCOL}\tOK\tLAUNCH\t{}\n", sanitize(message)),
         Response::Error(message) => format!("{PROTOCOL}\tERR\t{}\n", sanitize(message)),
+        Response::Pending => format!("{PROTOCOL}\tOK\tPENDING\n"),
+        Response::Busy(message) => format!("{PROTOCOL}\tBUSY\t{}\n", sanitize(message)),
     };
     if value.len() > MAX_RESPONSE_BYTES {
         return Err(io::Error::new(
@@ -917,6 +1082,8 @@ fn parse_response(frame: &[u8]) -> Result<Response, String> {
         (Some("OK"), Some("RUN")) => Ok(Response::Run(fields.collect::<Vec<_>>().join("\t"))),
         (Some("OK"), Some("LAUNCH")) => Ok(Response::Launch(fields.collect::<Vec<_>>().join("\t"))),
         (Some("ERR"), Some(message)) => Ok(Response::Error(message.to_string())),
+        (Some("OK"), Some("PENDING")) if fields.next().is_none() => Ok(Response::Pending),
+        (Some("BUSY"), Some(message)) => Ok(Response::Busy(message.to_string())),
         _ => Err("malformed response".into()),
     }
 }
@@ -1046,5 +1213,21 @@ mod tests {
             Ok(Response::Launch("task=task termination=Exited".into()))
         );
         assert!(parse_request(b"AFD1\tLAUNCH\ttask\t/tmp/agent\t-bad\n").is_err());
+    }
+
+    #[test]
+    fn keepalive_and_busy_frames_round_trip() {
+        assert_eq!(
+            parse_response(b"AFD1\tOK\tPENDING\n"),
+            Ok(Response::Pending)
+        );
+        assert_eq!(
+            parse_response(b"AFD1\tBUSY\texecuting task T; retry after it finishes\n"),
+            Ok(Response::Busy(
+                "executing task T; retry after it finishes".into()
+            ))
+        );
+        assert!(parse_response(b"AFD1\tOK\tPENDING\textra\n").is_err());
+        assert!(parse_response(b"AFD1\tOK\tWAITING\n").is_err());
     }
 }

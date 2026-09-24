@@ -4,34 +4,24 @@ use agentforge_daemon::{DEFAULT_BIND, DaemonError, serve, status};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::thread;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+static TEMPORARY_ROOT_COUNTER: AtomicU64 = AtomicU64::new(0);
+// Bounded like the daemon crate's own lifecycle tests (P2-M023): slow runners must
+// never turn a readiness miss into an unbounded join on a live daemon.
+const READY_TIMEOUT: Duration = Duration::from_secs(30);
+const EXIT_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[test]
 fn daemon_status_and_stop_are_operator_commands() {
     let root = temporary_repo();
-    let server_root = root.clone();
-    let server = thread::spawn(move || serve(server_root, DEFAULT_BIND));
-    let running = (0..50).find_map(|_| match status(&root) {
-        Ok(value) => Some(value),
-        Err(DaemonError::NotRunning) => {
-            thread::sleep(Duration::from_millis(10));
-            None
-        }
-        Err(error) => panic!("unexpected daemon status error: {error}"),
-    });
-    if running.is_none() {
-        let result = server.join().expect("server thread");
-        if matches!(
-            &result,
-            Err(DaemonError::Io(error))
-                if error.kind() == std::io::ErrorKind::PermissionDenied
-        ) {
-            fs::remove_dir_all(root).expect("cleanup");
-            return;
-        }
-        panic!("daemon should publish an endpoint; server result: {result:?}");
-    }
+    let Some(server) = start_foreground(&root) else {
+        fs::remove_dir_all(root).expect("cleanup");
+        return;
+    };
 
     let initialized = forge(&root, &["init", root.to_str().expect("root")]);
     assert!(initialized.status.success(), "{initialized:?}");
@@ -238,7 +228,7 @@ fn daemon_status_and_stop_are_operator_commands() {
     assert!(String::from_utf8_lossy(&status_output.stdout).contains("daemon running at"));
     let stop_output = forge(&root, &["daemon", "stop", root.to_str().expect("root")]);
     assert!(stop_output.status.success(), "{stop_output:?}");
-    assert!(server.join().expect("server thread").is_ok());
+    assert!(wait_for_exit(&server).is_ok());
     let retired = forge(
         &root,
         &[
@@ -275,6 +265,179 @@ fn daemon_status_and_stop_are_operator_commands() {
     fs::remove_dir_all(root).expect("cleanup");
 }
 
+#[test]
+fn long_daemon_executions_succeed_while_status_stays_available() {
+    let root = temporary_repo();
+    let root_text = root.to_str().expect("root").to_owned();
+    let Some(server) = start_foreground(&root) else {
+        fs::remove_dir_all(root).expect("cleanup");
+        return;
+    };
+    assert!(forge(&root, &["init", &root_text]).status.success());
+    for id in ["P2-M024-T0001", "P2-M024-T0002"] {
+        let created = forge(
+            &root,
+            &[
+                "task",
+                "create",
+                &root_text,
+                id,
+                "P2-M024",
+                "implementer",
+                "long daemon execution",
+                "--allowed",
+                "notes",
+                "--capability",
+                "run_local_commands",
+            ],
+        );
+        assert!(created.status.success(), "{created:?}");
+    }
+    // Three seconds is longer than the two-second control-request timeout that
+    // used to apply to executions.
+    fs::create_dir_all(root.join(".forge/agents")).expect("agent profile directory");
+    fs::write(
+        root.join(".forge/agents/slow.conf"),
+        format!(
+            "version=1\nexecutable={}\nenv.AGENTFORGE_CLI_FIXTURE_MODE=sleep\nenv.AGENTFORGE_FIXTURE_SLEEP_MS=3000\n",
+            env!("CARGO_BIN_EXE_agentforge-cli-fixture")
+        ),
+    )
+    .expect("agent profile");
+
+    let launch_root = root.clone();
+    let launch_text = root_text.clone();
+    let launch = thread::spawn(move || {
+        forge(
+            &launch_root,
+            &[
+                "daemon",
+                "launch",
+                &launch_text,
+                "P2-M024-T0001",
+                "--profile",
+                "slow",
+            ],
+        )
+    });
+    // The worktree is created before the agent starts, and the single-task path persists the
+    // task state only after the agent finishes, so the worktree is the in-progress signal.
+    wait_for_path(&root.join(".forge/worktrees/P2-M024-T0001"));
+
+    let during = forge(&root, &["daemon", "status", &root_text]);
+    assert!(
+        during.status.success(),
+        "status during execution: {during:?}"
+    );
+
+    let overlapping = forge(
+        &root,
+        &[
+            "daemon",
+            "launch",
+            &root_text,
+            "P2-M024-T0002",
+            "--profile",
+            "slow",
+        ],
+    );
+    assert!(!overlapping.status.success(), "{overlapping:?}");
+    let overlapping_stderr = String::from_utf8_lossy(&overlapping.stderr);
+    assert!(
+        overlapping_stderr.contains("busy") && overlapping_stderr.contains("P2-M024-T0001"),
+        "{overlapping_stderr}"
+    );
+    assert!(
+        !overlapping_stderr.contains("stale"),
+        "{overlapping_stderr}"
+    );
+
+    let early_stop = forge(&root, &["daemon", "stop", &root_text]);
+    assert!(!early_stop.status.success(), "{early_stop:?}");
+    assert!(
+        String::from_utf8_lossy(&early_stop.stderr).contains("P2-M024-T0001"),
+        "{}",
+        String::from_utf8_lossy(&early_stop.stderr)
+    );
+
+    let launched = launch.join().expect("launch thread");
+    assert!(launched.status.success(), "{launched:?}");
+    assert!(
+        String::from_utf8_lossy(&launched.stdout).contains("task=P2-M024-T0001"),
+        "{}",
+        String::from_utf8_lossy(&launched.stdout)
+    );
+    assert_eq!(state(&root, "P2-M024-T0002"), "pending");
+
+    let stopped = forge(&root, &["daemon", "stop", &root_text]);
+    assert!(stopped.status.success(), "{stopped:?}");
+    assert!(wait_for_exit(&server).is_ok());
+    fs::remove_dir_all(root).expect("cleanup");
+}
+
+type ServerResult = Result<(), DaemonError>;
+
+/// Starts a foreground daemon and waits, with a deadline, for its endpoint. Returns `None`
+/// only when the platform denies the loopback bind.
+fn start_foreground(root: &Path) -> Option<Receiver<ServerResult>> {
+    let (sender, receiver) = mpsc::channel();
+    let server_root = root.to_path_buf();
+    thread::spawn(move || {
+        let _ = sender.send(serve(server_root, DEFAULT_BIND));
+    });
+    let deadline = Instant::now() + READY_TIMEOUT;
+    loop {
+        match status(root) {
+            Ok(_) => return Some(receiver),
+            Err(DaemonError::NotRunning) => {}
+            Err(error) => panic!("unexpected daemon status error: {error}"),
+        }
+        match receiver.try_recv() {
+            Ok(Err(DaemonError::Io(error)))
+                if error.kind() == std::io::ErrorKind::PermissionDenied =>
+            {
+                return None;
+            }
+            Ok(result) => panic!("daemon exited before publishing an endpoint: {result:?}"),
+            Err(TryRecvError::Disconnected) => panic!("daemon thread panicked during startup"),
+            Err(TryRecvError::Empty) => {}
+        }
+        assert!(
+            Instant::now() < deadline,
+            "daemon did not publish an endpoint within {READY_TIMEOUT:?}"
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
+fn wait_for_exit(server: &Receiver<ServerResult>) -> ServerResult {
+    server.recv_timeout(EXIT_TIMEOUT).unwrap_or_else(|error| {
+        panic!("daemon thread did not exit within {EXIT_TIMEOUT:?}: {error}")
+    })
+}
+
+fn state(root: &Path, id: &str) -> String {
+    let inspected = forge(root, &["task", "inspect", root.to_str().expect("root"), id]);
+    let stdout = String::from_utf8_lossy(&inspected.stdout);
+    stdout
+        .split_whitespace()
+        .find_map(|field| field.strip_prefix("state="))
+        .unwrap_or("unknown")
+        .to_owned()
+}
+
+fn wait_for_path(path: &Path) {
+    let deadline = Instant::now() + READY_TIMEOUT;
+    while !path.exists() {
+        assert!(
+            Instant::now() < deadline,
+            "{} did not appear within {READY_TIMEOUT:?}",
+            path.display()
+        );
+        thread::sleep(Duration::from_millis(20));
+    }
+}
+
 fn forge(root: &Path, arguments: &[&str]) -> std::process::Output {
     Command::new(env!("CARGO_BIN_EXE_forge"))
         .args(arguments)
@@ -288,7 +451,11 @@ fn temporary_repo() -> PathBuf {
         .duration_since(UNIX_EPOCH)
         .expect("clock")
         .as_nanos();
-    let root = std::env::temp_dir().join(format!("agentforge-cli-daemon-{stamp}"));
+    let root = std::env::temp_dir().join(format!(
+        "agentforge-cli-daemon-{}-{stamp}-{}",
+        std::process::id(),
+        TEMPORARY_ROOT_COUNTER.fetch_add(1, Ordering::Relaxed)
+    ));
     fs::create_dir(&root).expect("temporary root");
     git(&root, &["init", "-q"]);
     fs::write(root.join("README.md"), "daemon fixture\n").expect("fixture");

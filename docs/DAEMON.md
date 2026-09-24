@@ -117,11 +117,38 @@ A client disconnect does not stop the daemon. The request is bounded and the dae
 available for status or a later cooperative stop; any execution already started retains its durable
 task and audit evidence.
 
-The daemon serves one connection at a time, so each accepted connection must deliver its request
-frame within one second. A client that connects and sends nothing, or stalls mid-frame, receives a
-best-effort error and is dropped; it cannot block a later status request or cooperative stop. On
-the client side, an elapsed socket timeout is classified as a stale endpoint on every platform
-(Unix reports it as `WouldBlock`, Windows as `TimedOut`).
+The accept loop reads one request frame per connection, and each connection must deliver its frame
+within one second. A client that connects and sends nothing, or stalls mid-frame, receives a
+best-effort error and is dropped; it cannot block a later status request or cooperative stop.
+For control requests (`status`, `stop`), an elapsed client socket timeout is classified as a stale
+endpoint on every platform (Unix reports it as `WouldBlock`, Windows as `TimedOut`).
+
+## Long-running executions
+
+`daemon run` and `daemon launch` run the agent, and since P1-M004 its gates, before they respond,
+so they can take far longer than the 2-second control timeout. Since P2-M024:
+
+- **One execution at a time.** The accept loop hands each execution to a worker thread that holds
+  the daemon's single execution slot. The accept loop itself never waits on an agent, so
+  `forge daemon status` answers immediately during a run.
+- **Keepalives.** While the execution runs, the worker sends an `AFD1 OK PENDING` frame every
+  second, then the final response. The client reads frames with a 10-second idle bound instead of a
+  total deadline. The agent's own profile timeout bounds the run itself.
+- **Busy requests.** A second `run` or `launch` during an execution is refused immediately with
+  `daemon is busy: executing task <id>; retry after it finishes`. Nothing is changed for the refused
+  task.
+- **Stop during a run.** `forge daemon stop` during an execution is refused with `daemon is busy:
+  executing task <id>; stop after it finishes`. The daemon never exits while an agent or its state
+  writes are in progress. Stop again once the run completes.
+- **Lost connection.** If the daemon stops responding after accepting an execution, the client
+  reports `daemon stopped responding during execution` and points to `forge task inspect` and
+  `forge daemon status`. It never suggests removing daemon metadata, because the daemon may still be
+  running the task.
+- **Client disconnects.** Closing the client (for example with Ctrl-C) does not stop the execution.
+  The worker keeps running and still persists the task state and audit evidence.
+
+`forge` and `forged` from the same build are required: an older `forge` rejects the `PENDING`
+frame as malformed.
 
 Teardown removes the endpoint before the lock. A cooperative `stop` (and therefore `restart`)
 returns only after both files are gone, so an immediate restart never collides with the previous
