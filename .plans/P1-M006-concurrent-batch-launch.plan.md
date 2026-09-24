@@ -36,7 +36,8 @@ audit persistence, with the worker threads only running processes.
 
 - `agentforge-scheduler`: `plan_launch_batch(graph, max)` returns the ready tasks to launch and the
   deferred ones, each with a reason. It is deterministic, in task-ID order, and defers a task on
-  path overlap or when `max` is reached.
+  path overlap (with an earlier batch task or with any task still `running`) or when `max` is
+  reached.
 - `agentforge-orchestrator`: `launch_batch_persisted` runs three phases:
   1. **Prepare (sequential):** validate policy, approvals, and gate profiles; resolve the base; create
      or verify worktrees; record `WorktreeObserved`, `TaskTransition`, and `AgentStarted`; persist.
@@ -64,7 +65,8 @@ audit persistence, with the worker threads only running processes.
 
 ## Invariants
 
-- Tasks in one batch never have overlapping owned paths.
+- Tasks in one batch never have overlapping owned paths, and never overlap a task that is still
+  `running`.
 - Only the coordinator thread reads or writes the task snapshot and audit log.
 - Worktree creation is sequential, so Git worktree metadata is never written concurrently.
 - Per-task outcomes match the single-task path: adapter error means `failed`; a gate failure means
