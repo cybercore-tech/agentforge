@@ -123,6 +123,10 @@ best-effort error and is dropped; it cannot block a later status request or coop
 the client side, an elapsed socket timeout is classified as a stale endpoint on every platform
 (Unix reports it as `WouldBlock`, Windows as `TimedOut`).
 
+Teardown removes the endpoint before the lock. A cooperative `stop` (and therefore `restart`)
+returns only after both files are gone, so an immediate restart never collides with the previous
+daemon's lock.
+
 Adapter failures, timeouts, and interrupted requests persist the task transition and audit evidence
 before the error is returned whenever the persistence boundary remains available. A successful run
 does not grant authority to accept, merge, or clean up the task.

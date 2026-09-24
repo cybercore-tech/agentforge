@@ -370,9 +370,13 @@ pub fn stop(root: impl AsRef<Path>) -> Result<(), DaemonError> {
 
 fn wait_until_stopped(root: &Path) -> Result<(), DaemonError> {
     let deadline = Instant::now() + START_TIMEOUT;
+    let (_, lock_path) = daemon_paths(root);
     loop {
         match status(root) {
-            Err(DaemonError::NotRunning) => return Ok(()),
+            // Teardown removes the endpoint before the lock. Wait for both so an
+            // immediate restart never observes the previous daemon's lock.
+            Err(DaemonError::NotRunning) if !lock_path.exists() => return Ok(()),
+            Err(DaemonError::NotRunning) => {}
             Ok(_) | Err(DaemonError::StaleInstance(_)) => {}
             Err(error) => return Err(error),
         }

@@ -834,14 +834,21 @@ fn starter_guidelines() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    static TEMPORARY_ROOT_COUNTER: AtomicU64 = AtomicU64::new(0);
 
     fn temporary_root() -> PathBuf {
         let suffix = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("clock")
             .as_nanos();
-        let path = std::env::temp_dir().join(format!("agentforge-intake-{suffix}"));
+        let path = std::env::temp_dir().join(format!(
+            "agentforge-intake-{}-{suffix}-{}",
+            std::process::id(),
+            TEMPORARY_ROOT_COUNTER.fetch_add(1, Ordering::Relaxed)
+        ));
         fs::create_dir_all(&path).expect("directory");
         path
     }

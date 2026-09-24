@@ -13,7 +13,10 @@ use agentforge_state::{FileTaskStore, TaskStore};
 use agentforge_worktree::{WorktreeManager, WorktreeSpec};
 use std::path::PathBuf;
 use std::process::Command;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
+
+static TEMPORARY_ROOT_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 struct FailingAdapter;
 
@@ -379,7 +382,11 @@ fn unique_temp_repo() -> PathBuf {
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_nanos();
-    let path = std::env::temp_dir().join(format!("agentforge-orchestrator-{stamp}"));
+    let path = std::env::temp_dir().join(format!(
+        "agentforge-orchestrator-{}-{stamp}-{}",
+        std::process::id(),
+        TEMPORARY_ROOT_COUNTER.fetch_add(1, Ordering::Relaxed)
+    ));
     std::fs::create_dir_all(&path).unwrap();
     path
 }

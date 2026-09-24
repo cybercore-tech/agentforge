@@ -3,7 +3,10 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
+
+static TEMPORARY_ROOT_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 #[test]
 fn task_launch_prepares_and_runs_one_real_foreground_task() {
@@ -129,7 +132,11 @@ fn temporary_repo() -> PathBuf {
         .duration_since(UNIX_EPOCH)
         .expect("clock")
         .as_nanos();
-    let root = std::env::temp_dir().join(format!("agentforge-cli-task-launch-{stamp}"));
+    let root = std::env::temp_dir().join(format!(
+        "agentforge-cli-task-launch-{}-{stamp}-{}",
+        std::process::id(),
+        TEMPORARY_ROOT_COUNTER.fetch_add(1, Ordering::Relaxed)
+    ));
     fs::create_dir(&root).expect("temporary root");
     git(&root, &["init", "-q"]);
     fs::write(root.join("README.md"), "fixture\n").expect("fixture");
