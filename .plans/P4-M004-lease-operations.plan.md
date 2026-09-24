@@ -83,6 +83,7 @@ finding 9 for a separate milestone.
 ## Invariants
 
 - A task has at most one active lease, and a leased task never runs locally.
+- Paths owned by leased and running tasks never overlap (Amendment 1).
 - Lease state changes only under the lease lock, and each change is audited.
 - The daemon never appends to the audit log while an execution owns the slot.
 - Registration and leases grant no execution authority.
@@ -180,6 +181,21 @@ recovery), DOGFOODING (finding 9), and ADR-0046. README, CHANGELOG, and MILESTON
 - [ ] Leased tasks cannot run locally on any path.
 - [ ] The daemon expires due leases without colliding with executions.
 - [ ] ADR-0046, docs, and finding 9 recorded; CI evidence recorded; closed and tagged.
+
+## Amendment 1 (2026-09-24)
+
+A pre-implementation read of `plan_remote_dispatch` showed that its ownership check covers only the
+tasks in one request. It does not cover tasks that already hold an active lease or are running
+locally. Without more checks, two workers could lease overlapping paths, or a local launch could
+edit paths a leased task owns. The path-ownership invariant is therefore extended:
+
+- `grant_lease` refuses a task whose `allowed_paths` overlap a `running` task or a task with an
+  active lease. It names the owner and the path.
+- The local launch guard refuses a task that holds an active lease, or whose paths overlap one.
+  `launch-batch` skips such tasks with the reason and runs the rest.
+
+Added tests: an overlapping grant is refused; a local launch of a task overlapping a leased task is
+refused; the batch skips it.
 
 ## Completion record
 
