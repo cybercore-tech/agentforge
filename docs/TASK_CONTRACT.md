@@ -23,6 +23,11 @@ Every executable agent task carries:
 
 Task authority comes from the orchestrator/operator that creates the task.
 
+Required quality gates name project gate profiles in `.forge/gates/`. Since P1-M007 they select
+which gates run after a successful agent: exactly the named gates, each once, in lexical order.
+A task with no required gates runs every project gate. A named gate with no profile fails
+preflight before the task starts. `docs/GATES.md` records the full rule.
+
 The worker may request escalation but may not rewrite its own authority.
 
 ## AgentResult

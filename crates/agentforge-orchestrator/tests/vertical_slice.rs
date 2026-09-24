@@ -413,6 +413,10 @@ struct PreparedRepo {
 }
 
 fn prepared_repo(gates: &[(&str, &str)]) -> PreparedRepo {
+    prepared_repo_requiring(gates, &[])
+}
+
+fn prepared_repo_requiring(gates: &[(&str, &str)], required: &[&str]) -> PreparedRepo {
     let root = unique_temp_repo();
     git(&root, &["init", "-q"]);
     git(
@@ -436,6 +440,7 @@ fn prepared_repo(gates: &[(&str, &str)]) -> PreparedRepo {
     );
     task.capabilities = vec![Capability::RunLocalCommands];
     task.allowed_paths = vec!["README.md".into()];
+    task.required_gates = required.iter().map(|name| (*name).to_owned()).collect();
     let task_id = TaskId::parse(task.task_id.clone()).unwrap();
     let task_store = FileTaskStore::from_path(root.join("tasks.snapshot"));
     task_store
@@ -570,6 +575,156 @@ fn malformed_gate_profile_fails_before_the_task_runs() {
     assert_eq!(task_state(&repo), TaskState::Pending);
     assert!(audit.records().is_empty());
     cleanup(repo);
+}
+
+fn gate_names(execution: &agentforge_orchestrator::ProcessExecution) -> Vec<String> {
+    execution
+        .gates
+        .iter()
+        .map(|gate| gate.name().to_owned())
+        .collect()
+}
+
+#[test]
+fn required_gates_select_exactly_the_declared_gates() {
+    let repo = prepared_repo_requiring(
+        &[
+            ("a-check", "version=1\nexecutable=/usr/bin/false\n"),
+            ("b-check", "version=1\nexecutable=/usr/bin/true\n"),
+        ],
+        &["b-check"],
+    );
+    let (result, audit) = run_prepared(&repo, "/usr/bin/true");
+    let execution = result.unwrap();
+    assert_eq!(gate_names(&execution), ["b-check"]);
+    assert!(execution.gates_passed());
+    assert_eq!(task_state(&repo), TaskState::Running);
+    let gates = events_of(&audit, AuditEventKind::GateFinished);
+    assert_eq!(gates.len(), 1);
+    assert_eq!(
+        gates[0].fields().get("gate").map(String::as_str),
+        Some("b-check")
+    );
+    cleanup(repo);
+}
+
+#[test]
+fn no_required_gates_runs_every_project_gate() {
+    let repo = prepared_repo(&[
+        ("a-check", "version=1\nexecutable=/usr/bin/true\n"),
+        ("b-check", "version=1\nexecutable=/usr/bin/true\n"),
+    ]);
+    let (result, audit) = run_prepared(&repo, "/usr/bin/true");
+    let execution = result.unwrap();
+    assert_eq!(gate_names(&execution), ["a-check", "b-check"]);
+    assert_eq!(events_of(&audit, AuditEventKind::GateFinished).len(), 2);
+    cleanup(repo);
+}
+
+#[test]
+fn duplicate_required_gates_run_once_in_lexical_order() {
+    let repo = prepared_repo_requiring(
+        &[
+            ("a-check", "version=1\nexecutable=/usr/bin/true\n"),
+            ("b-check", "version=1\nexecutable=/usr/bin/true\n"),
+            ("c-check", "version=1\nexecutable=/usr/bin/false\n"),
+        ],
+        &["b-check", "a-check", "b-check"],
+    );
+    let (result, audit) = run_prepared(&repo, "/usr/bin/true");
+    let execution = result.unwrap();
+    assert_eq!(gate_names(&execution), ["a-check", "b-check"]);
+    assert_eq!(events_of(&audit, AuditEventKind::GateFinished).len(), 2);
+    cleanup(repo);
+}
+
+#[test]
+fn a_missing_required_gate_fails_preflight_before_the_agent_starts() {
+    let repo = prepared_repo_requiring(
+        &[("a-check", "version=1\nexecutable=/usr/bin/true\n")],
+        &["a-check", "z-missing"],
+    );
+    let mut audit = FileAuditStore::open(repo.root.join("audit.log")).unwrap();
+    // A started agent would fail the task; the task must stay pending instead.
+    let error = execute_process_persisted(
+        &repo.root,
+        &repo.task_store,
+        &mut audit,
+        &repo.task_id,
+        &FailingAdapter,
+        &[],
+    )
+    .unwrap_err();
+    assert!(
+        matches!(&error, SliceError::Preflight(reason) if reason.contains("z-missing")),
+        "{error:?}"
+    );
+    assert_eq!(task_state(&repo), TaskState::Pending);
+    assert!(audit.records().is_empty());
+    cleanup(repo);
+}
+
+#[test]
+fn foreground_launch_rejects_a_missing_required_gate_before_worktree_creation() {
+    let root = unique_temp_repo();
+    git(&root, &["init", "-q"]);
+    git(
+        &root,
+        &["config", "user.email", "agentforge@example.invalid"],
+    );
+    git(&root, &["config", "user.name", "AgentForge Test"]);
+    std::fs::write(root.join("README.md"), "fixture\n").unwrap();
+    git(&root, &["add", "README.md"]);
+    git(&root, &["commit", "-qm", "fixture"]);
+    let mut task = AgentTask::new(
+        "P1-M007-T0001",
+        "P1-M007",
+        AgentRole::Implementer,
+        "missing gate fixture",
+    );
+    task.capabilities = vec![Capability::RunLocalCommands];
+    task.allowed_paths = vec!["README.md".into()];
+    task.required_gates = vec!["workspace".into()];
+    let task_id = TaskId::parse(task.task_id.clone()).unwrap();
+    let task_store = FileTaskStore::from_path(root.join("tasks.snapshot"));
+    task_store
+        .save(&TaskGraph::from_tasks([task]).unwrap())
+        .unwrap();
+    let mut audit_store = FileAuditStore::open(root.join("audit.log")).unwrap();
+
+    let error = launch_process_persisted(
+        &root,
+        &task_store,
+        &mut audit_store,
+        &task_id,
+        &FailingAdapter,
+        &[],
+        "HEAD",
+    )
+    .unwrap_err();
+    assert!(
+        matches!(&error, SliceError::Preflight(reason) if reason.contains("workspace")),
+        "{error:?}"
+    );
+    assert!(
+        WorktreeManager::new(&root)
+            .unwrap()
+            .inspect(&task_id)
+            .unwrap()
+            .is_none()
+    );
+    assert!(audit_store.records().is_empty());
+    assert_eq!(
+        task_store
+            .load()
+            .unwrap()
+            .unwrap()
+            .get(&task_id)
+            .unwrap()
+            .state(),
+        TaskState::Pending
+    );
+    std::fs::remove_dir_all(root).unwrap();
 }
 
 #[test]

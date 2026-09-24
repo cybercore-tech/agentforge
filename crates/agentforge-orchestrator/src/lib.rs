@@ -11,7 +11,7 @@ use agentforge_scheduler::plan_launch_batch;
 pub use agentforge_scheduler::{DeferReason, DeferredTask};
 use agentforge_state::{FileTaskStore, TaskStore};
 use agentforge_worktree::{WorktreeManager, WorktreeSpec, WorktreeStatus};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::thread;
@@ -231,6 +231,9 @@ pub fn launch_process_persisted<A: AgentAdapter>(
         ));
     }
     validate_launch_policy(&task, approvals)?;
+    // The attempt selects gates again; checking here keeps a missing required gate from creating
+    // a worktree or appending audit evidence.
+    load_task_gates(&root, &task)?;
 
     let manager =
         WorktreeManager::new(&root).map_err(|error| SliceError::Preflight(error.to_string()))?;
@@ -330,6 +333,7 @@ struct PreparedTask {
     task_id: TaskId,
     task: AgentTask,
     approvals: Vec<ApprovalBoundary>,
+    gates: Vec<GateDefinition>,
     worktree: PathBuf,
     worktree_created: bool,
 }
@@ -383,8 +387,12 @@ pub fn launch_batch_persisted<A: AgentAdapter + Sync>(
             .map_err(|error| SliceError::Preflight(error.to_string()))
             .and_then(|()| validate_launch_policy(&task, &task_approvals))
             .and_then(|()| preflight_repository(&root, &task))
-            .and_then(|()| prepare_worktree(&manager, &task_id, base_ref));
-        let (worktree, worktree_created) = match checked {
+            .and_then(|()| select_gates(&gates, &task))
+            .and_then(|task_gates| {
+                prepare_worktree(&manager, &task_id, base_ref)
+                    .map(|(worktree, created)| (task_gates, worktree, created))
+            });
+        let (task_gates, worktree, worktree_created) = match checked {
             Ok(value) => value,
             Err(error) => {
                 outcomes.push(BatchTaskOutcome::Skipped {
@@ -434,6 +442,7 @@ pub fn launch_batch_persisted<A: AgentAdapter + Sync>(
             task_id,
             task,
             approvals: task_approvals,
+            gates: task_gates,
             worktree: worktree.path().to_path_buf(),
             worktree_created,
         });
@@ -446,7 +455,6 @@ pub fn launch_batch_persisted<A: AgentAdapter + Sync>(
             .iter()
             .map(|entry| {
                 let manager = &manager;
-                let gates = &gates;
                 scope.spawn(move || -> AgentResult {
                     let report = adapter
                         .execute(AdapterRequest {
@@ -458,7 +466,7 @@ pub fn launch_batch_persisted<A: AgentAdapter + Sync>(
                     let succeeded = report.termination() == ExecutionTermination::Exited
                         && report.exit_code() == Some(0);
                     let gate_runs = if succeeded {
-                        run_gates(gates, report.worktree_path())
+                        run_gates(&entry.gates, report.worktree_path())
                     } else {
                         Vec::new()
                     };
@@ -734,14 +742,9 @@ fn execute_process_attempt<A: AgentAdapter>(
         .task()
         .clone();
     preflight_repository(&root, &task).map_err(|error| (error, audit.clone()))?;
-    // Gate configuration is validated before any run side effect so a malformed profile can
-    // never leave a task running without its required evidence.
-    let gates = GateProfileStore::new(&root).list().map_err(|error| {
-        (
-            SliceError::Preflight(format!("gate configuration: {error}")),
-            audit.clone(),
-        )
-    })?;
+    // Gate configuration and selection are validated before any run side effect so a malformed
+    // profile or a missing required gate can never leave a task running without its evidence.
+    let gates = load_task_gates(&root, &task).map_err(|error| (error, audit.clone()))?;
     graph
         .transition(task_id, TaskState::Running)
         .map_err(|error| (SliceError::Preflight(error.to_string()), audit.clone()))?;
@@ -810,6 +813,46 @@ fn execute_process_attempt<A: AgentAdapter>(
             Err((SliceError::Policy(error.to_string()), audit))
         }
     }
+}
+
+/// Loads every project gate profile and selects the ones `task` must run.
+fn load_task_gates(root: &Path, task: &AgentTask) -> Result<Vec<GateDefinition>, SliceError> {
+    let gates = GateProfileStore::new(root)
+        .list()
+        .map_err(|error| SliceError::Preflight(format!("gate configuration: {error}")))?;
+    select_gates(&gates, task)
+}
+
+/// Selects the gates one task runs, preserving the lexical order of `gates`.
+///
+/// A task without required gates runs every project gate. A task with required gates runs exactly
+/// those, each once; the first required name in lexical order with no loaded profile fails
+/// preflight.
+fn select_gates(
+    gates: &[GateDefinition],
+    task: &AgentTask,
+) -> Result<Vec<GateDefinition>, SliceError> {
+    if task.required_gates.is_empty() {
+        return Ok(gates.to_vec());
+    }
+    let required = task
+        .required_gates
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    if let Some(missing) = required
+        .iter()
+        .find(|name| !gates.iter().any(|gate| gate.name() == **name))
+    {
+        return Err(SliceError::Preflight(format!(
+            "required gate is not configured: {missing}"
+        )));
+    }
+    Ok(gates
+        .iter()
+        .filter(|gate| required.contains(gate.name()))
+        .cloned()
+        .collect())
 }
 
 fn run_gates(gates: &[GateDefinition], worktree: &Path) -> Vec<GateRun> {

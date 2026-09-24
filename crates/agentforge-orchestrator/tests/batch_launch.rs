@@ -290,6 +290,42 @@ fn malformed_gate_profile_aborts_before_any_worktree() {
 }
 
 #[test]
+fn a_task_missing_a_required_gate_is_skipped_without_blocking_siblings() {
+    let mut selective = task("P1-M006-T0001", "src");
+    selective.required_gates = vec!["b-check".into()];
+    let mut missing = task("P1-M006-T0002", "docs");
+    missing.required_gates = vec!["absent".into()];
+    let project = Project::new(
+        vec![selective, missing],
+        &[
+            ("a-check", "version=1\nexecutable=/usr/bin/false\n"),
+            ("b-check", "version=1\nexecutable=/usr/bin/true\n"),
+        ],
+    );
+    let (result, audit) = project.launch(&true_adapter(), &BTreeMap::new(), 4);
+    let batch = result.unwrap();
+    assert!(!batch.succeeded());
+    assert!(matches!(
+        &batch.outcomes[0],
+        BatchTaskOutcome::Launched { task_id, gates, .. }
+            if task_id.as_str() == "P1-M006-T0001"
+                && gates.len() == 1
+                && gates[0].name() == "b-check"
+                && gates[0].passed()
+    ));
+    assert!(matches!(
+        &batch.outcomes[1],
+        BatchTaskOutcome::Skipped { task_id, reason }
+            if task_id.as_str() == "P1-M006-T0002" && reason.contains("absent")
+    ));
+    assert_eq!(project.state("P1-M006-T0001"), TaskState::Running);
+    assert_eq!(project.state("P1-M006-T0002"), TaskState::Pending);
+    assert!(!project.worktree_exists("P1-M006-T0002"));
+    assert_eq!(count(&audit, AuditEventKind::AgentStarted), 1);
+    assert_eq!(count(&audit, AuditEventKind::GateFinished), 1);
+}
+
+#[test]
 fn capacity_limits_the_batch() {
     let project = Project::new(
         vec![
