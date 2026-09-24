@@ -852,9 +852,17 @@ fn record_agent_finished(
     batch: bool,
 ) -> Result<AgentEvidence, SliceError> {
     let sequence = log.next_sequence();
-    let relative = Path::new(EVIDENCE_RELATIVE_PATH).join(&task.task_id);
-    let stdout_log = relative.join(format!("{sequence}-stdout.log"));
-    let stderr_log = relative.join(format!("{sequence}-stderr.log"));
+    // Audit records hold portable project-relative paths, so separators are always `/`, even on
+    // Windows, which accepts them.
+    let relative = PathBuf::from(format!("{EVIDENCE_RELATIVE_PATH}/{}", task.task_id));
+    let stdout_log = PathBuf::from(format!(
+        "{EVIDENCE_RELATIVE_PATH}/{}/{sequence}-stdout.log",
+        task.task_id
+    ));
+    let stderr_log = PathBuf::from(format!(
+        "{EVIDENCE_RELATIVE_PATH}/{}/{sequence}-stderr.log",
+        task.task_id
+    ));
     let written = std::fs::create_dir_all(root.join(&relative))
         .and_then(|()| std::fs::write(root.join(&stdout_log), report.stdout()))
         .and_then(|()| std::fs::write(root.join(&stderr_log), report.stderr()));
