@@ -85,6 +85,7 @@ None; `Cargo.lock` changes only for the workspace members' own versions.
 - `docs/RELEASE.md`
 - `docs/REGISTRY.md` (Amendment 1)
 - `scripts/site-updates`, `site/script.js`, `docs/SITE.md` (Amendment 2)
+- `.github/workflows/release.yml`, `docs/RELEASE.md`, `docs/OPERATIONS.md` (Amendment 3)
 - `README.md`
 - `site/index.html`
 - `docs/MILESTONES.md`
@@ -148,6 +149,32 @@ feed stays at `version: 1` because the change is additive.
 Test: `./scripts/site-updates` on the release commit emits `latest_release` `0.1.0` with an empty
 `unreleased`, and the site renders the fallback line (checked in a local browser preview of
 `site/` against the generated feed).
+
+## Amendment 3 (2026-09-24)
+
+`v0.1.0` was tagged on `b1f1cab`, the exact commit with green push CI `36012325272`, dispatched CI
+`36012648916`, and packaging dry run `36012653332`, rather than on the closure commit. The code is
+the same, and the release commit is the one CI verified.
+
+The tag-triggered release run `36013033041` built all four targets, but **Publish GitHub release**
+failed: `gh release create` exited with `failed to run git: fatal: not a git repository`. The
+publish job downloads artifacts without checking out the repository, so `gh` cannot infer the
+target repository. The job has never run before because no release had ever been published.
+Classification: a latent release workflow defect. The code, the builds, and the tag are good.
+
+Recovery, without moving the tag:
+
+1. Publish `v0.1.0` from run `36013033041`'s own CI-built artifacts, with the workflow's exact
+   steps: consolidated `SHA256SUMS` over the `.tar.gz` files, then `gh release create v0.1.0 dist/*
+   --verify-tag --generate-notes --title "AgentForge v0.1.0"`, adding `--repo
+   cybercore-tech/agentforge`. Verify each archive's `.sha256`, `SHA256SUMS`, and a downloaded
+   Linux binary.
+2. Fix `release.yml`: the publish step passes `--repo "${GITHUB_REPOSITORY}"`, so future tags
+   publish without a checkout. `docs/RELEASE.md` and `docs/OPERATIONS.md` record the incident and
+   the manual recovery procedure.
+
+This supersedes the "fix ships as `v0.1.1`" failure mode for this case. The tagged code is
+correct, and a patch release would only work around a publish-job defect.
 
 ## Completion record
 
