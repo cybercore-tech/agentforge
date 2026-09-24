@@ -1,6 +1,6 @@
 # Plan: P1-M007 — Enforce task-declared required gates
 
-Status: Draft
+Status: Approved
 Milestone: P1-M007
 Created: 2026-09-24
 Owner: AgentForge project
