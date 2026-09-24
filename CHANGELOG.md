@@ -50,6 +50,9 @@ All notable AgentForge changes are documented here. The format follows
   teardown errors (P2-M023).
 - `daemon run`/`daemon launch` failing after 2 seconds with misleading "stale daemon metadata"
   advice while the daemon was still running the task (P2-M024).
+- `scripts/tag-milestone` tagging a plan's draft commit when the plan's prose mentioned
+  `Status: Complete`. Closure detection now uses the status line and verifies it before tagging
+  (P2-M031).
 - The repository gate acting on the real repository when run from a Git hook inside a linked
   worktree (setting `core.bare`, injecting `[user]`, committing fixtures), and checkouts sharing a
   Cargo target directory running each other's binaries (P2-M028).

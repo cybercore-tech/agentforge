@@ -35,3 +35,16 @@ Trade-offs:
 
 - tags are unsigned until the P5 signing work;
 - a closure that is later amended keeps its original tag; follow-up work gets its own milestone.
+
+## Addendum (P2-M031, 2026-09-24)
+
+The first run of the closure step tagged P2-M030's **draft** commit (`3d15a6a`), not its closure
+(`fa0672c`). Closure detection used `git log -S "Status: Complete"`, and the P2-M030 plan's own prose
+mentions those words. The tag had been pushed. It was deleted locally and on the remote about a
+minute after creation, before anything referenced it, and recreated on the closure commit. **This is
+the only exception to the rule that milestone tags are never moved or deleted.** It was allowed
+because the tool itself had just created the wrong tag.
+
+Since P2-M031 the closure commit is the earliest commit whose plan has a status line beginning
+`Status: Complete` at the start of a line, verified by reading the plan at that commit before
+tagging. The dry run confirmed all 55 earlier tags were already on their closure commits.

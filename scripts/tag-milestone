@@ -6,8 +6,10 @@ Usage:
   scripts/tag-milestone --all [--dry-run]  backfill every completed milestone
   scripts/tag-milestone --self-test        check parsing on built-in samples
 
-The closure commit is the commit that introduced "Status: Complete" into the milestone's plan
-(.plans/<ID>-*.plan.md). For older plans that never recorded it, the last commit touching the plan
+The closure commit is the earliest commit whose version of the milestone's plan
+(.plans/<ID>-*.plan.md) has a status line starting "Status: Complete" at the start of a line,
+verified by reading the plan at that commit. Prose that only mentions the words does not count
+(P2-M031). For older plans that never recorded the status line, the last commit touching the plan
 is used. When a milestone has several plan files (for example a repair plan), the latest closure
 wins. The tag message carries the title and acceptance signal from docs/MILESTONES.md and the
 plan's completion record.
@@ -27,6 +29,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 ROW = re.compile(r"^\| (P\d+-M\d{3}) \| ([a-z]+) \| (.+?) \| (.+) \|$")
 ID = re.compile(r"^P\d+-M\d{3}$")
+# The plan's status line, anchored at the start of a line. Prose that merely mentions the words
+# (the P2-M030 plan does, inside backticks) must never count as a closure (P2-M031).
+STATUS_COMPLETE = re.compile(r"^Status: Complete", re.MULTILINE)
 
 
 class TagError(Exception):
@@ -70,18 +75,31 @@ def tag_message(milestone_id, row, record):
     return message
 
 
+def has_complete_status(plan_text):
+    return bool(STATUS_COMPLETE.search(plan_text))
+
+
 def closure_commit(plans):
+    """The latest (across plan files) of each plan's earliest commit whose status line reads
+    `Status: Complete`, verified by reading the plan at that commit. Older plans without such a
+    line fall back to their last commit."""
     candidates = []
     for plan in plans:
         relative = plan.relative_to(ROOT).as_posix()
-        introduced = git("log", "--format=%H %ct", "--reverse", "-S", "Status: Complete", "--", relative)
-        lines = introduced.stdout.split()
-        if lines:
-            candidates.append((int(lines[1]), lines[0]))
-            continue
-        last = git("log", "-1", "--format=%H %ct", "--", relative).stdout.split()
-        if last:
-            candidates.append((int(last[1]), last[0]))
+        found = None
+        log = git("log", "--format=%H %ct", "--reverse", "-G", "^Status: Complete", "--", relative)
+        for line in log.stdout.splitlines():
+            commit, stamp = line.split()
+            shown = git("show", f"{commit}:{relative}", check=False)
+            if shown.returncode == 0 and has_complete_status(shown.stdout):
+                found = (int(stamp), commit)
+                break
+        if found is None:
+            last = git("log", "-1", "--format=%H %ct", "--", relative).stdout.split()
+            if last:
+                found = (int(last[1]), last[0])
+        if found:
+            candidates.append(found)
     if not candidates:
         return None
     return max(candidates)[1]
@@ -146,6 +164,14 @@ def self_test():
         "Completed: 2026-09-24\nNotes:\nlong notes here\n"
     )
     assert record == "Implementation commit: `abc`\nCI run: `1`\nCompleted: 2026-09-24", record
+    assert has_complete_status("# Plan\n\nStatus: Complete\nMilestone: P9-M001\n")
+    assert has_complete_status("Status: Completed\n"), "older plans wrote Completed"
+    for prose in [
+        "- `scripts/tag-milestone <ID>` creates tags on the commit that introduced `Status: Complete`",
+        "Status: Approved\nThe closure sets Status: Complete later.",
+        "  Status: Complete (indented, not a status line)",
+    ]:
+        assert not has_complete_status(prose), prose
     message = tag_message("P9-M001", rows["P9-M001"], record)
     assert message.startswith("AgentForge P9-M001 — Sample milestone\n\nIt works with `code`.\n")
     assert "Completed: 2026-09-24" in message

@@ -114,8 +114,9 @@ git show milestone/P1-M007                       # title, acceptance signal, com
 git log --oneline milestone/P2-M028..milestone/P2-M029   # everything a milestone added
 ```
 
-Each annotated tag points at the commit that introduced `Status: Complete` in the milestone's
-plan (or, for older plans, the plan's last commit). It carries the milestone's title, acceptance
+Each annotated tag points at the earliest commit whose plan has a `Status: Complete` status line,
+verified by reading the plan at that commit (or, for older plans, the plan's last commit). Always
+check `--dry-run` output (every subject should read "close ...") before tagging many milestones. It carries the milestone's title, acceptance
 signal, and completion record. Tags are never moved or deleted. A conflicting existing tag is an
 error, not something to overwrite.
 
