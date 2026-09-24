@@ -375,15 +375,30 @@ fn wait_until_stopped(root: &Path) -> Result<(), DaemonError> {
         match status(root) {
             // Teardown removes the endpoint before the lock. Wait for both so an
             // immediate restart never observes the previous daemon's lock.
-            Err(DaemonError::NotRunning) if !lock_path.exists() => return Ok(()),
+            Err(DaemonError::NotRunning) if removal_complete(&lock_path)? => return Ok(()),
             Err(DaemonError::NotRunning) => {}
             Ok(_) | Err(DaemonError::StaleInstance(_)) => {}
+            // Windows reports a file whose deletion is still pending as
+            // "Access is denied"; the endpoint is mid-removal, so keep observing.
+            Err(DaemonError::Io(error)) if error.kind() == io::ErrorKind::PermissionDenied => {}
             Err(error) => return Err(error),
         }
         if Instant::now() >= deadline {
             return Err(DaemonError::StopTimeout(root.to_path_buf()));
         }
         thread::sleep(Duration::from_millis(25));
+    }
+}
+
+/// Returns whether a daemon metadata file is fully removed. A Windows file in the
+/// delete-pending state still blocks re-creation and reports `PermissionDenied`
+/// instead of `NotFound`, so only `NotFound` counts as removed.
+fn removal_complete(path: &Path) -> Result<bool, DaemonError> {
+    match fs::symlink_metadata(path) {
+        Ok(_) => Ok(false),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(true),
+        Err(error) if error.kind() == io::ErrorKind::PermissionDenied => Ok(false),
+        Err(error) => Err(DaemonError::Io(error)),
     }
 }
 
