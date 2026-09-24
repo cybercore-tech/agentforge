@@ -1,6 +1,6 @@
 # Plan: P2-M025 — Canonical repository identity on cybercore-tech
 
-Status: Draft
+Status: Approved
 Milestone: P2-M025
 Created: 2026-09-23
 Owner: AgentForge project
