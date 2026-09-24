@@ -567,13 +567,14 @@ paths and restored reliable CI:
 - **P0-M013** the audit log is safe with concurrent writers and is created on first use;
 - **P4-M004** remote-worker leases are operable and audited from `forge` and `forged`, and leased
   tasks cannot run locally;
+- **P4-M005** a same-host worker process (`forge worker run`) runs the tasks leased to it;
 - **P5-M001** the first tagged release,
   [`v0.1.0`](https://github.com/cybercore-tech/agentforge/releases/tag/v0.1.0), with checksummed
   archives for Linux, macOS, and Windows.
 
 Candidate next milestones, each still requiring its own approved plan:
 
-- a same-host worker process that holds its own leases (P4);
+- automatic dispatch: the daemon granting ready tasks to idle registered workers (P4);
 - authenticated worker transport and exact-SHA result acceptance (P4);
 - an MCP/tool gateway mapped to capability policy (P3);
 - signed release artifacts with provenance attestations (P5).

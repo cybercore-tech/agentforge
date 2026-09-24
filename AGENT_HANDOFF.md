@@ -2,7 +2,11 @@
 
 ## Repository state
 
-- Active milestone: none. P0-M013 is complete (`89be554` and `e559f02`; CI `36027216240`,
+- Active milestone: none. P4-M005 is complete (`07dd1b8`; CI `36029313163`, `36029663704`, and
+  `36029677648`). `forge worker run` runs leased tasks for their exact holder: claim, launch, renew,
+  release. Next P4 candidates: daemon auto-dispatch of ready tasks to idle workers, then an
+  authenticated transport (GhostPort) and exact-SHA acceptance of remote results.
+- P0-M013 is complete (`89be554` and `e559f02`; CI `36027216240`,
   `36027530893`, and `36027544754`). Audit appends are locked, refresh, and renumber, so multiple
   writers are safe. Attempt logs use `append_batch`. Operator actions create the audit log on first
   use. Next: P4-M005, the same-host worker process.

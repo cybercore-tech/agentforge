@@ -13,12 +13,20 @@ agent-built milestones, Phase 4 remote-worker wiring, the P3 tool gateway, and P
 
 ## Active milestone
 
-No active milestone. P0-M013 — coordinated audit appends and first-use audit logs — is complete.
+No active milestone. P4-M005 — same-host worker process — is complete.
 `v0.1.0` is the latest release, and every completed milestone is tagged `milestone/<ID>`.
 
 ## Known issues
 
 None open. Dogfooding findings 1–10 are resolved; see `docs/DOGFOODING.md`.
+
+## P4-M005 completion evidence
+
+- Approved plan: `.plans/P4-M005-same-host-worker.plan.md`; ADR-0048.
+- Implementation commit: `07dd1b8`. CI `36029313163`, `36029663704`, and `36029677648` are green on
+  all seven jobs.
+- Dogfood: a background `forge worker run` claimed a granted lease, ran the task, and released it,
+  in one audit chain.
 
 ## P0-M013 completion evidence
 

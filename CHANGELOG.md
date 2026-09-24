@@ -18,6 +18,10 @@ All notable AgentForge changes are documented here. The format follows
   - a running `forged` expires due leases every 5 seconds, only while no execution is active.
 
   No worker is contacted yet.
+- `forge worker run <root> <worker-id> (<exe> | --profile <p>) [--once] [--poll-ms <ms>]`, a
+  same-host worker process (P4-M005, ADR-0048). It claims the leases held by its worker, runs each
+  task through the standard launch path, renews the lease while the agent runs, and releases it.
+  Only the exact lease holder can run a leased task. Lease events gain the `claimed` action.
 
 ### Changed
 

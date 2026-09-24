@@ -1,6 +1,6 @@
 # Plan: P4-M005 — Same-host worker process
 
-Status: Approved
+Status: Complete
 Milestone: P4-M005
 Created: 2026-09-24
 Owner: AgentForge project
@@ -156,15 +156,26 @@ ADR-0048. README, CHANGELOG, and MILESTONES at closure.
 
 ## Acceptance criteria
 
-- [ ] `forge worker run` executes its leased tasks through the standard launch path, with claimed,
+- [x] `forge worker run` executes its leased tasks through the standard launch path, with claimed,
       renewed, and released evidence.
-- [ ] Only the exact lease holder can run a leased task; other paths stay refused.
-- [ ] ADR-0048 and docs; CI evidence; closed and tagged.
+- [x] Only the exact lease holder can run a leased task; other paths stay refused.
+- [x] ADR-0048 and docs; CI evidence; closed and tagged.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
-Notes:
+Implementation commit: `07dd1b8`
+CI run: `36029313163` (push), plus `36029663704` and `36029677648` (dispatched)
+CI result: green on all seven jobs in all three runs
+Completed: 2026-09-24
+Notes: Operator-authored as planned, with no amendments. The dogfood used a real background
+`forge worker run` process (poll 300 ms):
+- it reported idle;
+- the operator granted a lease;
+- the worker claimed it, ran the fixture agent through the standard launch path, released the
+  lease, and went idle again.
+
+One audit chain covers it: #1 granted, #2 claimed, #3 worktree observed, #4 transition, #5-#6 agent
+started and finished, #7 released. The task was left `running` for review. The renewal test (a
+300 ms window during a 1 s agent) passed 10/10 local repeats with at least 3 renewals and no
+expiry. That dogfood run prompted one cosmetic change before commit: renewals are now reported
+after the run result.

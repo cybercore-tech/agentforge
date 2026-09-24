@@ -85,6 +85,7 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 | P4-M002 | complete | Durable remote-worker lease state | A separate checksummed lease snapshot restores ownership, generations, expiry, and terminal state across restart, with explicit caller-supplied expiry recovery and no transport authority. |
 | P4-M003 | complete | Deterministic remote dispatch planning | Ready tasks can be assigned to supplied workers in canonical order with path, capacity, lease-generation, and all-or-nothing mutation guarantees, without transport or execution authority. |
 | P4-M004 | complete | Remote-worker leases in the CLI and daemon | Operators register workers and grant, renew, release, and expire audited leases from `forge`; leased tasks and tasks overlapping them cannot run locally; `forged` expires due leases without colliding with executions. |
+| P4-M005 | complete | Same-host worker process | `forge worker run` claims its leases, runs each task through the standard launch path with renewals, and releases it; only the exact lease holder can run a leased task. |
 
 ## Phase 1 — multi-agent scheduling and integration
 
