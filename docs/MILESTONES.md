@@ -65,6 +65,7 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 | P2-M030 | complete | Milestone tags | Every completed milestone has an annotated `milestone/<ID>` tag on its closure commit, tagging is part of closure, and release tags stay separate. |
 | P2-M031 | complete | Tagger closure detection fix | Milestone tags are created only on commits whose plan status line reads `Status: Complete`, verified before tagging; all earlier tags unchanged. |
 | P2-M032 | complete | macOS daemon stop flake | `forge daemon stop` treats macOS EINVAL on a reset socket as transport loss, with repeated green CI on macOS. |
+| P2-M033 | complete | HUD view of agent runs | `forge hud` shows recent agent runs with exit status, gate results, and evidence paths; built by Claude Code and landed through `forge task integrate`. |
 
 ## Phase 3 — external systems and Mission Control
 

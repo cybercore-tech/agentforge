@@ -1,6 +1,6 @@
 # Plan: P2-M033 — HUD view of agent runs
 
-Status: Approved
+Status: Complete
 Milestone: P2-M033
 Created: 2026-09-24
 Owner: AgentForge project
@@ -120,15 +120,22 @@ The agent's task boundary is `crates/agentforge-hud/src/lib.rs`,
 
 ## Acceptance criteria
 
-- [ ] `forge hud` shows recent agent runs with exit status, gates, and evidence paths.
-- [ ] Implemented by Claude Code through AgentForge.
-- [ ] Integrated through `forge task integrate` after a recorded approval.
-- [ ] CI evidence recorded, closed, and tagged.
+- [x] `forge hud` shows recent agent runs with exit status, gates, and evidence paths.
+- [x] Implemented by Claude Code through AgentForge.
+- [x] Integrated through `forge task integrate` after a recorded approval.
+- [x] CI evidence recorded, closed, and tagged.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
-Notes:
+Implementation commit: `29484bc` (Claude Code through the bridge, task `P2-M033-T0001`)
+CI run: `36010816304` (push) and `36011038882` (dispatched repeat)
+CI result: green on all seven jobs in both runs
+Completed: 2026-09-24
+Notes: The agent run took 252 s, exited 0, and passed the `workspace` gate. The operator reviewed
+`forge task diff`, accepted, and `forge task integrate --target main` fast-forwarded `main` from
+`7b5ef94` to `29484bc`. This is the first milestone landed through AgentForge's own integration
+(dogfooding finding 7 resolved). The worktree was retired only after integration succeeded, and
+the task branch is preserved. Deviation from the implementation sequence: `forge task launch`
+requires every required approval before launch, so `merge_protected_branch` was recorded before
+the run rather than after review (dogfooding finding 8). The live HUD on this repository shows
+pre-P2-M029 runs as `agent-exit=unknown` and this run with its exit code and evidence paths.

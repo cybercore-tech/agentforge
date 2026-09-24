@@ -57,7 +57,15 @@ gates, review, accept, integrate. This file is the run log and the list of frict
    and approval. The operator also retired the worktree by chaining commands with `;`, so the
    reviewed commit was landed with an operator fast-forward. Tasks meant to integrate through
    AgentForge should be created with `--capability merge_protected_branch --approval
-   merge_protected_branch`, and the approval recorded after review.
+   merge_protected_branch`, and the approval recorded after review. **Resolved in P2-M033:** the
+   task was created with merge authority and `forge task integrate --target main` landed the
+   agent's commit; the worktree was retired only afterwards.
+8. **Launch requires every approval up front, including the merge approval.** P2-M033 planned to
+   record `merge_protected_branch` after review, but `forge task launch` refuses a task whose
+   required approvals are not all recorded, so it had to be approved before the agent ran. Review
+   still gates integration in practice (the operator runs `accept` and `integrate`), but the
+   approval record no longer proves a review happened. A future milestone should separate launch
+   approvals from integration approvals. **Open.**
 
 ## P1-M007 run log (2026-09-24)
 
@@ -68,3 +76,11 @@ gates, review, accept, integrate. This file is the run log and the list of frict
 | `P1-M007-T0003` | 321 s | Committed by the bridge, pre-commit gate and project gate passed, reviewed, accepted, landed as `6131508` |
 
 Attempts `T0001` and `T0002` are cancelled. Their branches and worktrees are kept as evidence.
+
+## P2-M033 run log (2026-09-24)
+
+| Attempt | Duration | Outcome |
+| --- | --- | --- |
+| `P2-M033-T0001` | 252 s | `agent-exit=0`, gates 1/1, reviewed with `forge task diff`, accepted, integrated by `forge task integrate --target main` as `29484bc`, then retired |
+
+The first attempt of an agent-built milestone to succeed without operator repair.

@@ -8,6 +8,9 @@ All notable AgentForge changes are documented here. The format follows
 
 ### Added
 
+- An `agent_runs:` section in `forge hud` listing the five most recent agent runs with exit code,
+  termination, gate results (first failed gate), and evidence log paths (P2-M033). Built by Claude
+  Code through AgentForge and landed with `forge task integrate`.
 - Release-readiness automation, cross-platform validation, and packaged binary artifacts.
 - Project quality gates in `.forge/gates/` that run automatically after a successful agent in every
   run and launch path, with `GateFinished` audit evidence and `forge gate list` (P1-M004).

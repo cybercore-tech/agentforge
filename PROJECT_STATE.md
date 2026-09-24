@@ -13,12 +13,21 @@ agent-built milestones, Phase 4 remote-worker wiring, the P3 tool gateway, and P
 
 ## Active milestone
 
-No active milestone. P2-M032 — macOS daemon stop flake — is complete, and every completed milestone
+No active milestone. P2-M033 — HUD view of agent runs — is complete, and every completed milestone
 is tagged `milestone/<ID>`.
 
 ## Known issues
 
-None open. Resolved dogfooding findings are tracked in `docs/DOGFOODING.md`.
+- Dogfooding finding 8: `forge task launch` requires the merge approval before the agent runs, so
+  the approval record does not prove a review. Other findings are resolved; see
+  `docs/DOGFOODING.md`.
+
+## P2-M033 completion evidence
+
+- Approved plan: `.plans/P2-M033-hud-agent-runs.plan.md`.
+- Implementation commit: `29484bc`, written by Claude Code (task `P2-M033-T0001`, 252 s, gates
+  1/1) and integrated with `forge task integrate --target main`.
+- CI `36010816304` (push) and `36011038882` (dispatched) are green on all seven jobs.
 
 ## P2-M032 completion evidence
 

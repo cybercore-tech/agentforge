@@ -416,6 +416,9 @@ Watch commands are line-oriented:
 - `h` / `help` — print command help
 - `q` / `quit` — exit
 
+The `agent_runs:` section lists the five most recent agent runs with their exit code, gate results,
+and evidence log paths, so a failed run and where to look are visible at a glance.
+
 The HUD reads blueprint, guideline, task, audit, and managed-worktree state. It does not create
 files, launch agents, transition tasks, approve work, or mutate Git. Operator mutations belong to
 the explicit `forge task` commands above—not to the HUD. 🛡️
@@ -555,7 +558,9 @@ paths and restored reliable CI:
   milestone was **P1-M007** (task-declared required gates);
 - **P2-M028** the repository gate is hermetic under Git hooks and in worktrees;
 - **P2-M029** every agent run shows its exit code and keeps its full output as evidence;
-- **P2-M030** every completed milestone is tagged (`milestone/<ID>`) on its closure commit.
+- **P2-M030** every completed milestone is tagged (`milestone/<ID>`) on its closure commit;
+- **P2-M033** `forge hud` shows recent agent runs. Built by Claude Code and the first milestone
+  landed through `forge task integrate`.
 
 Candidate next milestones, each still requiring its own approved plan:
 

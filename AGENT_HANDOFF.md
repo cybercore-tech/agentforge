@@ -2,8 +2,12 @@
 
 ## Repository state
 
-- Active milestone: none. P2-M032 (macOS daemon stop flake) is complete. Commit `e3c4bbe`, and four CI
-  runs are green including macOS. Every completed milestone through P2-M032 is tagged. **Closure ends
+- Active milestone: none. P2-M033 (HUD view of agent runs) is complete: commit `29484bc` by Claude
+  Code, landed through `forge task integrate`; CI `36010816304` and `36011038882` are green. Every
+  completed milestone through P2-M033 is tagged. Record every required approval, including
+  `merge_protected_branch`, before `forge task launch` (finding 8).
+- P2-M032 (macOS daemon stop flake) is complete. Commit `e3c4bbe`, and four CI runs are green
+  including macOS. **Closure ends
   with `scripts/tag-milestone <ID>` (check the dry-run subject reads "close ...") and pushing the tag**
   (AGENTS.md rule 14).
 - P2-M029 is complete (commits `9e06c07`, `7e5c0c0`; CI `35971863878` and `35971879237` green).
