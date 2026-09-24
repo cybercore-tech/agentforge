@@ -1,6 +1,6 @@
 # Plan: P2-M032 — macOS daemon stop flake (EINVAL on a reset socket)
 
-Status: Approved
+Status: Complete
 Milestone: P2-M032
 Created: 2026-09-24
 Owner: AgentForge project
@@ -101,14 +101,18 @@ None.
 
 ## Acceptance criteria
 
-- [ ] `InvalidInput` from client socket calls is treated as transport loss.
-- [ ] Repeated CI is green on macOS.
-- [ ] Documented, closed, and tagged.
+- [x] `InvalidInput` from client socket calls is treated as transport loss.
+- [x] Repeated CI is green on macOS.
+- [x] Documented, closed, and tagged.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
+Implementation commit: `e3c4bbe`
+CI run: `36006696921` (push), `36006725709`, `36006735861`, `36006745329` (dispatched)
+CI result: green across all seven jobs in all four runs, including macOS 14.
+Completed: 2026-09-24
 Notes:
+`map_transport_error` now treats `InvalidInput` (macOS `EINVAL` from setsockopt on a connection reset
+while the daemon drops its listener) as transport loss, so `stop()` keeps observing teardown instead
+of failing. The new unit test covers the mapping; the macOS condition can't be reproduced on Linux,
+so the evidence is repeated green macOS CI.

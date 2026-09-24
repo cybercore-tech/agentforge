@@ -2,10 +2,10 @@
 
 ## Repository state
 
-- Active milestone: none. P2-M031 (tagger closure detection) is complete, and every completed
-  milestone through P2-M031 is tagged. **Closure now ends with `scripts/tag-milestone <ID>` and
-  pushing the tag** (AGENTS.md rule 14; `docs/OPERATIONS.md` Tags). Next: P2-M032, the macOS
-  daemon-stop flake (`36005350819`).
+- Active milestone: none. P2-M032 (macOS daemon stop flake) is complete. Commit `e3c4bbe`, and four CI
+  runs are green including macOS. Every completed milestone through P2-M032 is tagged. **Closure ends
+  with `scripts/tag-milestone <ID>` (check the dry-run subject reads "close ...") and pushing the tag**
+  (AGENTS.md rule 14).
 - P2-M029 is complete (commits `9e06c07`, `7e5c0c0`; CI `35971863878` and `35971879237` green).
   Agent runs print `agent-exit`, persist output to `.forge/evidence/<task>/`, and exit 1 on agent
   failure.

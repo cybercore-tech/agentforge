@@ -13,14 +13,20 @@ agent-built milestones, Phase 4 remote-worker wiring, the P3 tool gateway, and P
 
 ## Active milestone
 
-No active milestone. P2-M031 — Tagger closure detection fix — is complete. Next: P2-M032, fixing the
-intermittent macOS daemon-stop flake seen in CI run `36005350819`.
+No active milestone. P2-M032 — macOS daemon stop flake — is complete, and every completed milestone
+is tagged `milestone/<ID>`.
 
 ## Known issues
 
-- Intermittent on macOS: `forge daemon stop` right after a long daemon execution can fail with
-  `daemon I/O failed: Invalid argument (os error 22)`. Seen once in four runs of `12796ef`
-  (`36005350819`); P2-M032.
+None open. Resolved dogfooding findings are tracked in `docs/DOGFOODING.md`.
+
+## P2-M032 completion evidence
+
+- Approved plan: `.plans/P2-M032-macos-daemon-stop-flake.plan.md`.
+- Implementation commit: `e3c4bbe`. The daemon client treats macOS `EINVAL` on a reset socket as
+  transport loss.
+- CI `36006696921` (push) and dispatched `36006725709`, `36006735861`, and `36006745329` are green on
+  all seven jobs, including macOS 14.
 
 ## P2-M031 completion evidence
 
