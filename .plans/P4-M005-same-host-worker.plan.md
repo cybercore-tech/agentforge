@@ -1,6 +1,6 @@
 # Plan: P4-M005 — Same-host worker process
 
-Status: Draft
+Status: Approved
 Milestone: P4-M005
 Created: 2026-09-24
 Owner: AgentForge project
