@@ -1,6 +1,6 @@
 # Plan: P2-M029 — Agent run visibility, evidence logs, and agent build isolation
 
-Status: Draft
+Status: Approved
 Milestone: P2-M029
 Created: 2026-09-24
 Owner: AgentForge project
