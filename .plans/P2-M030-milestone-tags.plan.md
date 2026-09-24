@@ -1,6 +1,6 @@
 # Plan: P2-M030 — Milestone tags
 
-Status: Draft
+Status: Approved
 Milestone: P2-M030
 Created: 2026-09-24
 Owner: AgentForge project
