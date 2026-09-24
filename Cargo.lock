@@ -63,6 +63,7 @@ dependencies = [
 name = "agentforge-operator"
 version = "0.1.0"
 dependencies = [
+ "agentforge-adapter",
  "agentforge-audit",
  "agentforge-ci",
  "agentforge-core",

@@ -12,7 +12,7 @@ use agentforge_core::remote::{
     TaskLease, WorkerCapability,
 };
 use agentforge_core::task::{TaskGraph, TaskId, TaskState};
-use agentforge_orchestrator::{first_path_overlap, remote_lease_conflict};
+use agentforge_orchestrator::{LeaseClaim, first_path_overlap, remote_lease_conflict};
 use agentforge_scheduler::{RemoteDispatchRequest, plan_remote_dispatch};
 use agentforge_state::{FileLeaseStore, LeaseStore};
 use std::fs::{self, OpenOptions};
@@ -277,6 +277,62 @@ pub fn release_lease(
     sweep_due(root, &mut book, now, actor)?;
     let result = book.release(&lease_id, &owner, generation, now).cloned();
     finish_owner_change(root, &book, result, "released", now, actor)
+}
+
+/// Claims an active lease for the worker that holds it, before running its task (P4-M005).
+///
+/// Verifies under the lease lock that the lease is active, owned by `worker_id`, and that its task
+/// is still `pending`, then records `LeaseRecorded` with `action=claimed` (actor
+/// `worker:<worker-id>`). The lease book itself does not change.
+pub fn claim_lease(
+    root: impl AsRef<Path>,
+    lease_id: &str,
+    worker_id: &str,
+    now: u64,
+) -> Result<LeaseClaim, OperatorError> {
+    let actor = format!("worker:{worker_id}");
+    validate_actor(&actor)?;
+    let root = root.as_ref();
+    let _lock = LeaseLock::acquire(root, LEASE_LOCK_WAIT)?;
+    let mut book = load_book(root)?;
+    let (lease_id, owner, generation) = owner_of(&book, lease_id)?;
+    if owner.as_str() != worker_id {
+        return Err(OperatorError::new(format!(
+            "lease {} belongs to worker {}, not {worker_id}",
+            lease_id.as_str(),
+            owner.as_str()
+        )));
+    }
+    sweep_due(root, &mut book, now, &actor)?;
+    let lease = book
+        .get(&lease_id)
+        .cloned()
+        .ok_or_else(|| OperatorError::new("lease disappeared"))?;
+    if !lease.is_active_at(now) {
+        return Err(OperatorError::new(format!(
+            "lease {} is {}, not active",
+            lease_id.as_str(),
+            view(&lease, now).state
+        )));
+    }
+    let graph = load_graph(root)?;
+    let state = graph
+        .get(lease.task_id())
+        .map(|record| record.state())
+        .ok_or_else(|| OperatorError::new("leased task not found"))?;
+    if state != TaskState::Pending {
+        return Err(OperatorError::new(format!(
+            "leased task {} is {}; only pending tasks can be claimed",
+            lease.task_id(),
+            state.as_str()
+        )));
+    }
+    commit(root, &book, &[(&lease, "claimed")], &actor)?;
+    Ok(LeaseClaim {
+        lease_id,
+        worker_id: owner,
+        generation,
+    })
 }
 
 /// Marks every lease due at `now` as expired and audits each one.

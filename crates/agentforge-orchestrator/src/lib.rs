@@ -4,7 +4,7 @@ use agentforge_adapter::{AdapterRequest, AgentAdapter, ExecutionReport, Executio
 use agentforge_audit::{AuditEvent, AuditEventKind, AuditLog};
 use agentforge_audit::{AuditStore, FileAuditStore};
 use agentforge_core::agent::{AgentTask, ApprovalBoundary, Capability};
-use agentforge_core::remote::LeaseBook;
+use agentforge_core::remote::{LeaseBook, LeaseId, RemoteWorkerId};
 use agentforge_core::task::{TaskGraph, TaskId, TaskState};
 use agentforge_gate::{GateDefinition, GateOutcome, GateProfileStore, GateReport, GateRunner};
 use agentforge_policy::{ApprovalGrant, PolicyDecision, PolicyEngine, PolicyRequest};
@@ -238,7 +238,69 @@ pub fn launch_process_persisted<A: AgentAdapter>(
     approvals: &[ApprovalBoundary],
     base_ref: &str,
 ) -> Result<ForegroundLaunch, SliceError> {
-    let root = root.as_ref().to_path_buf();
+    launch_with_claim(
+        root.as_ref(),
+        task_store,
+        audit_store,
+        task_id,
+        adapter,
+        approvals,
+        base_ref,
+        None,
+    )
+}
+
+/// The lease a worker presents to run a leased task (P4-M005).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LeaseClaim {
+    /// Claimed lease.
+    pub lease_id: LeaseId,
+    /// Worker holding the lease.
+    pub worker_id: RemoteWorkerId,
+    /// Lease generation at claim time.
+    pub generation: u64,
+}
+
+/// Runs a leased task for its lease holder through the standard launch path.
+///
+/// Identical to [`launch_process_persisted`], except that the lease guard allows the task when its
+/// active lease matches `claim` exactly (lease, worker, and generation). Overlap with any other
+/// active lease is still refused, as is a missing, expired, or mismatched lease.
+#[allow(clippy::too_many_arguments)]
+pub fn launch_leased_process_persisted<A: AgentAdapter>(
+    root: impl AsRef<Path>,
+    task_store: &FileTaskStore,
+    audit_store: &mut FileAuditStore,
+    task_id: &TaskId,
+    adapter: &A,
+    approvals: &[ApprovalBoundary],
+    base_ref: &str,
+    claim: &LeaseClaim,
+) -> Result<ForegroundLaunch, SliceError> {
+    launch_with_claim(
+        root.as_ref(),
+        task_store,
+        audit_store,
+        task_id,
+        adapter,
+        approvals,
+        base_ref,
+        Some(claim),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn launch_with_claim<A: AgentAdapter>(
+    root: &Path,
+    task_store: &FileTaskStore,
+    audit_store: &mut FileAuditStore,
+    task_id: &TaskId,
+    adapter: &A,
+    approvals: &[ApprovalBoundary],
+    base_ref: &str,
+    claim: Option<&LeaseClaim>,
+) -> Result<ForegroundLaunch, SliceError> {
+    let root = root.to_path_buf();
     let graph = task_store
         .load()
         .map_err(|error| SliceError::Preflight(error.to_string()))?
@@ -260,7 +322,7 @@ pub fn launch_process_persisted<A: AgentAdapter>(
         ));
     }
     validate_launch_policy(&task, approvals)?;
-    check_remote_leases(&root, &graph, task_id)?;
+    check_remote_leases(&root, &graph, task_id, claim)?;
     // Required gates are checked before the worktree is created or observed.
     let gates = GateProfileStore::new(&root)
         .list()
@@ -281,8 +343,15 @@ pub fn launch_process_persisted<A: AgentAdapter>(
         &base_commit,
         worktree_created,
     )?;
-    let execution =
-        execute_process_persisted(&root, task_store, audit_store, task_id, adapter, approvals)?;
+    let execution = execute_with_claim(
+        &root,
+        task_store,
+        audit_store,
+        task_id,
+        adapter,
+        approvals,
+        claim,
+    )?;
     Ok(ForegroundLaunch {
         execution,
         base_commit,
@@ -421,7 +490,7 @@ pub fn launch_batch_persisted<A: AgentAdapter + Sync>(
             .validate()
             .map_err(|error| SliceError::Preflight(error.to_string()))
             .and_then(|()| validate_launch_policy(&task, &task_approvals))
-            .and_then(|()| check_remote_leases(&root, &graph, &task_id))
+            .and_then(|()| check_remote_leases(&root, &graph, &task_id, None))
             .and_then(|()| preflight_repository(&root, &task))
             .and_then(|()| select_gates(&gates, &task))
             .and_then(|task_gates| {
@@ -688,17 +757,64 @@ pub fn remote_lease_conflict(
 }
 
 /// Refuses a local run of a leased task, or one overlapping a leased task, before side effects.
-fn check_remote_leases(root: &Path, graph: &TaskGraph, task_id: &TaskId) -> Result<(), SliceError> {
-    let Some(leases) = FileLeaseStore::for_project_root(root)
+fn check_remote_leases(
+    root: &Path,
+    graph: &TaskGraph,
+    task_id: &TaskId,
+    claim: Option<&LeaseClaim>,
+) -> Result<(), SliceError> {
+    let leases = FileLeaseStore::for_project_root(root)
         .load()
-        .map_err(|error| SliceError::Preflight(format!("remote lease state: {error}")))?
-    else {
-        return Ok(());
+        .map_err(|error| SliceError::Preflight(format!("remote lease state: {error}")))?;
+    let now = wall_clock_ms();
+    let Some(claim) = claim else {
+        let Some(leases) = leases else {
+            return Ok(());
+        };
+        return match remote_lease_conflict(graph, &leases, task_id, now) {
+            Some(reason) => Err(SliceError::Preflight(reason)),
+            None => Ok(()),
+        };
     };
-    match remote_lease_conflict(graph, &leases, task_id, wall_clock_ms()) {
-        Some(reason) => Err(SliceError::Preflight(reason)),
-        None => Ok(()),
+    let leases = leases.unwrap_or_default();
+    let holds = leases
+        .active_lease_for_task_at(task_id, now)
+        .is_some_and(|lease| {
+            lease.lease_id() == &claim.lease_id
+                && lease.worker_id() == &claim.worker_id
+                && lease.generation() == claim.generation
+        });
+    if !holds {
+        return Err(SliceError::Preflight(format!(
+            "lease claim {} (worker {}, generation {}) does not match an active lease for task \
+             {task_id}",
+            claim.lease_id.as_str(),
+            claim.worker_id.as_str(),
+            claim.generation
+        )));
     }
+    // The holder may run its own task, but never over another lease's paths.
+    let task = graph
+        .get(task_id)
+        .ok_or_else(|| SliceError::Preflight("task not found".into()))?
+        .task();
+    for lease in leases.active_leases_at(now) {
+        if lease.task_id() == task_id {
+            continue;
+        }
+        if let Some(owner) = graph.get(lease.task_id()) {
+            if let Some(path) = first_path_overlap(&task.allowed_paths, &owner.task().allowed_paths)
+            {
+                return Err(SliceError::Preflight(format!(
+                    "task {task_id} path {path} overlaps task {} leased to worker {} ({})",
+                    lease.task_id(),
+                    lease.worker_id().as_str(),
+                    lease.lease_id().as_str()
+                )));
+            }
+        }
+    }
+    Ok(())
 }
 
 fn validate_launch_policy(
@@ -776,11 +892,31 @@ pub fn execute_process_persisted<A: AgentAdapter>(
     adapter: &A,
     approvals: &[agentforge_core::agent::ApprovalBoundary],
 ) -> Result<ProcessExecution, SliceError> {
+    execute_with_claim(
+        root.as_ref(),
+        task_store,
+        audit_store,
+        task_id,
+        adapter,
+        approvals,
+        None,
+    )
+}
+
+fn execute_with_claim<A: AgentAdapter>(
+    root: &Path,
+    task_store: &FileTaskStore,
+    audit_store: &mut FileAuditStore,
+    task_id: &TaskId,
+    adapter: &A,
+    approvals: &[agentforge_core::agent::ApprovalBoundary],
+    claim: Option<&LeaseClaim>,
+) -> Result<ProcessExecution, SliceError> {
     let mut graph = task_store
         .load()
         .map_err(|e| SliceError::Preflight(e.to_string()))?
         .ok_or_else(|| SliceError::Preflight("task state snapshot is missing".into()))?;
-    check_remote_leases(root.as_ref(), &graph, task_id)?;
+    check_remote_leases(root, &graph, task_id, claim)?;
     match execute_process_attempt(
         root,
         &mut graph,

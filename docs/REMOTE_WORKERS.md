@@ -164,3 +164,30 @@ Release the lease, or let it expire, to run the task locally.
 A running `forged` expires due leases every 5 seconds and audits them with actor `forged`. It
 sweeps only while no execution holds its slot, so it never appends to the audit log during an
 execution.
+
+## Running a same-host worker
+
+P4-M005 (ADR-0048) adds the worker side. A registered worker runs the tasks leased to it as a
+separate process on the same host, sharing the project directory. There is no network transport
+yet.
+
+```bash
+forge lease grant . <task-id> --worker builder-1 --actor <you>
+forge worker run . builder-1 --profile claude-code --once     # or an absolute executable
+forge worker run . builder-1 --profile claude-code --poll-ms 2000   # keep polling
+```
+
+For each of its active leases (in lease-ID order) whose task is `pending` and ready, the worker:
+
+1. claims the lease (`LeaseRecorded action=claimed`, actor `worker:<id>`);
+2. runs the task through the standard launch path (managed worktree, agent, gates, evidence);
+3. renews the lease every third of its window while the agent runs;
+4. releases the lease, whatever the outcome.
+
+Only the exact lease holder (lease, worker, and generation) can run a leased task. Every other run
+path still refuses it, and a claim never overrides another lease's paths.
+
+The result is an ordinary task result, reviewed the usual way: `forge task diff`, `accept`, the
+post-review merge approval, and `integrate`. `--once` exits 0 when idle or successful, and 1 when
+the task failed. Stopping the process stops the worker: its lease expires and the task keeps its
+evidence.

@@ -76,7 +76,7 @@ fn main() -> ExitCode {
 
 fn print_usage() {
     println!(
-        "usage: forge <version|doctor|status|init <root>|intake <root> [--task] [--input-file <path>]|blueprint validate <root>|task create|inspect|launch|launch-batch|diff|approve|integrate|accept|cancel|retry ...|agent list|validate|inspect <root> [<profile>]|gate list <root>|worker list <root>|lease list|grant|renew|release|expire ...|ci observe <root> <repository> <workflow> <sha> [--task <task-id>]|run <root> <task-id> <absolute-executable> [--interactive] [--pty]|run <root> <task-id> --profile <profile> [--interactive] [--pty]|daemon start|restart|status|run|launch|stop ...|worktree create|inspect|list|retire ...|hud <root> [--watch [--interval-ms <milliseconds>]]>"
+        "usage: forge <version|doctor|status|init <root>|intake <root> [--task] [--input-file <path>]|blueprint validate <root>|task create|inspect|launch|launch-batch|diff|approve|integrate|accept|cancel|retry ...|agent list|validate|inspect <root> [<profile>]|gate list <root>|worker list|run ...|lease list|grant|renew|release|expire ...|ci observe <root> <repository> <workflow> <sha> [--task <task-id>]|run <root> <task-id> <absolute-executable> [--interactive] [--pty]|run <root> <task-id> --profile <profile> [--interactive] [--pty]|daemon start|restart|status|run|launch|stop ...|worktree create|inspect|list|retire ...|hud <root> [--watch [--interval-ms <milliseconds>]]>"
     );
 }
 
@@ -148,9 +148,143 @@ fn worker_command(arguments: Vec<String>) -> ExitCode {
                 }
             }
         }
+        Some("run") => worker_run_command(&arguments[1..]),
         _ => {
-            eprintln!("worker requires: list <root>");
+            eprintln!("worker requires: list <root> | {WORKER_RUN_USAGE}");
             ExitCode::from(2)
+        }
+    }
+}
+
+const WORKER_RUN_USAGE: &str = "run <root> <worker-id> (<absolute-executable> | --profile <profile>) [--base <ref>] [--once] [--poll-ms <ms>]";
+
+fn worker_run_command(arguments: &[String]) -> ExitCode {
+    use agentforge_operator::worker::{WorkerOptions, WorkerReport, run_worker};
+    let usage = || {
+        eprintln!("worker requires: {WORKER_RUN_USAGE}");
+        ExitCode::from(2)
+    };
+    if arguments.len() < 3 {
+        return usage();
+    }
+    let root = std::path::PathBuf::from(&arguments[0]);
+    let worker_id = arguments[1].clone();
+    let mut executable: Option<String> = None;
+    let mut profile: Option<String> = None;
+    let mut options = WorkerOptions {
+        base_ref: "HEAD".into(),
+        once: false,
+        poll: Duration::from_millis(2_000),
+    };
+    let mut index = 2;
+    while index < arguments.len() {
+        let value = arguments.get(index + 1);
+        match (arguments[index].as_str(), value) {
+            ("--once", _) => {
+                options.once = true;
+                index += 1;
+                continue;
+            }
+            ("--base", Some(value)) if !value.starts_with('-') => options.base_ref = value.clone(),
+            ("--profile", Some(value)) if profile.is_none() && executable.is_none() => {
+                profile = Some(value.clone());
+            }
+            ("--poll-ms", Some(value)) => match value.parse::<u64>() {
+                Ok(ms) if ms > 0 => options.poll = Duration::from_millis(ms),
+                _ => return usage(),
+            },
+            (flag, _) if flag.starts_with('-') => return usage(),
+            (value, _) if executable.is_none() && profile.is_none() => {
+                executable = Some(value.to_owned());
+                index += 1;
+                continue;
+            }
+            _ => return usage(),
+        }
+        index += 2;
+    }
+    let config = match (executable, profile) {
+        (Some(executable), None) => ProcessAdapterConfig::new("worker-process", executable),
+        (None, Some(profile)) => match AgentProfileStore::new(&root).load(&profile) {
+            Ok(profile) => profile.adapter_config(),
+            Err(error) => {
+                eprintln!("cannot load agent profile: {error}");
+                return ExitCode::from(2);
+            }
+        },
+        _ => return usage(),
+    };
+    let adapter = match ProcessAdapter::new(config) {
+        Ok(value) => value,
+        Err(error) => {
+            eprintln!("invalid adapter configuration: {error}");
+            return ExitCode::from(2);
+        }
+    };
+    let mut announced_idle = false;
+    let result = run_worker(
+        &root,
+        &worker_id,
+        &adapter,
+        &options,
+        |report| match report {
+            WorkerReport::Idle => {
+                if !announced_idle {
+                    println!("worker {worker_id}: no claimable leases");
+                    announced_idle = true;
+                }
+            }
+            WorkerReport::Claimed { claim, task_id } => {
+                announced_idle = false;
+                println!(
+                    "worker {worker_id} claimed lease={} task={task_id} generation={}",
+                    claim.lease_id.as_str(),
+                    claim.generation
+                );
+            }
+            WorkerReport::Launched(launch) => {
+                println!(
+                    "task {} ran; base={} worktree={}",
+                    launch.execution.report.task_id(),
+                    launch.base_commit,
+                    launch.worktree.path().display()
+                );
+                report_agent(&launch.execution.report, &launch.execution.evidence);
+                report_gates(&launch.execution);
+            }
+            WorkerReport::LaunchFailed { task_id, error } => {
+                eprintln!("task {task_id} launch failed: {error}");
+            }
+            WorkerReport::Renewals { renewed, failures } => {
+                println!("lease renewed {renewed} time(s) during the run");
+                for failure in failures {
+                    eprintln!("lease renewal failed: {failure}");
+                }
+            }
+            WorkerReport::Released(lease) => {
+                println!(
+                    "worker {worker_id} released lease={} state={}",
+                    lease.lease_id, lease.state
+                );
+            }
+            WorkerReport::ReleaseFailed(error) => eprintln!("lease release failed: {error}"),
+        },
+    );
+    match result {
+        Ok(summary) => {
+            println!(
+                "worker {worker_id} done: tasks_run={} failures={}",
+                summary.tasks_run, summary.failures
+            );
+            if summary.failures == 0 {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::from(1)
+            }
+        }
+        Err(error) => {
+            eprintln!("worker run failed: {error}");
+            ExitCode::from(1)
         }
     }
 }

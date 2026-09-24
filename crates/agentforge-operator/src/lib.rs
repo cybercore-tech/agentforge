@@ -1,6 +1,7 @@
 //! Explicit, audited operator actions over durable AgentForge task state.
 
 pub mod leases;
+pub mod worker;
 
 use agentforge_audit::{AuditEvent, AuditEventKind, AuditStore, FileAuditStore};
 use agentforge_ci::{

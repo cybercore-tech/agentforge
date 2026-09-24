@@ -238,3 +238,114 @@ fn lease_lifecycle_blocks_and_then_allows_a_local_launch() {
     );
     fs::remove_dir_all(root).expect("cleanup");
 }
+
+#[test]
+fn a_worker_process_runs_its_leased_task() {
+    let root = temporary_repo();
+    let root_text = root.to_str().expect("root");
+    assert!(forge(&root, &["init", root_text]).status.success());
+    let created = forge(
+        &root,
+        &[
+            "task",
+            "create",
+            root_text,
+            "P4-M005-T0001",
+            "P4-M005",
+            "implementer",
+            "worker fixture",
+            "--allowed",
+            "agentforge-fixture-output.txt",
+            "--capability",
+            "run_local_commands",
+        ],
+    );
+    assert!(created.status.success(), "{created:?}");
+    fs::create_dir_all(root.join(".forge/workers")).expect("workers");
+    fs::write(
+        root.join(".forge/workers/builder-1.conf"),
+        "platform=linux-x86_64\ncapability=rust\nmax_leases=1\n",
+    )
+    .expect("profile");
+    let executable = env!("CARGO_BIN_EXE_agentforge-cli-fixture");
+
+    let idle = forge(
+        &root,
+        &[
+            "worker",
+            "run",
+            root_text,
+            "builder-1",
+            executable,
+            "--once",
+        ],
+    );
+    assert!(idle.status.success(), "{idle:?}");
+    assert!(text(&idle).contains("no claimable leases"), "{idle:?}");
+
+    let granted = forge(
+        &root,
+        &[
+            "lease",
+            "grant",
+            root_text,
+            "P4-M005-T0001",
+            "--actor",
+            "op",
+        ],
+    );
+    assert!(granted.status.success(), "{granted:?}");
+    let ran = forge(
+        &root,
+        &[
+            "worker",
+            "run",
+            root_text,
+            "builder-1",
+            executable,
+            "--once",
+        ],
+    );
+    let output = text(&ran);
+    assert!(ran.status.success(), "{output}");
+    for expected in [
+        "worker builder-1 claimed lease=P4-M005-T0001.L1 task=P4-M005-T0001 generation=1",
+        "agent-exit=0",
+        "worker builder-1 released lease=P4-M005-T0001.L1 state=released",
+        "tasks_run=1 failures=0",
+    ] {
+        assert!(
+            output.contains(expected),
+            "missing {expected:?} in {output}"
+        );
+    }
+    assert!(
+        root.join(".forge/worktrees/P4-M005-T0001/agentforge-fixture-output.txt")
+            .is_file()
+    );
+    let inspected = forge(&root, &["task", "inspect", root_text, "P4-M005-T0001"]);
+    assert!(text(&inspected).contains("state=running"), "{inspected:?}");
+
+    let unknown = forge(
+        &root,
+        &[
+            "worker",
+            "run",
+            root_text,
+            "builder-9",
+            executable,
+            "--once",
+        ],
+    );
+    assert!(!unknown.status.success());
+    assert!(text(&unknown).contains("not registered"), "{unknown:?}");
+
+    fs::remove_file(root.join(".forge/worktrees/P4-M005-T0001/agentforge-fixture-output.txt"))
+        .expect("fixture output");
+    assert!(
+        forge(&root, &["worktree", "retire", root_text, "P4-M005-T0001"])
+            .status
+            .success()
+    );
+    fs::remove_dir_all(root).expect("cleanup");
+}

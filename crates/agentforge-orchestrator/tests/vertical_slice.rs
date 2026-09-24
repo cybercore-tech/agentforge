@@ -489,6 +489,138 @@ fn leased_tasks_are_refused_before_any_local_side_effect() {
 }
 
 #[test]
+fn only_the_exact_lease_holder_can_run_a_leased_task() {
+    use agentforge_core::remote::{
+        LeaseBook, LeaseId, RemoteWorkerDescriptor, RemoteWorkerId, WorkerCapability,
+    };
+    use agentforge_orchestrator::{LeaseClaim, launch_leased_process_persisted};
+    use agentforge_state::{FileLeaseStore, LeaseStore};
+    let root = unique_temp_repo();
+    git(&root, &["init", "-q"]);
+    git(
+        &root,
+        &["config", "user.email", "agentforge@example.invalid"],
+    );
+    git(&root, &["config", "user.name", "AgentForge Test"]);
+    std::fs::write(root.join("README.md"), "fixture\n").unwrap();
+    git(&root, &["add", "README.md"]);
+    git(&root, &["commit", "-qm", "fixture"]);
+    let make = |id: &str, path: &str| {
+        let mut task = AgentTask::new(id, "P4-M005", AgentRole::Implementer, "claim fixture");
+        task.capabilities = vec![Capability::RunLocalCommands];
+        task.allowed_paths = vec![path.into()];
+        task
+    };
+    let task_store = FileTaskStore::from_path(root.join("tasks.snapshot"));
+    task_store
+        .save(
+            &TaskGraph::from_tasks([
+                make("P4-M005-T0001", "src"),
+                make("P4-M005-T0002", "src/other"),
+                make("P4-M005-T0003", "docs"),
+            ])
+            .unwrap(),
+        )
+        .unwrap();
+    let worker = |id: &str| {
+        RemoteWorkerDescriptor::new(
+            RemoteWorkerId::parse(id).unwrap(),
+            "linux-x86_64",
+            vec![WorkerCapability::parse("rust").unwrap()],
+            4,
+        )
+        .unwrap()
+    };
+    let (w_a, w_b) = (worker("w-a"), worker("w-b"));
+    let now = agentforge_orchestrator::wall_clock_ms();
+    let lease = |value: &str| LeaseId::parse(value).unwrap();
+    let task = |value: &str| TaskId::parse(value).unwrap();
+    let mut book = LeaseBook::new();
+    book.grant(
+        &w_a,
+        lease("P4-M005-T0001.L1"),
+        task("P4-M005-T0001"),
+        now,
+        now + 600_000,
+    )
+    .unwrap();
+    book.grant(
+        &w_b,
+        lease("P4-M005-T0002.L1"),
+        task("P4-M005-T0002"),
+        now,
+        now + 600_000,
+    )
+    .unwrap();
+    // T0003's lease is already past due when the worker claims it.
+    book.grant(
+        &w_a,
+        lease("P4-M005-T0003.L1"),
+        task("P4-M005-T0003"),
+        now - 10_000,
+        now - 5_000,
+    )
+    .unwrap();
+    let store = FileLeaseStore::for_project_root(&root);
+    store.save(&book).unwrap();
+    let mut audit_store = FileAuditStore::open(root.join("audit.log")).unwrap();
+    let claim = |lease_id: &str, worker_id: &str, generation: u64| LeaseClaim {
+        lease_id: lease(lease_id),
+        worker_id: RemoteWorkerId::parse(worker_id).unwrap(),
+        generation,
+    };
+    let mut attempt = |task_id: &str, claim: LeaseClaim| {
+        launch_leased_process_persisted(
+            &root,
+            &task_store,
+            &mut audit_store,
+            &task(task_id),
+            &FailingAdapter,
+            &[],
+            "HEAD",
+            &claim,
+        )
+        .unwrap_err()
+    };
+    for (task_id, wrong) in [
+        ("P4-M005-T0001", claim("P4-M005-T0001.L1", "w-b", 1)),
+        ("P4-M005-T0001", claim("P4-M005-T0001.L1", "w-a", 2)),
+        ("P4-M005-T0001", claim("P4-M005-T0002.L1", "w-a", 1)),
+        ("P4-M005-T0003", claim("P4-M005-T0003.L1", "w-a", 1)),
+    ] {
+        let error = attempt(task_id, wrong.clone());
+        assert!(
+            matches!(&error, SliceError::Preflight(reason) if reason.contains("does not match an active lease")),
+            "{wrong:?}: {error}"
+        );
+    }
+    // The right claim, but T0001's `src` overlaps T0002's leased `src/other`.
+    let overlap = attempt("P4-M005-T0001", claim("P4-M005-T0001.L1", "w-a", 1));
+    assert!(
+        matches!(&overlap, SliceError::Preflight(reason) if reason.contains("overlaps task P4-M005-T0002")),
+        "{overlap}"
+    );
+    let manager = WorktreeManager::new(&root).unwrap();
+    assert!(manager.inspect(&task("P4-M005-T0001")).unwrap().is_none());
+    assert!(
+        FileAuditStore::open(root.join("audit.log"))
+            .unwrap()
+            .records()
+            .is_empty(),
+        "refusals leave no evidence"
+    );
+
+    book.release(&lease("P4-M005-T0002.L1"), w_b.worker_id(), 1, now + 1)
+        .unwrap();
+    store.save(&book).unwrap();
+    let allowed = attempt("P4-M005-T0001", claim("P4-M005-T0001.L1", "w-a", 1));
+    assert!(!matches!(allowed, SliceError::Preflight(_)), "{allowed}");
+    assert!(manager.inspect(&task("P4-M005-T0001")).unwrap().is_some());
+    let _ = manager.retire(&task("P4-M005-T0001"));
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn foreground_launch_does_not_require_post_execution_approvals() {
     let root = unique_temp_repo();
     git(&root, &["init", "-q"]);
