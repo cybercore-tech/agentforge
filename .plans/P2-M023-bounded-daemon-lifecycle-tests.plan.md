@@ -1,6 +1,6 @@
 # Plan: P2-M023 — Bounded daemon lifecycle tests and CI job timeouts
 
-Status: Draft
+Status: Approved
 Milestone: P2-M023
 Created: 2026-09-23
 Owner: AgentForge project
