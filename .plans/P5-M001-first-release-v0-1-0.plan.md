@@ -84,6 +84,7 @@ None; `Cargo.lock` changes only for the workspace members' own versions.
 - `CHANGELOG.md`
 - `docs/RELEASE.md`
 - `docs/REGISTRY.md` (Amendment 1)
+- `scripts/site-updates`, `site/script.js`, `docs/SITE.md` (Amendment 2)
 - `README.md`
 - `site/index.html`
 - `docs/MILESTONES.md`
@@ -134,6 +135,19 @@ A pre-implementation grep found `docs/REGISTRY.md` stating "AgentForge is a `0.0
 added to the file boundary so the release line reads `0.1.x` everywhere. Historical records
 (`PROJECT_STATE.md` evidence for earlier milestones, ADRs) keep their `0.0.1` references
 unchanged.
+
+## Amendment 2 (2026-09-24)
+
+Moving the `[Unreleased]` entries into `[0.1.0]` leaves the section empty, so the project site's
+*Coming in the next release* panel (P2-M026) would render as a blank block. The feed generator gains
+a `latest_release` object (`version`, `date`) parsed from the first versioned CHANGELOG heading.
+When `unreleased` has no entries, the site shows "Nothing unreleased since vX.Y.Z (date)" with a
+link to that GitHub release instead of an empty panel. `docs/SITE.md` documents the new field. The
+feed stays at `version: 1` because the change is additive.
+
+Test: `./scripts/site-updates` on the release commit emits `latest_release` `0.1.0` with an empty
+`unreleased`, and the site renders the fallback line (checked in a local browser preview of
+`site/` against the generated feed).
 
 ## Completion record
 
