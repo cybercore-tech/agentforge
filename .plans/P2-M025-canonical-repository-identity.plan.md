@@ -69,6 +69,7 @@ None.
 - `.plans/P2-M025-canonical-repository-identity.plan.md`
 - `.plans/ACTIVE`
 - `Cargo.toml`
+- `.cargo/registry-preflight.toml` (amendment 1)
 - `site/index.html`
 - `site/script.js`
 - `README.md`
@@ -79,6 +80,16 @@ None.
 - `docs/MILESTONES.md`
 - `PROJECT_STATE.md`
 - `AGENT_HANDOFF.md`
+
+## Amendment 1 — package preflight regression
+
+Running the planned `./scripts/package-preflight` gate failed with "no matching package named
+`agentforge-ci` found". The same failure reproduces on `HEAD` without P2-M025 changes.
+Classification: dependency/toolchain. P1-M004 and P1-M005 added `agentforge-gate` and
+`agentforge-ci` as registry-versioned dependencies of `agentforge-platform`, but the preflight's
+`[patch.crates-io]` table in `.cargo/registry-preflight.toml` only lists the internal crates that
+existed when P2-M022 wrote it. The preflight is opt-in and not part of CI, so nothing caught it.
+Repair: add both crates to the patch table.
 
 ## Test-first matrix
 
