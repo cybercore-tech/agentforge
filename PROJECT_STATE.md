@@ -14,6 +14,15 @@ Integration pass, daemon fixes, and repository move complete; next is Phase 4 re
 No active milestone. P1-M007 — Task-declared required gates — is complete. It is the first
 AgentForge milestone implemented by a real agent (Claude Code) through AgentForge itself.
 
+## P2-M027 completion evidence
+
+- Approved plan: `.plans/P2-M027-real-agent-bridge.plan.md`.
+- Bridge commit: `cabcc1c` (`scripts/agents/claude-code-bridge`, CI self-test step, docs,
+  ADR-0043).
+- Proof: P1-M007 was implemented by Claude Code through AgentForge (`6131508`), and its CI is green.
+- Seven dogfooding findings are recorded in `docs/DOGFOODING.md`: two fixed by P2-M028, one by the
+  P1-M007 amendment, two scheduled as P2-M029, and one kept as operator guidance.
+
 ## P1-M007 completion evidence
 
 - Approved plan: `.plans/P1-M007-task-required-gates.plan.md` (Amendment 1).

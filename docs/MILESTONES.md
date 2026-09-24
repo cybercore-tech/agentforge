@@ -59,7 +59,7 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 | P2-M024 | complete | Daemon long-running requests | Daemon run/launch executions longer than the control timeout succeed, status stays available during them, overlapping executions and stop are refused, and no client error suggests removing live metadata. |
 | P2-M025 | complete | Canonical repository identity | Repository metadata, README, CHANGELOG, registry docs, and the Pages site point at `cybercore-tech/agentforge`, and Pages deploys from the new repository. |
 | P2-M026 | complete | Project site updates feed | The project site shows recently shipped milestones, work in progress, phase progress, and unreleased features, generated from repository records at deploy time and validated in CI. |
-| P2-M027 | active | Real-agent bridge and dogfooding | A real coding agent completes an AgentForge milestone through `forge task launch`, with path boundaries enforced before commit and repository gates on the agent's commit. |
+| P2-M027 | complete | Real-agent bridge and dogfooding | A real coding agent completes an AgentForge milestone through `forge task launch`, with path boundaries enforced before commit and repository gates on the agent's commit. |
 | P2-M028 | complete | Hermetic repository gate under hooks and in worktrees | The gate clears hook Git variables before cargo steps and builds linked worktrees into their own target directory, proven by reproducing the incident before and after the fix. |
 
 ## Phase 3 — external systems and Mission Control

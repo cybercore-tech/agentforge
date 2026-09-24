@@ -1,6 +1,6 @@
 # Plan: P2-M027 — Real-agent bridge and AgentForge-on-AgentForge dogfooding
 
-Status: Approved
+Status: Complete
 Milestone: P2-M027
 Created: 2026-09-23
 Owner: AgentForge project
@@ -143,16 +143,26 @@ with the run log and findings; README and CHANGELOG; ADR-0043.
 
 ## Acceptance criteria
 
-- [ ] A real agent completes an AgentForge milestone through `forge task launch`.
-- [ ] Path boundaries are enforced before any agent commit.
-- [ ] Repository gates and hooks run on the agent's commit.
-- [ ] Findings are documented, with follow-ups identified.
-- [ ] Full local validation and exact-SHA CI evidence are recorded before closure.
+- [x] A real agent completes an AgentForge milestone through `forge task launch`.
+- [x] Path boundaries are enforced before any agent commit.
+- [x] Repository gates and hooks run on the agent's commit.
+- [x] Findings are documented, with follow-ups identified.
+- [x] Full local validation and exact-SHA CI evidence are recorded before closure.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
+Implementation commit: `cabcc1c8130c9557c1bb27b32af72682236cb7ae` (the bridge); proof commit `6131508` (P1-M007, authored through the bridge)
+CI run: `35967173808` (push, draft), then push-triggered CI on `cabcc1c`; proof CI `35970854736` and `35970861705`
+CI result: green on all seven jobs, including the new bridge self-test step.
+Completed: 2026-09-24
 Notes:
+Claude Code completed a real AgentForge milestone (P1-M007) through `forge task launch --profile
+claude-code` on its third attempt. The path guard, bridge-owned commits, and the in-worktree
+pre-commit gate all held. Dogfooding produced seven findings (`docs/DOGFOODING.md`):
+- invisible agent exits and lost output → P2-M029;
+- the non-hermetic gate under hooks and the shared target directory → fixed in P2-M028;
+- the default blueprint gate plan defect → P1-M007 Amendment 1;
+- the agent bypassing build isolation with bare `cargo` → P2-M029;
+- integration authority missing from the task contract → recorded as operator guidance.
+The acceptance criterion "follow-ups identified" is met by those findings. P1-M007 was landed with
+an operator fast-forward rather than `forge task integrate` (finding 7).
