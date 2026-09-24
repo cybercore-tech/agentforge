@@ -56,7 +56,7 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 | P2-M021 | complete | Windows daemon CI reliability | Spawned and foreground daemon lifecycle tests are isolated and the exact cross-platform CI matrix is green. |
 | P2-M022 | complete | Cargo publishability preparation | The future platform package has registry-aware metadata and an offline archive preflight while all crates remain private. |
 | P2-M023 | complete | Bounded daemon lifecycle tests and CI job timeouts | Daemon lifecycle tests cannot block without bound, a stalled client cannot wedge the daemon, every CI job has a timeout, and the exact seven-job matrix is green. |
-| P2-M024 | active | Daemon long-running requests | Daemon run/launch executions longer than the control timeout succeed, status stays available during them, overlapping executions and stop are refused, and no client error suggests removing live metadata. |
+| P2-M024 | complete | Daemon long-running requests | Daemon run/launch executions longer than the control timeout succeed, status stays available during them, overlapping executions and stop are refused, and no client error suggests removing live metadata. |
 
 ## Phase 3 — external systems and Mission Control
 

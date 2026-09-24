@@ -2,10 +2,13 @@
 
 ## Repository state
 
-- Active milestone: none. P1-M006 — Concurrent batch launch — is complete, finishing the
-  integration pass (P2-M023, P1-M004, P1-M005, P1-M006). Known issue to address next: the daemon
-  client's 2-second read timeout breaks `daemon run`/`daemon launch` for agents longer than 2 seconds
-  (see PROJECT_STATE.md). Phase 4 transport work should follow that fix.
+- Active milestone: none. P2-M024 — Daemon long-running requests — is complete. Canonical repository:
+  `cybercore-tech/agentforge` (local `origin`); the old `darkstardevx/agentforge` is kept as the
+  `darkstardevx` remote. Next: P2-M025 repository identity update, then Phase 4 transport.
+- P2-M024 implementation commit: `5ef03f1`; dispatched CI `35964099187`, `35964105073`, and
+  `35964110929` are green on all seven jobs. Push-triggered workflows did not fire on the new
+  repository at closure time; use `gh workflow run 'AgentForge CI' --ref main` until they do.
+- P1-M006 — Concurrent batch launch — is complete.
 - P1-M006 implementation commit: `b54f47a`; exact CI `35962553757`, `35962575356`, `35962581675`,
   and `35962587949` are green on all seven jobs. `forge task launch-batch` runs disjoint ready tasks
   concurrently under a single state coordinator.

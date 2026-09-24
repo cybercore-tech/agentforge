@@ -1,6 +1,6 @@
 # Plan: P2-M024 — Daemon requests that outlive the client read timeout
 
-Status: Approved
+Status: Complete
 Milestone: P2-M024
 Created: 2026-09-23
 Owner: AgentForge project
@@ -140,15 +140,27 @@ errors. README notes that long agents work through the daemon. ADR-0040 records 
 
 ## Acceptance criteria
 
-- [ ] Daemon executions longer than the control timeout succeed.
-- [ ] `status` answers during an execution; overlapping executions and `stop` are refused.
-- [ ] No client error suggests removing metadata owned by a live daemon.
-- [ ] Full local validation and exact-SHA CI evidence are recorded before closure.
+- [x] Daemon executions longer than the control timeout succeed.
+- [x] `status` answers during an execution; overlapping executions and `stop` are refused.
+- [x] No client error suggests removing metadata owned by a live daemon.
+- [x] Full local validation and exact-SHA CI evidence are recorded before closure.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
+Implementation commit: `5ef03f18715c95fed2b1a6b6e3720e9537bd3dac`
+CI run: `35964099187`, `35964105073`, `35964110929` (dispatched on `cybercore-tech/agentforge`)
+CI result: green across all seven jobs in all three runs, including Windows 2022.
+Completed: 2026-09-23
 Notes:
+First milestone pushed to the new canonical repository, `cybercore-tech/agentforge`. Pushes there
+did not trigger `push` workflows at closure time; the new repository recorded no push events.
+Exact-SHA evidence therefore comes from manually dispatched runs, which check out the same head.
+
+The accept loop answers `status`/`stop` itself and hands executions to a worker thread holding a
+single execution slot. Workers stream `PENDING` keepalives every second; the client reads with a
+10-second idle bound. Overlapping executions and mid-run `stop` receive `BUSY`. Lost connections
+after acceptance are reported as `ExecutionInterrupted` and never as stale metadata. The new CLI
+test failed with the original "stale daemon metadata" error before the fix. A manual re-run
+against the real `forged` binary with a 4-second agent succeeded, answered status mid-run, refused
+stop mid-run, and stopped cleanly afterwards. The existing CLI daemon test's 500 ms poll and
+unbounded join were replaced with deadlines.

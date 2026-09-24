@@ -7,21 +7,33 @@
 
 ## Current phase
 
-Integration pass complete; next is the daemon run-request timeout fix, then Phase 4 transport.
+Integration pass and daemon fixes complete; next is the repository identity update (P2-M025), then Phase 4 transport.
 
 ## Active milestone
 
-No active milestone. P1-M006 — Concurrent batch launch — is complete. The integration pass
-recommended after P4-M003 is finished: gates (P1-M004), CI observation (P1-M005), and the scheduler
-(P1-M006) now all run in operator paths, and CI is reliable again (P2-M023).
+No active milestone. P2-M024 — Daemon long-running requests — is complete. The canonical repository
+is now `https://github.com/cybercore-tech/agentforge` with Pages at
+`https://cybercore-tech.github.io/agentforge/`; `darkstardevx/agentforge` holds the history up to
+`976c4f9`.
 
 ## Known issues
 
-- The daemon client applies its 2-second read timeout to `daemon run` and `daemon launch`, which
-  execute the agent synchronously. An agent that runs longer than 2 seconds makes the client report
-  "stale daemon metadata ... remove it" while the live daemon is still running the task. Reproduced
-  2026-09-23 with a 3-second agent profile. Needs its own milestone before daemon-based dogfooding.
+- Repository metadata, README links, the Pages site, and `docs/REGISTRY.md` still point at
+  `darkstardevx`. Planned as P2-M025.
+- Pushes to `cybercore-tech/agentforge` did not trigger `push` workflows on 2026-09-23 (no push
+  events were recorded for the new repository). CI evidence was collected through
+  `workflow_dispatch` on the same head.
 - `AgentTask.required_gates` is not enforced; P1-M004 runs every project gate instead.
+
+## P2-M024 completion evidence
+
+- Approved plan: `.plans/P2-M024-daemon-long-running-requests.plan.md`.
+- Implementation commit: `5ef03f18715c95fed2b1a6b6e3720e9537bd3dac`.
+- Exact CI on `5ef03f1` (dispatched on `cybercore-tech/agentforge`): `35964099187`, `35964105073`,
+  and `35964110929` are green across all seven jobs.
+- Daemon executions no longer use the 2-second control timeout: keepalive frames, a single execution
+  slot, `BUSY` for overlapping executions and mid-run stop, and `ExecutionInterrupted` instead of the
+  misleading stale-metadata advice. ADR-0040 records the decision.
 
 ## P1-M006 completion evidence
 
