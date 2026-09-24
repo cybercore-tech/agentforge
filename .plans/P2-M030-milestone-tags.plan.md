@@ -1,6 +1,6 @@
 # Plan: P2-M030 — Milestone tags
 
-Status: Approved
+Status: Complete
 Milestone: P2-M030
 Created: 2026-09-24
 Owner: AgentForge project
@@ -118,14 +118,19 @@ versus release tags), README, CHANGELOG, ADR-0044.
 
 ## Acceptance criteria
 
-- [ ] Every completed milestone has an annotated `milestone/<ID>` tag on its closure commit.
-- [ ] Tagging is part of the documented closure workflow.
-- [ ] Release tags remain separate and untriggered.
+- [x] Every completed milestone has an annotated `milestone/<ID>` tag on its closure commit.
+- [x] Tagging is part of the documented closure workflow.
+- [x] Release tags remain separate and untriggered.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
+Implementation commit: `94b9843`
+CI run: `36004473648` (push) and `36004535524` (dispatched)
+CI result: green across all seven jobs in both runs, including the new tagger self-test.
+Completed: 2026-09-24
 Notes:
+The dry run resolved all 55 completed milestones to their closure commits with no errors. The
+backfill created 55 annotated `milestone/<ID>` tags, and a second run created none (idempotent).
+They were pushed after CI was green: `git ls-remote` matches the local tags exactly, and no release
+workflow run was triggered. P2-M030 itself is tagged after this closure, as the first tag created by
+the new closure step (AGENTS.md rule 14).

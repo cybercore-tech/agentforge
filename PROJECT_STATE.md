@@ -13,9 +13,17 @@ agent-built milestones, Phase 4 remote-worker wiring, the P3 tool gateway, and P
 
 ## Active milestone
 
-No active milestone. P2-M029 — Agent run visibility and build isolation — is complete. Every agent
-run now shows its exit code, keeps its full output as audited evidence, and fails the CLI when the
-agent fails. `docs/OPERATIONS.md` is the single operations reference.
+No active milestone. P2-M030 — Milestone tags — is complete. Every completed milestone has an
+annotated `milestone/<ID>` tag on its closure commit (`git tag -l 'milestone/*'`), and tagging is the
+final closure step (AGENTS.md rule 14).
+
+## P2-M030 completion evidence
+
+- Approved plan: `.plans/P2-M030-milestone-tags.plan.md`.
+- Implementation commit: `94b9843` (`scripts/tag-milestone`, CI self-test, closure-step docs,
+  ADR-0044).
+- CI `36004473648` (push) and `36004535524` (dispatched) are green on all seven jobs.
+- Backfill: 55 tags created, pushed, and verified against the remote. No release run was triggered.
 
 ## P2-M029 completion evidence
 
