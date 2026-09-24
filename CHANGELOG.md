@@ -38,6 +38,9 @@ All notable AgentForge changes are documented here. The format follows
   teardown errors (P2-M023).
 - `daemon run`/`daemon launch` failing after 2 seconds with misleading "stale daemon metadata"
   advice while the daemon was still running the task (P2-M024).
+- The repository gate acting on the real repository when run from a Git hook inside a linked
+  worktree (setting `core.bare`, injecting `[user]`, committing fixtures), and checkouts sharing a
+  Cargo target directory running each other's binaries (P2-M028).
 
 ## [0.0.1] - 2026-09-20
 

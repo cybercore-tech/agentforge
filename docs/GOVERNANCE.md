@@ -31,6 +31,23 @@ Read-only inspection may occur concurrently.
 
 Dirty working trees are never shared between agents.
 
+## Hermetic gate
+
+`./scripts/gate.sh` runs from the pre-commit hook, and that hook also runs inside AgentForge task
+worktrees whenever an agent's work is committed. Since P2-M028 the gate is hermetic there:
+
+- Before the cargo steps it clears every `GIT_*` variable. In a linked worktree, Git gives hooks an
+  absolute `GIT_DIR` and `GIT_INDEX_FILE` pointing at the real repository, and test fixtures that
+  shell out to `git` would otherwise act on it. This once set `core.bare = true` in the shared
+  config, injected a fake `[user]`, and committed a fixture onto a task branch. The plan-policy
+  check runs before the variables are cleared, because it must read the hook's index.
+- In a linked worktree it builds into `<target dir>/agentforge-worktrees/<worktree name>`. Cargo
+  names workspace-member artifacts independently of the checkout path, so checkouts sharing a
+  target directory would otherwise run each other's binaries as "fresh".
+
+If a gate in a task worktree ever misbehaves, check the main checkout's `.git/config`
+(`core.bare`, `[user]`) and the task branch history before anything else.
+
 ## Escalation
 
 An agent must stop and request escalation when:
