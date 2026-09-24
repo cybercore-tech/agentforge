@@ -45,6 +45,8 @@ All notable AgentForge changes are documented here. The format follows
 
 ### Fixed
 
+- An intermittent macOS `forge daemon stop` failure (`Invalid argument (os error 22)`) when a status
+  poll hit a connection reset during daemon teardown (P2-M032).
 - The recurring six-hour Windows CI hang in the daemon lifecycle tests, a stalled client blocking
   the daemon, a stop/restart lock race, macOS test fixture collisions, and Windows delete-pending
   teardown errors (P2-M023).

@@ -508,6 +508,10 @@ fn map_transport_error(root: &Path, error: io::Error) -> DaemonError {
             // Unix reports an elapsed socket read timeout as WouldBlock where
             // Windows reports TimedOut; classify both the same way.
             | io::ErrorKind::WouldBlock
+            // macOS rejects setsockopt on a connection reset while the daemon drops its listener
+            // with EINVAL; Linux accepts it. Every timeout this client passes is a nonzero
+            // constant, so here InvalidInput can only mean the transport is gone (P2-M032).
+            | io::ErrorKind::InvalidInput
             | io::ErrorKind::NotFound
     ) {
         DaemonError::StaleInstance(daemon_paths(root).0)
@@ -1224,6 +1228,30 @@ mod tests {
             Ok(Response::Launch("task=task termination=Exited".into()))
         );
         assert!(parse_request(b"AFD1\tLAUNCH\ttask\t/tmp/agent\t-bad\n").is_err());
+    }
+
+    #[test]
+    fn transport_loss_errors_are_stale_but_real_failures_are_not() {
+        let root = Path::new("/project");
+        for kind in [
+            io::ErrorKind::InvalidInput,
+            io::ErrorKind::ConnectionReset,
+            io::ErrorKind::ConnectionRefused,
+            io::ErrorKind::WouldBlock,
+            io::ErrorKind::TimedOut,
+        ] {
+            assert!(
+                matches!(
+                    map_transport_error(root, io::Error::from(kind)),
+                    DaemonError::StaleInstance(_)
+                ),
+                "{kind:?}"
+            );
+        }
+        assert!(matches!(
+            map_transport_error(root, io::Error::from(io::ErrorKind::PermissionDenied)),
+            DaemonError::Io(_)
+        ));
     }
 
     #[test]

@@ -123,6 +123,11 @@ best-effort error and is dropped; it cannot block a later status request or coop
 For control requests (`status`, `stop`), an elapsed client socket timeout is classified as a stale
 endpoint on every platform (Unix reports it as `WouldBlock`, Windows as `TimedOut`).
 
+While a stop is observed, a status poll can connect into the listen backlog just as the daemon
+drops its listener. macOS then rejects the client's socket-timeout call on the reset connection with
+`EINVAL` (`Invalid argument`), where Linux accepts it. The client treats that, like a connection
+reset, as the endpoint going away and keeps observing the stop (P2-M032).
+
 ## Long-running executions
 
 `daemon run` and `daemon launch` run the agent, and since P1-M004 its gates, before they respond,
