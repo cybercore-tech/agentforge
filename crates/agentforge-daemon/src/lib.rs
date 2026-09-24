@@ -19,6 +19,10 @@ const MAX_FRAME_BYTES: usize = 16 * 1024;
 const MAX_RESPONSE_BYTES: usize = 16 * 1024;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
 const START_TIMEOUT: Duration = Duration::from_secs(5);
+// Every client writes one complete frame immediately after connecting. Bound the
+// wait so a client that connects and stalls cannot block later requests,
+// including a cooperative stop, on this single-threaded accept loop.
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(1);
 const DAEMON_DIR: &str = ".forge/daemon";
 const ENDPOINT_FILE: &str = "endpoint";
 const LOCK_FILE: &str = "lock";
@@ -426,6 +430,9 @@ fn map_transport_error(root: &Path, error: io::Error) -> DaemonError {
             | io::ErrorKind::BrokenPipe
             | io::ErrorKind::NotConnected
             | io::ErrorKind::TimedOut
+            // Unix reports an elapsed socket read timeout as WouldBlock where
+            // Windows reports TimedOut; classify both the same way.
+            | io::ErrorKind::WouldBlock
             | io::ErrorKind::NotFound
     ) {
         DaemonError::StaleInstance(daemon_paths(root).0)
@@ -511,6 +518,11 @@ impl Server {
                 Ok(stream) => stream,
                 Err(error) => return Err(DaemonError::Io(error)),
             };
+            if stream.set_read_timeout(Some(REQUEST_TIMEOUT)).is_err()
+                || stream.set_write_timeout(Some(CONNECT_TIMEOUT)).is_err()
+            {
+                continue;
+            }
             let request = match read_frame(&mut stream).and_then(|frame| {
                 parse_request(&frame)
                     .map_err(|reason| io::Error::new(io::ErrorKind::InvalidData, reason))

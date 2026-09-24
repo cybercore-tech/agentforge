@@ -94,6 +94,14 @@ Git and the agent executable directly, so the same managed-worktree workflow is 
 supported host. Any remaining Unix-specific integration fixture stays in the Linux stable gate
 with its platform dependency documented beside the test.
 
+## Job timeouts
+
+Every CI job declares `timeout-minutes` (15 for repository policy and CLI smoke, 30 for the stable
+and MSRV gates, 40 for each platform-matrix host). A hung test fails its job within that bound
+instead of holding a runner until the six-hour platform default. The daemon lifecycle tests
+themselves use explicit readiness and exit deadlines, so a hang there fails the test with a named
+diagnostic well before the job timeout.
+
 ## Release workflow
 
 `.github/workflows/release.yml` runs for `vMAJOR.MINOR.PATCH` tags and manual dispatch. Tagged runs

@@ -117,6 +117,12 @@ A client disconnect does not stop the daemon. The request is bounded and the dae
 available for status or a later cooperative stop; any execution already started retains its durable
 task and audit evidence.
 
+The daemon serves one connection at a time, so each accepted connection must deliver its request
+frame within one second. A client that connects and sends nothing, or stalls mid-frame, receives a
+best-effort error and is dropped; it cannot block a later status request or cooperative stop. On
+the client side, an elapsed socket timeout is classified as a stale endpoint on every platform
+(Unix reports it as `WouldBlock`, Windows as `TimedOut`).
+
 Adapter failures, timeouts, and interrupted requests persist the task transition and audit evidence
 before the error is returned whenever the persistence boundary remains available. A successful run
 does not grant authority to accept, merge, or clean up the task.
