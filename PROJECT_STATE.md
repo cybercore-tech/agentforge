@@ -11,8 +11,16 @@ Integration pass, daemon fixes, and repository move complete; next is Phase 4 re
 
 ## Active milestone
 
-No active milestone. P1-M007 — Task-declared required gates — is complete. It is the first
-AgentForge milestone implemented by a real agent (Claude Code) through AgentForge itself.
+No active milestone. P2-M029 — Agent run visibility and build isolation — is complete. Every agent
+run now shows its exit code, keeps its full output as audited evidence, and fails the CLI when the
+agent fails. `docs/OPERATIONS.md` is the single operations reference.
+
+## P2-M029 completion evidence
+
+- Approved plan: `.plans/P2-M029-agent-run-visibility.plan.md` (amendment 1).
+- Implementation commits: `9e06c07` and `7e5c0c0` (portable evidence paths after a Windows-only
+  failure in the first CI pair).
+- CI `35971863878` (push) and `35971879237` (dispatched) are green on all seven jobs.
 
 ## P2-M027 completion evidence
 

@@ -2,9 +2,12 @@
 
 ## Repository state
 
-- Active milestone: none. P1-M007 is complete; it was implemented by Claude Code through AgentForge
-  (task `P1-M007-T0003`, commit `6131508`, CI `35970854736`/`35970861705` green). P2-M027 closes next,
-  then P2-M029 (agent run visibility and agent build isolation) starts from its draft plan.
+- Active milestone: none. P2-M029 is complete (commits `9e06c07`, `7e5c0c0`; CI `35971863878` and
+  `35971879237` green). Agent runs print `agent-exit`, persist output to
+  `.forge/evidence/<task>/`, and exit 1 on agent failure. The bridge isolates the agent's Cargo
+  target dir. See `docs/OPERATIONS.md` for workflows, scripts, remotes, and recovery.
+- P1-M007 (the first agent-built milestone, `6131508`) and P2-M027 (the bridge) are complete.
+  Findings are in `docs/DOGFOODING.md`.
 - Tasks meant to integrate through AgentForge need `--capability merge_protected_branch --approval
   merge_protected_branch` at creation. Never chain `worktree retire` after `integrate` with `;`.
 - P2-M028 implementation commit: `2ffd59d`; CI `35969105365` (push) and `35969113717` are green.

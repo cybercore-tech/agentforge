@@ -1,6 +1,6 @@
 # Plan: P2-M029 — Agent run visibility, evidence logs, and agent build isolation
 
-Status: Approved
+Status: Complete
 Milestone: P2-M029
 Created: 2026-09-24
 Owner: AgentForge project
@@ -138,15 +138,22 @@ README, CHANGELOG.
 
 ## Acceptance criteria
 
-- [ ] Agent exit codes and output are visible and persisted for every run path.
-- [ ] CLI exit status reflects agent failure.
-- [ ] Agent builds in worktrees are isolated.
-- [ ] `docs/OPERATIONS.md` documents workflows, scripts, hooks, remotes, evidence, and recovery.
+- [x] Agent exit codes and output are visible and persisted for every run path.
+- [x] CLI exit status reflects agent failure.
+- [x] Agent builds in worktrees are isolated.
+- [x] `docs/OPERATIONS.md` documents workflows, scripts, hooks, remotes, evidence, and recovery.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
+Implementation commit: `9e06c07` (evidence, CLI, daemon, bridge, docs) and `7e5c0c0` (portable evidence paths)
+CI run: `35971863878` (push) and `35971879237` (dispatched), both on `7e5c0c0`
+CI result: green across all seven jobs in both runs.
+Completed: 2026-09-24
 Notes:
+The first CI pair (`35971635418` push, `35971642920` dispatched) for `9e06c07` failed only on
+Windows. Evidence paths were built with `Path::join`, which gives backslash separators in audit
+records and output there. Classified as semantic/test (platform path separator) and repaired
+forward in `7e5c0c0` with `/`-separated project-relative paths. Amendment 1 added
+`docs/SCHEDULING.md` for the batch exit rule. The first attempt at the amendment commit was
+rejected by the pre-commit gate because clippy's `large_enum_variant` fired on the in-progress
+batch outcome; that was fixed by boxing the evidence.
