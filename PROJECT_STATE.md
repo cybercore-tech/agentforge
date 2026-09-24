@@ -11,10 +11,16 @@ Integration pass, daemon fixes, and repository move complete; next is Phase 4 re
 
 ## Active milestone
 
-No active milestone. P2-M025 — Canonical repository identity — is complete. The canonical repository
-is `https://github.com/cybercore-tech/agentforge` with Pages at
-`https://cybercore-tech.github.io/agentforge/`; `darkstardevx/agentforge` is the historical
-location up to `976c4f9` (ADR-0041).
+No active milestone. P2-M026 — Project site updates feed — is complete. The project site's *What's
+new* section is generated from milestone records at each Pages deployment (see `docs/SITE.md`).
+
+## P2-M026 completion evidence
+
+- Approved plan: `.plans/P2-M026-site-updates-feed.plan.md`.
+- Implementation commit: `adaacc6`.
+- Dispatched CI `35966436681`, `35966450804`, and `35966453213` are green across all seven jobs,
+  including the new site-feed validation step. Pages run `35966439149` deployed, and the live site
+  rendered the feed.
 
 ## Known issues
 

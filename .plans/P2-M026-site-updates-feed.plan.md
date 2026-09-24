@@ -1,6 +1,6 @@
 # Plan: P2-M026 — Project site updates feed
 
-Status: Approved
+Status: Complete
 Milestone: P2-M026
 Created: 2026-09-23
 Owner: AgentForge project
@@ -136,16 +136,26 @@ mentions the updates section. The CHANGELOG records the feature. ADR-0042 record
 
 ## Acceptance criteria
 
-- [ ] The site shows recently shipped milestones, in-progress work, phase progress, and
+- [x] The site shows recently shipped milestones, in-progress work, phase progress, and
       unreleased features.
-- [ ] The feed is generated from repository records at deploy time and validated in CI.
-- [ ] Data is rendered safely as text, with a working fallback.
-- [ ] Full local validation, CI, and live-site evidence are recorded before closure.
+- [x] The feed is generated from repository records at deploy time and validated in CI.
+- [x] Data is rendered safely as text, with a working fallback.
+- [x] Full local validation, CI, and live-site evidence are recorded before closure.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
+Implementation commit: `adaacc65839e510fdea7d4acbe0d317b3538816b`
+CI run: `35966436681`, `35966450804`, `35966453213`; Pages `35966439149` (dispatched on
+`cybercore-tech/agentforge`)
+CI result: green across all seven jobs in all three runs, including the new site-feed validation
+step. Pages deployed and the live section rendered.
+Completed: 2026-09-23
 Notes:
+`scripts/site-updates` builds the feed from `docs/MILESTONES.md`, plan completion records (closure
+commit dates as fallback and for same-day ordering), and the CHANGELOG `[Unreleased]` section. All
+51 rows parse. The Pages build generates it with full history, and CI validates it on every run.
+The site renders a recently shipped timeline, an in-progress list, phase progress bars, and
+upcoming release notes, using text-only DOM APIs with a link fallback. Checked locally in headless
+Chromium at 1400px and 420px, and in fallback mode with the feed removed. The live site served
+`updates.json` for `adaacc6` (50/51 complete, P2-M026 in progress) and rendered 9 entries and 5 phase
+bars. After this closure, a Pages redeploy shows P2-M026 as shipped.

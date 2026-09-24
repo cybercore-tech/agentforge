@@ -2,10 +2,12 @@
 
 ## Repository state
 
-- Active milestone: none. P2-M025 — Canonical repository identity — is complete. Canonical repository:
-  `cybercore-tech/agentforge` (local `origin`, HTTPS); the historical `darkstardevx/agentforge` is
-  kept as the `darkstardevx` remote. Next candidates: P4 daemon/CLI lease wiring, then a same-host
-  worker process.
+- Active milestone: none. P2-M026 — Project site updates feed — is complete. Milestone closures now
+  appear on the site automatically at the next Pages deployment. Dispatch `AgentForge Pages` after
+  a closure while push events do not fire on the canonical repository.
+- P2-M026 implementation commit: `adaacc6`; dispatched CI `35966436681`, `35966450804`, and
+  `35966453213` are green; Pages `35966439149` deployed.
+- P2-M025 — Canonical repository identity — is complete.
 - P2-M025 implementation commit: `e840557`; dispatched CI `35964790564`, `35964797514`, and
   `35964804756` are green, and Pages run `35964788019` deployed. Push-triggered workflows still do not
   fire on the new repository; dispatch `AgentForge CI` (and `AgentForge Pages` for site changes)
