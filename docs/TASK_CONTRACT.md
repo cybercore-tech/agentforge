@@ -21,6 +21,12 @@ Every executable agent task carries:
 - expected outputs;
 - evidence requirements.
 
+Required quality gates name project gate profiles (`.forge/gates/<name>.conf`). A task that
+declares required gates runs exactly those gates after a successful agent, each once, in lexical
+gate-ID order. A task that declares none runs every project gate. A required gate with no profile
+fails launch preflight, naming the gate, before the task becomes `running` or its agent starts.
+See [GATES.md](GATES.md).
+
 Task authority comes from the orchestrator/operator that creates the task.
 
 The worker may request escalation but may not rewrite its own authority.

@@ -104,6 +104,89 @@ fn intake_commands_create_and_validate_a_task_snapshot() {
     fs::remove_dir_all(root).expect("cleanup");
 }
 
+fn create_task(root: &std::path::Path, task_id: &str, gates: &[&str]) -> Vec<String> {
+    let root_text = root.to_str().expect("root");
+    let mut arguments = vec![
+        "task",
+        "create",
+        root_text,
+        task_id,
+        "P1-M007",
+        "implementer",
+        "Select gates",
+        "--allowed",
+        "src",
+        "--capability",
+        "write_owned_paths",
+    ];
+    for gate in gates {
+        arguments.extend(["--gate", gate]);
+    }
+    let created = forge(root, &arguments);
+    assert!(created.status.success(), "{created:?}");
+    required_gates(root, task_id)
+}
+
+fn required_gates(root: &std::path::Path, task_id: &str) -> Vec<String> {
+    let graph = FileTaskStore::for_project_root(root)
+        .load()
+        .expect("load snapshot")
+        .expect("snapshot exists");
+    graph
+        .get(&TaskId::parse(task_id).expect("task ID"))
+        .expect("task exists")
+        .task()
+        .required_gates
+        .clone()
+}
+
+#[test]
+fn blueprint_default_gate_with_a_profile_is_copied_into_the_task() {
+    let root = temporary_root();
+    let initialized = forge(&root, &["init", root.to_str().expect("root")]);
+    assert!(initialized.status.success(), "{initialized:?}");
+    fs::create_dir_all(root.join(".forge/gates")).expect("gate directory");
+    fs::write(
+        root.join(".forge/gates/full.conf"),
+        "version=1\nexecutable=/usr/bin/true\n",
+    )
+    .expect("gate profile");
+    assert_eq!(create_task(&root, "P1-M007-T0001", &[]), ["full"]);
+    fs::remove_dir_all(root).expect("cleanup");
+}
+
+#[test]
+fn blueprint_default_gate_without_a_profile_is_dropped() {
+    let root = temporary_root();
+    let initialized = forge(&root, &["init", root.to_str().expect("root")]);
+    assert!(initialized.status.success(), "{initialized:?}");
+    assert!(create_task(&root, "P1-M007-T0001", &[]).is_empty());
+
+    let input = "Project\nShip the project.\nP2-M010\nsrc\n.env\nread_repository,write_owned_paths\n\nfull\n- Keep it reviewable.\n.\nP2-M010-T0001\nP2-M010\nimplementer\nAdd the guided command.\n\n\n\n\n\n\n\n\n\ny\n";
+    let guided_root = temporary_root();
+    let result = forge_with_input(
+        &guided_root,
+        &["intake", guided_root.to_str().expect("root"), "--task"],
+        input,
+    );
+    assert!(result.status.success(), "{result:?}");
+    assert!(required_gates(&guided_root, "P2-M010-T0001").is_empty());
+    fs::remove_dir_all(root).expect("cleanup");
+    fs::remove_dir_all(guided_root).expect("cleanup");
+}
+
+#[test]
+fn explicit_unconfigured_gate_is_kept_as_given() {
+    let root = temporary_root();
+    let initialized = forge(&root, &["init", root.to_str().expect("root")]);
+    assert!(initialized.status.success(), "{initialized:?}");
+    assert_eq!(
+        create_task(&root, "P1-M007-T0001", &["missing"]),
+        ["missing"]
+    );
+    fs::remove_dir_all(root).expect("cleanup");
+}
+
 #[test]
 fn initialization_refuses_to_overwrite_existing_files() {
     let root = temporary_root();

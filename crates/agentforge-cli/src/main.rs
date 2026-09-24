@@ -746,7 +746,7 @@ fn intake_command(arguments: Vec<String>) -> ExitCode {
         None
     };
     let next_graph = match task.as_ref() {
-        Some(task) => match build_guided_graph(&existing_graph, task, &blueprint) {
+        Some(task) => match build_guided_graph(&existing_graph, task, &blueprint, &root) {
             Ok(graph) => Some(graph),
             Err(error) => {
                 print_intake_error(&error);
@@ -969,8 +969,9 @@ fn build_guided_graph(
     graph: &TaskGraph,
     draft: &TaskDraft,
     blueprint: &ProjectBlueprint,
+    root: &Path,
 ) -> Result<TaskGraph, IntakeError> {
-    let task = build_task(draft, blueprint)?;
+    let task = build_task(draft, blueprint, root)?;
     let task_id = TaskId::parse(task.task_id.clone())
         .map_err(|error| IntakeError::Task(format!("invalid task ID: {error}")))?;
     if graph.get(&task_id).is_some() {
@@ -1889,7 +1890,7 @@ fn task_create_command(arguments: Vec<String>) -> ExitCode {
             return ExitCode::from(1);
         }
     };
-    let task = match build_task(&draft, &bundle.blueprint) {
+    let task = match build_task(&draft, &bundle.blueprint, &root) {
         Ok(task) => task,
         Err(error) => {
             print_intake_error(&error);

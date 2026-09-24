@@ -70,6 +70,12 @@ forge task create /path/to/project P1-M003-T0001 P1-M003 implementer \
   --evidence "tests and CI"
 ```
 
+Blueprint default gates (`gate=`) are copied into a task only when the task names no gates and a
+matching `.forge/gates/<name>.conf` profile exists in the project. Unconfigured defaults are
+dropped silently, so the starter blueprint's `gate=full` adds nothing until a `full` profile is
+reviewed in. Explicit gates, from `--gate` or the guided task prompt, are kept as given; a launch
+fails preflight if one of them has no profile (see [GATES.md](GATES.md)).
+
 The task is validated and written through the existing versioned snapshot store. Failed validation,
 duplicate IDs, missing dependencies, or a failed write leave the previous snapshot unchanged.
 
@@ -96,7 +102,8 @@ forge intake /path/to/project --task
 
 Task prompts use the existing role, milestone, goal, dependency, path, capability, approval, gate,
 output, and evidence names. Blank authority lists intentionally inherit structured blueprint
-defaults; guideline prose never grants authority. Task creation remains distinct from task
+defaults (default gates only when their profile exists, as for `forge task create`); guideline
+prose never grants authority. Task creation remains distinct from task
 approval, acceptance, cancellation, and execution.
 
 Input is ordinary line-oriented UTF-8 stdin, so scripted invocations and redirected input behave

@@ -40,18 +40,30 @@ orchestrated path:
 
 1. All gate profiles are loaded and validated before the task becomes `running`. One malformed
    profile stops the run before the agent starts, with no state or audit change.
-2. The agent runs as before.
-3. If the agent exited normally with status zero, every gate runs in lexical ID order in the
-   task's verified worktree. If the agent exited non-zero, timed out, or hit its output limit,
+2. The task's gates are selected (P1-M007). A task with an empty `required_gates` list selects
+   every project gate. Otherwise it selects exactly the named gates; a name listed twice selects
+   the gate once. A required gate with no `.forge/gates/<name>.conf` profile fails preflight with
+   `required gate is not configured: <name>` (the first missing name in lexical order), before the
+   task becomes `running`, before a worktree is created or observed, and before the agent starts.
+3. The agent runs as before.
+4. If the agent exited normally with status zero, every selected gate runs in lexical ID order in
+   the task's verified worktree. If the agent exited non-zero, timed out, or hit its output limit,
    gates are skipped; that result is already the evidence.
-4. Each gate appends a `GateFinished` audit event with `gate`, `outcome` (`passed`, `failed`,
-   `timed_out`, `output_limit_exceeded`, or `error`), `exit_code`, and `output_truncated` (or
-   `error`) fields.
-5. If any gate did not pass, the task transitions to `failed` and a `FailureClassified` event
+5. Each selected gate appends a `GateFinished` audit event with `gate`, `outcome` (`passed`,
+   `failed`, `timed_out`, `output_limit_exceeded`, or `error`), `exit_code`, and
+   `output_truncated` (or `error`) fields.
+6. If any gate did not pass, the task transitions to `failed` and a `FailureClassified` event
    records `stage=gates` and the first failing gate. The CLI prints one line per gate plus a
    `gates=<passed>/<total>` summary and exits 1. Daemon responses include the same summary.
-6. When every gate passes, the task stays `running`. Acceptance is still an explicit operator
-   decision, and only a task that passed its gates can reach it.
+7. When every selected gate passes, the task stays `running`. Acceptance is still an explicit
+   operator decision, and only a task that passed its gates can reach it.
+
+`forge task launch-batch` applies the same selection to each task during its prepare phase. A task
+whose required gate is not configured is reported as skipped with the same reason, keeps its
+`pending` state and has no worktree created; its siblings still launch.
+
+Tasks built from a blueprint only inherit default gates that have a profile; explicit `--gate`
+names are kept as given and are checked here (see [BLUEPRINT.md](BLUEPRINT.md)).
 
 Gates should be read-only checks. A gate that writes tracked files leaves the worktree dirty, and
 retirement will refuse it, as with any other dirty worktree.

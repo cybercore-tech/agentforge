@@ -413,6 +413,10 @@ struct PreparedRepo {
 }
 
 fn prepared_repo(gates: &[(&str, &str)]) -> PreparedRepo {
+    prepared_repo_requiring(gates, &[])
+}
+
+fn prepared_repo_requiring(gates: &[(&str, &str)], required: &[&str]) -> PreparedRepo {
     let root = unique_temp_repo();
     git(&root, &["init", "-q"]);
     git(
@@ -436,6 +440,7 @@ fn prepared_repo(gates: &[(&str, &str)]) -> PreparedRepo {
     );
     task.capabilities = vec![Capability::RunLocalCommands];
     task.allowed_paths = vec!["README.md".into()];
+    task.required_gates = required.iter().map(|name| (*name).to_owned()).collect();
     let task_id = TaskId::parse(task.task_id.clone()).unwrap();
     let task_store = FileTaskStore::from_path(root.join("tasks.snapshot"));
     task_store
@@ -580,5 +585,85 @@ fn gates_are_skipped_when_the_agent_exits_nonzero() {
     assert!(execution.gates.is_empty());
     assert_eq!(task_state(&repo), TaskState::Running);
     assert!(events_of(&audit, AuditEventKind::GateFinished).is_empty());
+    cleanup(repo);
+}
+
+fn gate_names(execution: &agentforge_orchestrator::ProcessExecution) -> Vec<String> {
+    execution
+        .gates
+        .iter()
+        .map(|gate| gate.name().to_owned())
+        .collect()
+}
+
+#[test]
+fn required_gates_select_exactly_the_declared_gates() {
+    let repo = prepared_repo_requiring(
+        &[
+            ("a-check", "version=1\nexecutable=/usr/bin/true\n"),
+            ("b-check", "version=1\nexecutable=/usr/bin/true\n"),
+        ],
+        &["b-check"],
+    );
+    let (result, audit) = run_prepared(&repo, "/usr/bin/true");
+    let execution = result.unwrap();
+    assert_eq!(gate_names(&execution), ["b-check"]);
+    let gates = events_of(&audit, AuditEventKind::GateFinished);
+    assert_eq!(gates.len(), 1);
+    assert_eq!(
+        gates[0].fields().get("gate").map(String::as_str),
+        Some("b-check")
+    );
+    assert_eq!(task_state(&repo), TaskState::Running);
+    cleanup(repo);
+}
+
+#[test]
+fn a_task_without_required_gates_runs_every_gate() {
+    let repo = prepared_repo(&[
+        ("a-check", "version=1\nexecutable=/usr/bin/true\n"),
+        ("b-check", "version=1\nexecutable=/usr/bin/true\n"),
+    ]);
+    let (result, audit) = run_prepared(&repo, "/usr/bin/true");
+    let execution = result.unwrap();
+    assert_eq!(gate_names(&execution), ["a-check", "b-check"]);
+    assert_eq!(events_of(&audit, AuditEventKind::GateFinished).len(), 2);
+    cleanup(repo);
+}
+
+#[test]
+fn an_unconfigured_required_gate_fails_preflight_before_the_agent_runs() {
+    let repo = prepared_repo_requiring(
+        &[("a-check", "version=1\nexecutable=/usr/bin/true\n")],
+        &["a-check", "z-missing"],
+    );
+    let (result, audit) = run_prepared(&repo, "/usr/bin/true");
+    let error = result.unwrap_err();
+    assert!(
+        matches!(&error, SliceError::Preflight(reason) if reason.contains("z-missing")),
+        "{error:?}"
+    );
+    assert_eq!(task_state(&repo), TaskState::Pending);
+    assert!(audit.records().is_empty(), "no agent start is recorded");
+    cleanup(repo);
+}
+
+#[test]
+fn a_duplicate_required_gate_runs_once() {
+    let repo = prepared_repo_requiring(
+        &[
+            ("a-check", "version=1\nexecutable=/usr/bin/true\n"),
+            ("b-check", "version=1\nexecutable=/usr/bin/true\n"),
+        ],
+        &["b-check", "a-check", "b-check"],
+    );
+    let (result, audit) = run_prepared(&repo, "/usr/bin/true");
+    let execution = result.unwrap();
+    assert_eq!(
+        gate_names(&execution),
+        ["a-check", "b-check"],
+        "each gate once, in lexical order"
+    );
+    assert_eq!(events_of(&audit, AuditEventKind::GateFinished).len(), 2);
     cleanup(repo);
 }

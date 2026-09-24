@@ -19,6 +19,8 @@ pub const GUIDELINES_VERSION: u16 = 1;
 pub const BLUEPRINT_RELATIVE_PATH: &str = ".forge/blueprint.conf";
 /// Project-relative guideline path.
 pub const GUIDELINES_RELATIVE_PATH: &str = ".forge/guidelines.md";
+/// Project-relative gate profile directory; matches `agentforge_gate::GATE_PROFILE_RELATIVE_PATH`.
+const GATE_PROFILE_RELATIVE_PATH: &str = ".forge/gates";
 const MAX_BLUEPRINT_BYTES: usize = 64 * 1024;
 const MAX_GUIDELINE_BYTES: usize = 256 * 1024;
 const MAX_FIELD_BYTES: usize = 4096;
@@ -394,9 +396,14 @@ pub fn restore_documents(
 }
 
 /// Builds a validated task contract from a draft and structured blueprint defaults.
+///
+/// Explicit draft gates are kept as given. Blueprint default gates are copied only when a matching
+/// `.forge/gates/<name>.conf` profile exists under `project_root`; unconfigured defaults are
+/// dropped so they cannot fail launch preflight for a task that never asked for them.
 pub fn build_task(
     draft: &TaskDraft,
     blueprint: &ProjectBlueprint,
+    project_root: &Path,
 ) -> Result<AgentTask, IntakeError> {
     let milestone_id = draft
         .milestone_id
@@ -419,12 +426,34 @@ pub fn build_task(
     task.forbidden_paths = choose(&draft.forbidden_paths, &blueprint.forbidden_paths);
     task.capabilities = choose(&draft.capabilities, &blueprint.capabilities);
     task.required_approvals = choose(&draft.required_approvals, &blueprint.approvals);
-    task.required_gates = choose(&draft.required_gates, &blueprint.gates);
+    task.required_gates = if draft.required_gates.is_empty() {
+        configured_gates(project_root, &blueprint.gates)
+    } else {
+        draft.required_gates.clone()
+    };
     task.expected_outputs = draft.expected_outputs.clone();
     task.evidence_requirements = draft.evidence_requirements.clone();
     task.validate()
         .map_err(|error| IntakeError::Task(error.to_string()))?;
     Ok(task)
+}
+
+/// Returns the default gates that have a regular gate profile file under `project_root`.
+fn configured_gates(project_root: &Path, defaults: &[String]) -> Vec<String> {
+    let directory = project_root.join(GATE_PROFILE_RELATIVE_PATH);
+    defaults
+        .iter()
+        .filter(|name| {
+            // Only plain gate IDs can name a profile; anything else cannot escape the directory.
+            !name.is_empty()
+                && name
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_'))
+                && fs::symlink_metadata(directory.join(format!("{name}.conf")))
+                    .is_ok_and(|metadata| metadata.is_file())
+        })
+        .cloned()
+        .collect()
 }
 
 fn choose<T: Clone>(specific: &[T], defaults: &[T]) -> Vec<T> {
@@ -891,14 +920,77 @@ mod tests {
             approvals: Vec::new(),
             gates: vec!["full".into()],
         };
+        let root = temporary_root();
+        let gate_dir = root.join(GATE_PROFILE_RELATIVE_PATH);
+        fs::create_dir_all(&gate_dir).expect("gate directory");
+        fs::write(gate_dir.join("full.conf"), "version=1\n").expect("gate profile");
         let task = build_task(
             &TaskDraft::new("T1", AgentRole::Implementer, "edit"),
             &blueprint,
+            &root,
         )
         .expect("task");
         assert_eq!(task.allowed_paths, vec!["src"]);
         assert_eq!(task.capabilities, vec![Capability::ReadRepository]);
         assert_eq!(task.required_gates, vec!["full"]);
+        fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    fn gate_blueprint(gates: &[&str]) -> ProjectBlueprint {
+        ProjectBlueprint {
+            version: 1,
+            name: "x".into(),
+            mission: "y".into(),
+            default_milestone: Some("P1-M007".into()),
+            allowed_paths: vec!["src".into()],
+            forbidden_paths: Vec::new(),
+            capabilities: vec![Capability::ReadRepository],
+            approvals: Vec::new(),
+            gates: gates.iter().map(|gate| (*gate).to_owned()).collect(),
+        }
+    }
+
+    #[test]
+    fn blueprint_default_gates_are_kept_only_when_configured() {
+        let root = temporary_root();
+        let gate_dir = root.join(GATE_PROFILE_RELATIVE_PATH);
+        fs::create_dir_all(&gate_dir).expect("gate directory");
+        fs::write(gate_dir.join("workspace.conf"), "version=1\n").expect("gate profile");
+        let task = build_task(
+            &TaskDraft::new("T1", AgentRole::Implementer, "edit"),
+            &gate_blueprint(&["full", "workspace", "../escape"]),
+            &root,
+        )
+        .expect("task");
+        assert_eq!(
+            task.required_gates,
+            vec!["workspace"],
+            "unconfigured defaults are dropped"
+        );
+        fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[test]
+    fn blueprint_default_gates_are_dropped_without_profiles() {
+        let root = temporary_root();
+        let task = build_task(
+            &TaskDraft::new("T1", AgentRole::Implementer, "edit"),
+            &gate_blueprint(&["full"]),
+            &root,
+        )
+        .expect("task");
+        assert!(task.required_gates.is_empty());
+        fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[test]
+    fn explicit_gates_are_kept_even_when_unconfigured() {
+        let root = temporary_root();
+        let mut draft = TaskDraft::new("T1", AgentRole::Implementer, "edit");
+        draft.required_gates = vec!["missing".into()];
+        let task = build_task(&draft, &gate_blueprint(&["full"]), &root).expect("task");
+        assert_eq!(task.required_gates, vec!["missing"]);
+        fs::remove_dir_all(root).expect("cleanup");
     }
 
     #[test]

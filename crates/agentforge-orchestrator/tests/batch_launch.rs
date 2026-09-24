@@ -237,6 +237,42 @@ fn a_task_missing_its_approval_is_skipped_without_blocking_siblings() {
 }
 
 #[test]
+fn a_task_requiring_an_unconfigured_gate_is_skipped_without_blocking_siblings() {
+    let mut first = task("P1-M006-T0001", "src");
+    first.required_gates = vec!["b-check".into()];
+    let mut missing = task("P1-M006-T0002", "docs");
+    missing.required_gates = vec!["z-missing".into()];
+    let project = Project::new(
+        vec![first, missing],
+        &[
+            ("a-check", "version=1\nexecutable=/usr/bin/true\n"),
+            ("b-check", "version=1\nexecutable=/usr/bin/true\n"),
+        ],
+    );
+    let (result, audit) = project.launch(&true_adapter(), &BTreeMap::new(), 4);
+    let batch = result.unwrap();
+    assert!(!batch.succeeded());
+    match &batch.outcomes[0] {
+        BatchTaskOutcome::Launched { task_id, gates, .. } => {
+            assert_eq!(task_id.as_str(), "P1-M006-T0001");
+            let names = gates.iter().map(|gate| gate.name()).collect::<Vec<_>>();
+            assert_eq!(names, ["b-check"], "only the required gate runs");
+        }
+        other => panic!("expected a launched sibling, got {other:?}"),
+    }
+    assert!(matches!(
+        &batch.outcomes[1],
+        BatchTaskOutcome::Skipped { task_id, reason }
+            if task_id.as_str() == "P1-M006-T0002" && reason.contains("z-missing")
+    ));
+    assert_eq!(project.state("P1-M006-T0001"), TaskState::Running);
+    assert_eq!(project.state("P1-M006-T0002"), TaskState::Pending);
+    assert!(!project.worktree_exists("P1-M006-T0002"));
+    assert_eq!(count(&audit, AuditEventKind::AgentStarted), 1);
+    assert_eq!(count(&audit, AuditEventKind::GateFinished), 1);
+}
+
+#[test]
 fn adapter_failure_is_isolated_to_its_task() {
     let project = Project::new(
         vec![task("P1-M006-T0001", "src"), task("P1-M006-T0002", "docs")],
