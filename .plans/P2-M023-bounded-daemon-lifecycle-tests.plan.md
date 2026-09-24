@@ -89,11 +89,36 @@ No new dependency; standard library only (`std::sync::mpsc`, `Instant`).
 - `crates/agentforge-daemon/src/lib.rs`
 - `crates/agentforge-daemon/tests/daemon.rs`
 - `.github/workflows/ci.yml`
+- `crates/agentforge-cli/tests/task_launch_commands.rs` (amendment 1)
+- `crates/agentforge-orchestrator/tests/vertical_slice.rs` (amendment 1)
+- `crates/agentforge-intake/src/lib.rs` (test helper only; amendment 1)
 - `docs/CI.md`
 - `docs/DAEMON.md`
 - `docs/MILESTONES.md`
 - `PROJECT_STATE.md`
 - `AGENT_HANDOFF.md`
+
+## Amendment 1 — repeat-run evidence
+
+Implementation `1eb3b0f` passed exact CI `35960567335` on all seven jobs, and Windows passed in
+three further dispatched runs on the same SHA. Two of those runs exposed two older intermittent
+failures on other hosts:
+
+- Run `35960725620` (MSRV, Linux): `spawned_daemon_start_and_restart_are_bounded_and_cooperative`
+  failed with `stale daemon metadata ... .forge/daemon/lock`. Classification: semantic/test, a
+  daemon teardown race. `Server::drop` removes the endpoint before the lock, and `stop` treats a
+  missing endpoint as complete teardown, so a restart can start a new `forged` while the previous
+  lock file still exists. Repair: `stop` waits until both the endpoint and the lock are gone,
+  within the existing stop bound. The drop order stays the same, so a new daemon can never have
+  its endpoint removed by the previous daemon's teardown.
+- Run `35960716878` (macOS): `task_launch_prepares_and_runs_one_real_foreground_task` failed with
+  `AlreadyExists` creating its temporary root. Classification: semantic/test, a fixture collision.
+  The helper names roots only by a nanosecond timestamp, and macOS timestamps have microsecond
+  resolution, so parallel tests in one binary can collide. Repair: add the process ID and a
+  per-process counter to every multi-test fixture helper with the same pattern (task launch CLI
+  tests, orchestrator vertical-slice tests, intake unit tests).
+
+Closure additionally requires repeated dispatched runs on the repair SHA with no failures.
 
 ## Test-first matrix
 
