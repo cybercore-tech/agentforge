@@ -1802,6 +1802,9 @@ fn task_inspect_command(arguments: &[String]) -> ExitCode {
                 );
                 println!("  dependencies: {}", task.dependencies.join(","));
                 println!("  approvals: {}", task.required_approvals.join(","));
+                if !task.recorded_approvals.is_empty() {
+                    println!("  approved: {}", task.recorded_approvals.join(","));
+                }
             }
             ExitCode::SUCCESS
         }
@@ -1832,8 +1835,12 @@ fn task_approve_command(arguments: &[String]) -> ExitCode {
         }
     };
     match approve_task(&arguments[0], &task_id, boundary, &arguments[4]) {
-        Ok(()) => {
+        Ok(None) => {
             println!("approved {} for {}", boundary.as_str(), task_id);
+            ExitCode::SUCCESS
+        }
+        Ok(Some(head)) => {
+            println!("approved {} for {} at {head}", boundary.as_str(), task_id);
             ExitCode::SUCCESS
         }
         Err(error) => {

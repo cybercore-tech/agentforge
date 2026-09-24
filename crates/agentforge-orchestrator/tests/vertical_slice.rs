@@ -377,6 +377,68 @@ fn foreground_launch_rejects_missing_approval_before_worktree_creation() {
     std::fs::remove_dir_all(root).unwrap();
 }
 
+#[test]
+fn foreground_launch_does_not_require_post_execution_approvals() {
+    let root = unique_temp_repo();
+    git(&root, &["init", "-q"]);
+    git(
+        &root,
+        &["config", "user.email", "agentforge@example.invalid"],
+    );
+    git(&root, &["config", "user.name", "AgentForge Test"]);
+    std::fs::write(root.join("README.md"), "fixture\n").unwrap();
+    git(&root, &["add", "README.md"]);
+    git(&root, &["commit", "-qm", "fixture"]);
+    let mut task = AgentTask::new(
+        "P1-M008-T0001",
+        "P1-M008",
+        AgentRole::Implementer,
+        "post-review approval fixture",
+    );
+    task.capabilities = vec![
+        Capability::RunLocalCommands,
+        Capability::MergeProtectedBranch,
+    ];
+    task.required_approvals = vec![
+        ApprovalBoundary::ActivateImplementationPlan,
+        ApprovalBoundary::MergeProtectedBranch,
+    ];
+    let task_id = TaskId::parse(task.task_id.clone()).unwrap();
+    let task_store = FileTaskStore::from_path(root.join("tasks.snapshot"));
+    task_store
+        .save(&TaskGraph::from_tasks([task]).unwrap())
+        .unwrap();
+    let mut audit_store = FileAuditStore::open(root.join("audit.log")).unwrap();
+
+    // Only the pre-execution approval is recorded; the merge approval comes after review.
+    let error = launch_process_persisted(
+        &root,
+        &task_store,
+        &mut audit_store,
+        &task_id,
+        &FailingAdapter,
+        &[ApprovalBoundary::ActivateImplementationPlan],
+        "HEAD",
+    )
+    .unwrap_err();
+    assert!(
+        !matches!(error, SliceError::Preflight(_)),
+        "launch was refused before the agent ran: {error}"
+    );
+    assert!(
+        WorktreeManager::new(&root)
+            .unwrap()
+            .inspect(&task_id)
+            .unwrap()
+            .is_some()
+    );
+    WorktreeManager::new(&root)
+        .unwrap()
+        .retire(&task_id)
+        .unwrap();
+    std::fs::remove_dir_all(root).unwrap();
+}
+
 fn unique_temp_repo() -> PathBuf {
     let stamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)

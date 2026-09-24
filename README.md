@@ -392,7 +392,8 @@ forge task integrate /path/to/project P2-M014-T0001 \
 ```
 
 Diff is read-only. Integration requires a succeeded task with the
-`merge_protected_branch` capability and recorded approval, a clean verified source and target,
+`merge_protected_branch` capability and a merge approval recorded after acceptance, which is bound
+to the reviewed commit (an agent never needs it to launch), a clean verified source and target,
 and a fast-forward-only history. It is serialized through `.forge/integration.lock`, records
 integrity-linked audit evidence, is safe to repeat, and never retires the source worktree or
 deletes its branch.

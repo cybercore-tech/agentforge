@@ -641,7 +641,13 @@ fn validate_launch_policy(
     if let PolicyDecision::Denied(error) = engine.evaluate(task, &request, &grants) {
         return Err(SliceError::Preflight(error.to_string()));
     }
-    for boundary in &task.required_approvals {
+    // Post-execution approvals (merge, release, deploy) act on the result and are recorded after
+    // review, so they never gate running the agent (P1-M008).
+    for boundary in task
+        .required_approvals
+        .iter()
+        .filter(|boundary| !boundary.is_post_execution())
+    {
         let request = PolicyRequest {
             capability: Capability::RunLocalCommands,
             paths: Vec::new(),

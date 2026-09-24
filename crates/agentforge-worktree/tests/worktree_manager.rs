@@ -216,6 +216,55 @@ fn diff_and_fast_forward_integration_are_verified_and_idempotent() {
 }
 
 #[test]
+fn integrate_expecting_refuses_a_different_head() {
+    let repo = TestRepository::new();
+    let manager = repo.manager();
+    let task_id = task(4);
+    let created = manager
+        .create(&WorktreeSpec::new(task_id.clone(), "main"))
+        .unwrap();
+    fs::write(created.path().join("change.txt"), "reviewed\n").unwrap();
+    run(created.path(), &["add", "change.txt"]);
+    run(created.path(), &["commit", "-m", "reviewed change"]);
+    let reviewed = manager
+        .diff(&task_id, "main")
+        .unwrap()
+        .source_head()
+        .to_owned();
+    fs::write(created.path().join("late.txt"), "unreviewed\n").unwrap();
+    run(created.path(), &["add", "late.txt"]);
+    run(created.path(), &["commit", "-m", "late change"]);
+    let target_before = manager
+        .diff(&task_id, "main")
+        .unwrap()
+        .target_head()
+        .to_owned();
+
+    match manager.integrate_expecting(&task_id, "main", &reviewed) {
+        Err(WorktreeError::StaleSource { expected, actual }) => {
+            assert_eq!(expected, reviewed);
+            assert_ne!(actual, reviewed);
+        }
+        other => panic!("expected StaleSource, got {other:?}"),
+    }
+    assert_eq!(
+        manager.diff(&task_id, "main").unwrap().target_head(),
+        target_before
+    );
+
+    let current = manager
+        .diff(&task_id, "main")
+        .unwrap()
+        .source_head()
+        .to_owned();
+    let report = manager
+        .integrate_expecting(&task_id, "main", &current)
+        .unwrap();
+    assert_eq!(report.target_after(), current);
+    manager.retire(&task_id).unwrap();
+}
+
+#[test]
 fn integration_lock_is_never_stolen() {
     let repo = TestRepository::new();
     let manager = repo.manager();

@@ -147,9 +147,11 @@ forge task launch . <task-id> --profile claude-code --base HEAD
 - In a linked worktree the bridge gives the agent the same isolated `CARGO_TARGET_DIR` as the gate,
   so builds the agent runs directly cannot affect other checkouts.
 - Review with `forge task diff`, then `forge task accept`. To integrate through AgentForge, the
-  task must have been created with `merge_protected_branch` authority and the approval recorded;
-  then run `forge task integrate . <task-id> --target main --actor <you>`. Retire the worktree only
-  after integration succeeds (use `&&`, not `;`).
+  task must have been created with `merge_protected_branch` authority. Record that approval only
+  now, after accepting: `forge task approve . <task-id> merge_protected_branch --actor <you>`. It
+  prints the commit it is bound to. Then run `forge task integrate . <task-id> --target main --actor
+  <you>`. Launch never needs the merge approval (P1-M008). Retire the worktree only after
+  integration succeeds (use `&&`, not `;`).
 
 ## Recovery procedures
 
@@ -161,4 +163,5 @@ forge task launch . <task-id> --profile claude-code --base HEAD
 | Bridge exit 4 (path violation) or 5 (commit/gate failure) | Nothing was committed. Inspect the worktree and the evidence logs. |
 | `daemon is busy` | One daemon execution at a time; wait or check `forge daemon status` ([`DAEMON.md`](DAEMON.md)). |
 | A release run built every target but **Publish GitHub release** failed | Do not move the tag. Publish from that run's artifacts with the procedure in [`RELEASE.md`](RELEASE.md#if-the-publish-job-fails), then fix the workflow. |
+| `task integrate` says the merge was approved for another commit, or is not bound to a reviewed commit | The task branch moved after approval, or the approval predates P1-M008. Review `forge task diff` again, then `forge task approve ... merge_protected_branch` binds the current head. |
 | A CI job fails intermittently | Classify it, then reproduce with repeat dispatches before repairing; see `docs/DOGFOODING.md` and the P2-M023 plan for examples. |

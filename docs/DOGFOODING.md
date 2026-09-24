@@ -64,8 +64,10 @@ gates, review, accept, integrate. This file is the run log and the list of frict
    record `merge_protected_branch` after review, but `forge task launch` refuses a task whose
    required approvals are not all recorded, so it had to be approved before the agent ran. Review
    still gates integration in practice (the operator runs `accept` and `integrate`), but the
-   approval record no longer proves a review happened. A future milestone should separate launch
-   approvals from integration approvals. **Open.**
+   approval record no longer proves a review happened. **Resolved in P1-M008:** merge, release,
+   and deployment approvals are post-execution. Launch never requires them, they can be recorded
+   only after `accept`, and each is bound to the reviewed commit, which `integrate` enforces
+   (ADR-0045).
 
 ## P1-M007 run log (2026-09-24)
 

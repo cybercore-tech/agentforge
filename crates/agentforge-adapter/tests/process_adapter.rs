@@ -158,6 +158,21 @@ fn preflight_rejects_missing_capability_and_approval_before_spawn() {
         ))
     ));
 
+    // Post-execution approvals are recorded after review and never gate the agent (P1-M008).
+    task.required_approvals = vec![
+        ApprovalBoundary::MergeProtectedBranch,
+        ApprovalBoundary::PublishRelease,
+        ApprovalBoundary::DeployProduction,
+    ];
+    assert!(matches!(
+        adapter("echo").execute(AdapterRequest {
+            task: &task,
+            worktrees: &manager,
+            acknowledged_approvals: &[]
+        }),
+        Err(AdapterError::WorktreeNotFound(_))
+    ));
+
     task.required_approvals.clear();
     task.task_id = "P0-M006-T0000".to_owned();
     assert!(matches!(

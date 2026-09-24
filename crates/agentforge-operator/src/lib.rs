@@ -34,6 +34,17 @@ pub struct TaskInspection {
     pub required_approvals: Vec<String>,
     /// Whether the task is currently ready.
     pub ready: bool,
+    /// Recorded approvals as `boundary` or `boundary@<source head>`, in audit order.
+    pub recorded_approvals: Vec<String>,
+}
+
+/// One recorded approval and the reviewed commit it is bound to.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ApprovalRecord {
+    /// Approved boundary.
+    pub boundary: ApprovalBoundary,
+    /// Task branch head the approval was recorded for (post-execution approvals since P1-M008).
+    pub source_head: Option<String>,
 }
 
 /// Operator action failure.
@@ -87,6 +98,13 @@ pub fn inspect_tasks(
         if selected.is_some_and(|task_id| task_id != record.id()) {
             continue;
         }
+        let recorded_approvals = approval_records(root.as_ref(), record.id())?
+            .into_iter()
+            .map(|approval| match approval.source_head {
+                Some(head) => format!("{}@{head}", approval.boundary.as_str()),
+                None => approval.boundary.as_str().to_owned(),
+            })
+            .collect();
         result.push(TaskInspection {
             task_id: record.id().to_string(),
             state: record.state().as_str().to_owned(),
@@ -101,6 +119,7 @@ pub fn inspect_tasks(
                 .map(|approval| approval.as_str().to_owned())
                 .collect(),
             ready: ready.iter().any(|task_id| task_id == record.id()),
+            recorded_approvals,
         });
     }
     if result.is_empty() && selected.is_some() {
@@ -235,14 +254,20 @@ fn audit_text(value: &str) -> String {
 }
 
 /// Records one explicit approval for a task-required boundary.
+///
+/// Pre-execution approvals are recorded once. Post-execution approvals (merge, release,
+/// deployment) require an accepted task with a managed worktree and are bound to its branch head;
+/// the bound head is returned. Approving the same head again records nothing, and approving after
+/// the head changed records a new approval.
 pub fn approve_task(
     root: impl AsRef<Path>,
     task_id: &TaskId,
     boundary: ApprovalBoundary,
     actor: &str,
-) -> Result<(), OperatorError> {
+) -> Result<Option<String>, OperatorError> {
     validate_actor(actor)?;
-    let graph = load_graph(root.as_ref())?;
+    let root = root.as_ref();
+    let graph = load_graph(root)?;
     let task = graph
         .get(task_id)
         .ok_or_else(|| OperatorError::new("task not found"))?;
@@ -251,17 +276,39 @@ pub fn approve_task(
             "approval boundary is not required by task",
         ));
     }
-    let mut audit = open_existing_audit(root.as_ref())?;
-    if audit.records().iter().any(|record| {
-        record.event().kind() == AuditEventKind::ApprovalRecorded
-            && record.event().task_id() == Some(task_id.as_str())
-            && record.event().fields().get("boundary").map(String::as_str)
-                == Some(boundary.as_str())
-    }) {
-        return Ok(());
+    let source_head = if boundary.is_post_execution() {
+        if task.state() != TaskState::Succeeded {
+            return Err(OperatorError::new(format!(
+                "{} is approved after review: the task is {}; review with `forge task diff`, \
+                 run `forge task accept`, then approve",
+                boundary.as_str(),
+                task.state().as_str()
+            )));
+        }
+        let manager =
+            WorktreeManager::new(root).map_err(|error| OperatorError::new(error.to_string()))?;
+        let status = manager
+            .inspect(task_id)
+            .map_err(|error| OperatorError::new(error.to_string()))?
+            .ok_or_else(|| {
+                OperatorError::new(format!(
+                    "{} needs the task's managed worktree to bind the reviewed commit",
+                    boundary.as_str()
+                ))
+            })?;
+        Some(status.head().to_owned())
+    } else {
+        None
+    };
+    if approval_records(root, task_id)?
+        .iter()
+        .any(|record| record.boundary == boundary && record.source_head == source_head)
+    {
+        return Ok(source_head);
     }
+    let mut audit = open_existing_audit(root)?;
     let sequence = next_sequence(&audit);
-    let event = AuditEvent::new(
+    let mut event = AuditEvent::new(
         sequence,
         format!("operator-approval-{sequence}"),
         AuditEventKind::ApprovalRecorded,
@@ -270,10 +317,13 @@ pub fn approve_task(
     )
     .with_task_id(task_id.as_str())
     .with_field("boundary", boundary.as_str());
+    if let Some(head) = &source_head {
+        event = event.with_field("source_head", head.as_str());
+    }
     audit
         .append(event)
         .map_err(|error| OperatorError::new(error.to_string()))?;
-    Ok(())
+    Ok(source_head)
 }
 
 /// Applies one validated lifecycle action and records its audit evidence.
@@ -355,6 +405,35 @@ pub fn approved_boundaries(
     Ok(values)
 }
 
+/// Returns every recorded approval for one task in audit order, with its bound head.
+pub fn approval_records(
+    root: impl AsRef<Path>,
+    task_id: &TaskId,
+) -> Result<Vec<ApprovalRecord>, OperatorError> {
+    let path = root.as_ref().join(AUDIT_RELATIVE_PATH);
+    if !path.is_file() {
+        return Ok(Vec::new());
+    }
+    let audit =
+        FileAuditStore::open(path).map_err(|error| OperatorError::new(error.to_string()))?;
+    Ok(audit
+        .records()
+        .iter()
+        .map(|record| record.event())
+        .filter(|event| {
+            event.kind() == AuditEventKind::ApprovalRecorded
+                && event.task_id() == Some(task_id.as_str())
+        })
+        .filter_map(|event| {
+            let boundary = parse_approval_boundary(event.fields().get("boundary")?)?;
+            Some(ApprovalRecord {
+                boundary,
+                source_head: event.fields().get("source_head").cloned(),
+            })
+        })
+        .collect())
+}
+
 /// Inspects a task's managed worktree against the currently checked-out target branch.
 pub fn inspect_task_diff(
     root: impl AsRef<Path>,
@@ -405,16 +484,43 @@ pub fn integrate_task(
             "task does not require merge_protected_branch approval",
         ));
     }
-    if !approved_boundaries(root, task_id)?.contains(&ApprovalBoundary::MergeProtectedBranch) {
-        return Err(OperatorError::new(
-            "merge_protected_branch approval is missing",
-        ));
-    }
-
     let manager =
         WorktreeManager::new(root).map_err(|error| OperatorError::new(error.to_string()))?;
+    let current_head = manager
+        .inspect(task_id)
+        .map_err(|error| OperatorError::new(error.to_string()))?
+        .map(|status| status.head().to_owned())
+        .ok_or_else(|| OperatorError::new("task has no managed worktree to integrate"))?;
+    let merge_approvals = approval_records(root, task_id)?
+        .into_iter()
+        .filter(|record| record.boundary == ApprovalBoundary::MergeProtectedBranch)
+        .collect::<Vec<_>>();
+    let approved_head = merge_approvals
+        .iter()
+        .filter_map(|record| record.source_head.as_deref())
+        .find(|head| *head == current_head);
+    let Some(approved_head) = approved_head else {
+        let message = match merge_approvals.last() {
+            None => "merge_protected_branch approval is missing; review, accept, and approve \
+                     the task first"
+                .to_owned(),
+            Some(ApprovalRecord {
+                source_head: None, ..
+            }) => "merge_protected_branch approval is not bound to a reviewed commit (recorded \
+                   before P1-M008); review the task and approve it again"
+                .to_owned(),
+            Some(ApprovalRecord {
+                source_head: Some(head),
+                ..
+            }) => format!(
+                "merge_protected_branch was approved for {head}, but the task branch is now at \
+                 {current_head}; review the new commits and approve again"
+            ),
+        };
+        return Err(OperatorError::new(message));
+    };
     let report = manager
-        .integrate(task_id, target_branch)
+        .integrate_expecting(task_id, target_branch, approved_head)
         .map_err(|error| OperatorError::new(error.to_string()))?;
 
     let mut audit = open_existing_audit(root)?;

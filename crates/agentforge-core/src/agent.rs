@@ -160,6 +160,18 @@ impl ApprovalBoundary {
             Self::ChangeGovernanceRules => "change_governance_rules",
         }
     }
+
+    /// Returns whether this boundary acts on a task's result rather than its execution.
+    ///
+    /// Post-execution approvals (merge, release, deployment) are not required to run an agent.
+    /// They are recorded after review and bound to the reviewed commit.
+    #[must_use]
+    pub const fn is_post_execution(self) -> bool {
+        matches!(
+            self,
+            Self::MergeProtectedBranch | Self::PublishRelease | Self::DeployProduction
+        )
+    }
 }
 
 /// Outcome reported by one agent-task execution.
@@ -561,6 +573,27 @@ mod tests {
         assert_eq!(result.contract_version, AGENT_CONTRACT_VERSION);
         assert_eq!(result.outcome, TaskOutcome::EscalationRequired);
         assert!(result.requested_escalation.is_none());
+    }
+
+    #[test]
+    fn only_result_boundaries_are_post_execution() {
+        let post = [
+            ApprovalBoundary::MergeProtectedBranch,
+            ApprovalBoundary::PublishRelease,
+            ApprovalBoundary::DeployProduction,
+        ];
+        let pre = [
+            ApprovalBoundary::ActivateImplementationPlan,
+            ApprovalBoundary::ExpandTaskScope,
+            ApprovalBoundary::ChangeDependencies,
+            ApprovalBoundary::ElevateCapability,
+            ApprovalBoundary::AccessSecrets,
+            ApprovalBoundary::DestructiveDataMigration,
+            ApprovalBoundary::IrreversibleExternalChange,
+            ApprovalBoundary::ChangeGovernanceRules,
+        ];
+        assert!(post.iter().all(|boundary| boundary.is_post_execution()));
+        assert!(pre.iter().all(|boundary| !boundary.is_post_execution()));
     }
 
     #[test]

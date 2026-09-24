@@ -541,6 +541,28 @@ impl WorktreeManager {
         task_id: &TaskId,
         target_branch: &str,
     ) -> Result<IntegrationReport, WorktreeError> {
+        self.integrate_checked(task_id, target_branch, None)
+    }
+
+    /// Integrates a task branch only if its head is exactly `expected_head`.
+    ///
+    /// The head is checked again while the integration lock is held, so the fast-forward uses the
+    /// same commit an operator approved.
+    pub fn integrate_expecting(
+        &self,
+        task_id: &TaskId,
+        target_branch: &str,
+        expected_head: &str,
+    ) -> Result<IntegrationReport, WorktreeError> {
+        self.integrate_checked(task_id, target_branch, Some(expected_head))
+    }
+
+    fn integrate_checked(
+        &self,
+        task_id: &TaskId,
+        target_branch: &str,
+        expected_head: Option<&str>,
+    ) -> Result<IntegrationReport, WorktreeError> {
         validate_branch_name(target_branch)?;
         let source = self
             .inspect(task_id)?
@@ -573,9 +595,10 @@ impl WorktreeManager {
         let current_source = self
             .inspect(task_id)?
             .ok_or_else(|| WorktreeError::NotManaged(task_id.clone()))?;
-        if current_source.head() != source.head() {
+        let expected = expected_head.unwrap_or_else(|| source.head());
+        if current_source.head() != expected {
             return Err(WorktreeError::StaleSource {
-                expected: source.head().to_owned(),
+                expected: expected.to_owned(),
                 actual: current_source.head().to_owned(),
             });
         }

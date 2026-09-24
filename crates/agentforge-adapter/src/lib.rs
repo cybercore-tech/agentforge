@@ -788,7 +788,12 @@ fn preflight(request: AdapterRequest<'_>) -> Result<WorktreeStatus, AdapterError
             Capability::RunLocalCommands,
         ));
     }
-    for approval in &request.task.required_approvals {
+    for approval in request
+        .task
+        .required_approvals
+        .iter()
+        .filter(|approval| !approval.is_post_execution())
+    {
         if !request.acknowledged_approvals.contains(approval) {
             return Err(AdapterError::MissingApproval(*approval));
         }

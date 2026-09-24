@@ -241,3 +241,146 @@ fn git(root: &Path, arguments: &[&str]) {
         .expect("git command");
     assert!(output.status.success(), "git {:?}: {output:?}", arguments);
 }
+
+#[test]
+fn merge_approval_is_recorded_after_review_and_bound_to_the_reviewed_commit() {
+    let root = temporary_repo();
+    let root_text = root.to_str().expect("root");
+    fs::write(root.join(".gitignore"), ".forge/\n").expect("gitignore");
+    git(&root, &["add", ".gitignore"]);
+    git(&root, &["commit", "-qm", "ignore forge state"]);
+    assert!(forge(&root, &["init", root_text]).status.success());
+    let created = forge(
+        &root,
+        &[
+            "task",
+            "create",
+            root_text,
+            "P1-M008-T0001",
+            "P1-M008",
+            "implementer",
+            "post-review approval",
+            "--allowed",
+            "agentforge-fixture-output.txt",
+            "--capability",
+            "run_local_commands",
+            "--capability",
+            "merge_protected_branch",
+            "--approval",
+            "merge_protected_branch",
+        ],
+    );
+    assert!(created.status.success(), "{created:?}");
+
+    // No approval is recorded, yet the agent may run: merge approval is post-execution.
+    let executable = env!("CARGO_BIN_EXE_agentforge-cli-fixture");
+    let launched = forge(
+        &root,
+        &[
+            "task",
+            "launch",
+            root_text,
+            "P1-M008-T0001",
+            executable,
+            "--base",
+            "HEAD",
+        ],
+    );
+    assert!(launched.status.success(), "{launched:?}");
+    let worktree = root.join(".forge/worktrees/P1-M008-T0001");
+    git(&worktree, &["add", "agentforge-fixture-output.txt"]);
+    git(&worktree, &["commit", "-qm", "agent change"]);
+
+    let approve = |root: &Path| {
+        forge(
+            root,
+            &[
+                "task",
+                "approve",
+                root_text,
+                "P1-M008-T0001",
+                "merge_protected_branch",
+                "--actor",
+                "operator",
+            ],
+        )
+    };
+    let early = approve(&root);
+    assert!(!early.status.success(), "{early:?}");
+    assert!(
+        String::from_utf8_lossy(&early.stderr).contains("approved after review"),
+        "{}",
+        String::from_utf8_lossy(&early.stderr)
+    );
+
+    let accepted = forge(
+        &root,
+        &[
+            "task",
+            "accept",
+            root_text,
+            "P1-M008-T0001",
+            "--actor",
+            "operator",
+        ],
+    );
+    assert!(accepted.status.success(), "{accepted:?}");
+    let head = String::from_utf8(
+        Command::new("git")
+            .args(["rev-parse", "HEAD"])
+            .current_dir(&worktree)
+            .output()
+            .expect("rev-parse")
+            .stdout,
+    )
+    .expect("utf8")
+    .trim()
+    .to_owned();
+    let approved = approve(&root);
+    assert!(approved.status.success(), "{approved:?}");
+    assert!(
+        String::from_utf8_lossy(&approved.stdout).contains(&format!(
+            "approved merge_protected_branch for P1-M008-T0001 at {head}"
+        )),
+        "{approved:?}"
+    );
+    let inspected = forge(&root, &["task", "inspect", root_text, "P1-M008-T0001"]);
+    assert!(
+        String::from_utf8_lossy(&inspected.stdout)
+            .contains(&format!("approved: merge_protected_branch@{head}")),
+        "{inspected:?}"
+    );
+
+    let branch = String::from_utf8(
+        Command::new("git")
+            .args(["rev-parse", "--abbrev-ref", "HEAD"])
+            .current_dir(&root)
+            .output()
+            .expect("branch")
+            .stdout,
+    )
+    .expect("utf8")
+    .trim()
+    .to_owned();
+    let integrated = forge(
+        &root,
+        &[
+            "task",
+            "integrate",
+            root_text,
+            "P1-M008-T0001",
+            "--target",
+            &branch,
+            "--actor",
+            "operator",
+        ],
+    );
+    assert!(integrated.status.success(), "{integrated:?}");
+    assert!(
+        String::from_utf8_lossy(&integrated.stdout).contains(&format!("target_after={head}")),
+        "{integrated:?}"
+    );
+    let retired = forge(&root, &["worktree", "retire", root_text, "P1-M008-T0001"]);
+    assert!(retired.status.success(), "{retired:?}");
+    fs::remove_dir_all(root).expect("cleanup");
+}
