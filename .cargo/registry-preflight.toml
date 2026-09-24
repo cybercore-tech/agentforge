@@ -1,8 +1,10 @@
 [patch.crates-io]
 agentforge-adapter = { path = "crates/agentforge-adapter" }
 agentforge-audit = { path = "crates/agentforge-audit" }
+agentforge-ci = { path = "crates/agentforge-ci" }
 agentforge-core = { path = "crates/agentforge-core" }
 agentforge-daemon = { path = "crates/agentforge-daemon" }
+agentforge-gate = { path = "crates/agentforge-gate" }
 agentforge-hud = { path = "crates/agentforge-hud" }
 agentforge-intake = { path = "crates/agentforge-intake" }
 agentforge-operator = { path = "crates/agentforge-operator" }

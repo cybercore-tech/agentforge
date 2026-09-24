@@ -15,7 +15,7 @@
   trigger.addEventListener("click", () => {
     lastFocused = document.activeElement;
     if (typeof dialog.showModal !== "function") {
-      window.location.href = "https://github.com/darkstardevx/agentforge/blob/main/README.md";
+      window.location.href = "https://github.com/cybercore-tech/agentforge/blob/main/README.md";
       return;
     }
     dialog.showModal();

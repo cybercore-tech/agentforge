@@ -9,6 +9,30 @@ All notable AgentForge changes are documented here. The format follows
 ### Added
 
 - Release-readiness automation, cross-platform validation, and packaged binary artifacts.
+- Project quality gates in `.forge/gates/` that run automatically after a successful agent in every
+  run and launch path, with `GateFinished` audit evidence and `forge gate list` (P1-M004).
+- `forge ci observe` for recording classified exact-SHA CI evidence through a reviewed provider
+  profile, plus the `scripts/ci-provider-github` reference provider (P1-M005).
+- `forge task launch-batch` for running disjoint ready tasks concurrently under a single state
+  coordinator (P1-M006).
+- Remote-worker lease contract, durable lease state, and deterministic dispatch planning as
+  transport-neutral foundations (P4-M001 to P4-M003).
+
+### Changed
+
+- The canonical repository is now `https://github.com/cybercore-tech/agentforge`, with the project
+  site at `https://cybercore-tech.github.io/agentforge/` (P2-M025).
+- Daemon executions stream keepalive frames and hold a single execution slot, so `daemon run` and
+  `daemon launch` work for agents of any length within their profile timeout (P2-M024).
+- Every CI job has an explicit timeout (P2-M023).
+
+### Fixed
+
+- The recurring six-hour Windows CI hang in the daemon lifecycle tests, a stalled client blocking
+  the daemon, a stop/restart lock race, macOS test fixture collisions, and Windows delete-pending
+  teardown errors (P2-M023).
+- `daemon run`/`daemon launch` failing after 2 seconds with misleading "stale daemon metadata"
+  advice while the daemon was still running the task (P2-M024).
 
 ## [0.0.1] - 2026-09-20
 
@@ -29,5 +53,5 @@ All notable AgentForge changes are documented here. The format follows
 - Release artifacts are intended for evaluation and controlled local use, not unattended production
   deployment.
 
-[Unreleased]: https://github.com/darkstardevx/agentforge/compare/v0.0.1...HEAD
-[0.0.1]: https://github.com/darkstardevx/agentforge/releases/tag/v0.0.1
+[Unreleased]: https://github.com/cybercore-tech/agentforge/compare/v0.0.1...HEAD
+[0.0.1]: https://github.com/cybercore-tech/agentforge/releases/tag/v0.0.1

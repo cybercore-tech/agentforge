@@ -7,14 +7,18 @@ It treats models as replaceable workers—not as the source of truth. The durabl
 the repository: plans, task contracts, permissions, isolated worktrees, quality-gate evidence,
 CI observations, audit records, and human decisions. 🧭
 
-> **Status:** `0.0.1-alpha` · P2-M019 registry identity policy complete · pre-release,
+> **Status:** `0.0.1-alpha` · P2-M025 canonical repository move complete · pre-release,
 > incomplete, and not release-ready
+>
+> **Canonical repository:** [`cybercore-tech/agentforge`](https://github.com/cybercore-tech/agentforge).
+> The earlier [`darkstardevx/agentforge`](https://github.com/darkstardevx/agentforge) holds history
+> up to `976c4f9` and is no longer updated.
 
-[![CI](https://github.com/darkstardevx/agentforge/actions/workflows/ci.yml/badge.svg)](https://github.com/darkstardevx/agentforge/actions/workflows/ci.yml)
+[![CI](https://github.com/cybercore-tech/agentforge/actions/workflows/ci.yml/badge.svg)](https://github.com/cybercore-tech/agentforge/actions/workflows/ci.yml)
 [![Rust 1.85+](https://img.shields.io/badge/rust-1.85%2B-orange?logo=rust)](https://www.rust-lang.org/)
-[![Project site](https://img.shields.io/badge/project%20site-AgentForge-08111f?logo=github)](https://darkstardevx.github.io/agentforge/)
+[![Project site](https://img.shields.io/badge/project%20site-AgentForge-08111f?logo=github)](https://cybercore-tech.github.io/agentforge/)
 
-**[Visit the AgentForge project site →](https://darkstardevx.github.io/agentforge/)**
+**[Visit the AgentForge project site →](https://cybercore-tech.github.io/agentforge/)**
 
 ## ⚠️ Pre-release warning
 
@@ -112,14 +116,21 @@ The current repository provides:
 - Deterministic task state snapshots and validated lifecycle transitions.
 - Managed Git worktree isolation with task-owned branches and conservative retirement.
 - Provider-neutral local process-adapter execution with bounded output and deadlines.
-- Deterministic local gate execution and structured reports.
-- Exact-SHA CI observation and conservative failure classification.
+- Project quality gates (`.forge/gates/`) that run after every successful agent and fail the task
+  when they do not pass, with durable `GateFinished` evidence. 🚦
+- Exact-SHA CI observation with conservative failure classification recorded in the audit log
+  through `forge ci observe` and a reviewed provider profile. 🔎
+- Concurrent launch of disjoint ready tasks through `forge task launch-batch`, with overlapping
+  work deferred deterministically. ⚡
 - Append-only audit records with chained integrity checks.
 - Read-only one-shot and watch-mode operator HUD. 👀
 - Explicit task inspection, approval, accept, cancel, and retry commands. 🧑‍💻
 - A persisted `forge run` path that consumes only verified, task-linked approval evidence.
 - Versioned local agent profiles with bounded direct arguments and explicit environment values. 🤖
-- An optional loopback-only `forged` runtime with bounded `forge daemon` lifecycle commands. ⚙️
+- An optional loopback-only `forged` runtime with bounded `forge daemon` lifecycle commands that
+  handles long agent runs, stays responsive to `status`, and refuses unsafe stops mid-run. ⚙️
+- Transport-neutral remote-worker foundations: lease contracts, durable lease state, and
+  deterministic dispatch planning, with no remote execution authority yet. 🛰️
 - Explicit `forge worktree` commands for safe task worktree preparation and retirement. 🌳
 
 The repository also contains reusable Rust crates for scheduling, policy, orchestration, intake,
@@ -139,7 +150,7 @@ stable release contract. 🧪
 Build and verify the workspace:
 
 ```bash
-git clone https://github.com/darkstardevx/agentforge.git
+git clone https://github.com/cybercore-tech/agentforge.git
 cd agentforge
 cargo build --workspace --locked
 cargo test --workspace --locked
@@ -502,7 +513,8 @@ Clippy, tests, and documentation tests. Do not bypass hooks or validation with `
 - [Audit log](docs/AUDIT.md)
 - [Gate engine](docs/GATES.md)
 - [CI observation](docs/CI.md)
-- [Scheduling](docs/SCHEDULING.md)
+- [Scheduling and batch launch](docs/SCHEDULING.md)
+- [Remote workers](docs/REMOTE_WORKERS.md)
 - [Governance](docs/GOVERNANCE.md)
 - [Milestones](docs/MILESTONES.md)
 - [Release process](docs/RELEASE.md)
@@ -514,14 +526,24 @@ Clippy, tests, and documentation tests. Do not bypass hooks or validation with `
 
 Completed foundations include durable task state, worktree isolation, adapters, gates, CI
 classification, audit history, scheduling primitives, orchestration, project intake, release
-readiness, the operator experience, real-project pilots, daemon task launch, and the P2-M017 public
-site. The optional loopback daemon, guided intake, cooked interactive foreground sessions,
-PTY-backed foreground sessions, protected integration, and GitHub Pages surface are covered by the
-supported Linux, macOS, and Windows CI matrix where applicable, but remain pre-release capabilities.
+readiness, the operator experience, real-project pilots, daemon task launch, and the public site.
 
-The next increment is intentionally not pre-approved. Future work should be driven by real operator
-usage and may expand daemon-driven orchestration, richer integration surfaces, or additional provider
-adapters without weakening the existing approval and evidence boundaries.
+The 2026-09-23 integration pass connected the remaining library-only subsystems to real operator
+paths and restored reliable CI:
+
+- **P2-M023** bounded daemon lifecycle tests and CI job timeouts (the Windows hang is fixed);
+- **P1-M004** project gates run as task evidence;
+- **P1-M005** `forge ci observe` records classified CI evidence;
+- **P1-M006** `forge task launch-batch` runs disjoint tasks concurrently;
+- **P2-M024** daemon executions of any length, with keepalives and a single execution slot;
+- **P2-M025** the canonical repository moved to `cybercore-tech/agentforge`.
+
+Candidate next milestones, each still requiring its own approved plan:
+
+- remote-worker leases wired into the daemon and CLI, then a same-host worker process (P4);
+- authenticated worker transport and exact-SHA result acceptance (P4);
+- an MCP/tool gateway mapped to capability policy (P3);
+- signed release artifacts with provenance attestations (P5).
 
 ## Contributing 🤝
 
