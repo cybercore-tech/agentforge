@@ -1,6 +1,6 @@
 # Plan: P4-M004 — Remote-worker leases in the CLI and daemon
 
-Status: Approved
+Status: Complete
 Milestone: P4-M004
 Created: 2026-09-24
 Owner: AgentForge project
@@ -176,11 +176,11 @@ recovery), DOGFOODING (finding 9), and ADR-0046. README, CHANGELOG, and MILESTON
 
 ## Acceptance criteria
 
-- [ ] Operators register workers and grant, renew, release, and expire leases from the CLI, with
+- [x] Operators register workers and grant, renew, release, and expire leases from the CLI, with
       audit evidence.
-- [ ] Leased tasks cannot run locally on any path.
-- [ ] The daemon expires due leases without colliding with executions.
-- [ ] ADR-0046, docs, and finding 9 recorded; CI evidence recorded; closed and tagged.
+- [x] Leased tasks cannot run locally on any path.
+- [x] The daemon expires due leases without colliding with executions.
+- [x] ADR-0046, docs, and finding 9 recorded; CI evidence recorded; closed and tagged.
 
 ## Amendment 1 (2026-09-24)
 
@@ -199,8 +199,20 @@ refused; the batch skips it.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
-Notes:
+Implementation commit: `b3b816e`
+CI run: `36023401117` (push), plus `36023737955` and `36023749957` (dispatched repeats, two because
+the daemon gained a timed thread)
+CI result: green on all seven jobs in all three runs
+Completed: 2026-09-24
+Notes: Operator-authored as planned, with Amendment 1 (leased tasks own their paths). Scratch-repo
+dogfood with a live `forged`:
+- a 4 s lease was granted;
+- `forge daemon launch` was refused ("is leased to worker builder-1");
+- `forged` expired the lease on its own (`forged: expired 1 lease(s)`);
+- the launch then ran, continuing the audit chain;
+- no lease lock was left behind.
+
+The CLI test found that a fresh project has no audit log until something writes one. Lease
+operations create it; the same gap in `forge task approve` is recorded as dogfooding finding 10.
+Finding 9 (uncoordinated audit appends across processes) was found while planning. Both are open
+for their own milestones.

@@ -6,6 +6,19 @@ All notable AgentForge changes are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Remote-worker lease operations (P4-M004, ADR-0046):
+  - workers are registered as `.forge/workers/<id>.conf` profiles, and `forge worker list` shows
+    them;
+  - `forge lease grant|list|renew|release|expire` manage leases, each change audited as the new
+    `LeaseRecorded` event;
+  - a leased task, or one whose paths overlap a lease, cannot run locally on any path, and
+    `launch-batch` skips it;
+  - a running `forged` expires due leases every 5 seconds, only while no execution is active.
+
+  No worker is contacted yet.
+
 ### Changed
 
 - Merge, release, and deployment approvals are post-execution (P1-M008, ADR-0045). Agents launch

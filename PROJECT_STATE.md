@@ -13,12 +13,23 @@ agent-built milestones, Phase 4 remote-worker wiring, the P3 tool gateway, and P
 
 ## Active milestone
 
-No active milestone. P1-M008 — post-review approvals bound to the reviewed commit — is complete.
+No active milestone. P4-M004 — remote-worker leases in the CLI and daemon — is complete.
 `v0.1.0` is the latest release, and every completed milestone is tagged `milestone/<ID>`.
 
 ## Known issues
 
-None open. Dogfooding findings 1–8 are resolved; see `docs/DOGFOODING.md`.
+- Dogfooding finding 9: audit appends are not coordinated across processes. A CLI command
+  appending while the daemon executes can make the execution reuse a sequence number.
+- Dogfooding finding 10: `forge task approve` fails on a fresh project until something creates
+  `.forge/audit.log`.
+
+## P4-M004 completion evidence
+
+- Approved plan: `.plans/P4-M004-lease-operations.plan.md` (Amendment 1); ADR-0046.
+- Implementation commit: `b3b816e`. CI `36023401117` (push), `36023737955`, and `36023749957` are
+  green on all seven jobs.
+- Live-daemon dogfood: a leased task was refused, `forged` expired the lease on its own, and the
+  launch then succeeded.
 
 ## P1-M008 completion evidence
 

@@ -564,13 +564,15 @@ paths and restored reliable CI:
 - **P2-M033** `forge hud` shows recent agent runs. Built by Claude Code and the first milestone
   landed through `forge task integrate`;
 - **P1-M008** merge approvals come after review and are bound to the reviewed commit;
+- **P4-M004** remote-worker leases are operable and audited from `forge` and `forged`, and leased
+  tasks cannot run locally;
 - **P5-M001** the first tagged release,
   [`v0.1.0`](https://github.com/cybercore-tech/agentforge/releases/tag/v0.1.0), with checksummed
   archives for Linux, macOS, and Windows.
 
 Candidate next milestones, each still requiring its own approved plan:
 
-- remote-worker leases wired into the daemon and CLI, then a same-host worker process (P4);
+- a same-host worker process that holds its own leases (P4);
 - authenticated worker transport and exact-SHA result acceptance (P4);
 - an MCP/tool gateway mapped to capability policy (P3);
 - signed release artifacts with provenance attestations (P5).

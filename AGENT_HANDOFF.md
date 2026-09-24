@@ -2,7 +2,11 @@
 
 ## Repository state
 
-- Active milestone: none. P1-M008 is complete (`f066697`; CI `36020725173` and `36020936985`). **New
+- Active milestone: none. P4-M004 is complete (`b3b816e`; CI `36023401117`, `36023737955`, and
+  `36023749957`). Leases are operable: `.forge/workers/*.conf`, `forge lease ...`, a local-run
+  guard, and the daemon sweep. Open findings 9 (audit append coordination) and 10 (no audit log on a
+  fresh project) are good small next milestones, and they come before the P4 worker process.
+- P1-M008 is complete (`f066697`; CI `36020725173` and `36020936985`). **New
   integration order:** diff → accept → `task approve ... merge_protected_branch` (bound to the
   head; never before launch) → integrate. A branch that moves after approval must be approved
   again.
