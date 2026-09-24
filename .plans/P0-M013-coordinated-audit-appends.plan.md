@@ -102,6 +102,7 @@ None.
 - `crates/agentforge-operator/src/lib.rs`, `crates/agentforge-operator/src/leases.rs`,
   `crates/agentforge-operator/tests/*.rs`
 - `crates/agentforge-cli/tests/*.rs`
+- `crates/agentforge-daemon/src/lib.rs` (test module only) and `crates/agentforge-daemon/tests/daemon.rs` (Amendment 1)
 - `docs/adr/ADR-0047-coordinated-audit-appends.md`, `docs/DOGFOODING.md`, `docs/OPERATIONS.md`,
   `docs/DAEMON.md`
 - closure records: `docs/MILESTONES.md`, `CHANGELOG.md`, `README.md`, `PROJECT_STATE.md`,
@@ -162,6 +163,15 @@ MILESTONES at closure.
       cross-process tests.
 - [ ] Operator commands work on a fresh project.
 - [ ] ADR-0047 and docs; findings 9 and 10 resolved; CI evidence; closed and tagged.
+
+## Amendment 1 (2026-09-24)
+
+The full gate failed `lease_sweep_never_runs_while_an_execution_holds_the_slot`. Its fixture had a
+lease snapshot but no task snapshot. With finding 10's safeguard, an audit log is created only
+inside an initialized project, so the sweep correctly refused to write evidence there. Real daemon
+projects always have a task snapshot. The daemon test fixtures (the unit test module in
+`agentforge-daemon/src/lib.rs` and `tests/daemon.rs`) gain a task snapshot, and the daemon's
+non-test code is unchanged. Both files are added to the boundary for the fixture change only.
 
 ## Completion record
 
