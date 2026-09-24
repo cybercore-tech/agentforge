@@ -1,6 +1,6 @@
 # Plan: P2-M028 — Hermetic repository gate under Git hooks and in worktrees
 
-Status: Draft
+Status: Approved
 Milestone: P2-M028
 Created: 2026-09-24
 Owner: AgentForge project
