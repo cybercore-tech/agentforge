@@ -1,6 +1,6 @@
 # Plan: P2-M027 — Real-agent bridge and AgentForge-on-AgentForge dogfooding
 
-Status: Draft
+Status: Approved
 Milestone: P2-M027
 Created: 2026-09-23
 Owner: AgentForge project
