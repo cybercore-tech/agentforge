@@ -1,6 +1,6 @@
 # Plan: P2-M026 — Project site updates feed
 
-Status: Draft
+Status: Approved
 Milestone: P2-M026
 Created: 2026-09-23
 Owner: AgentForge project
