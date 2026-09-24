@@ -1,6 +1,6 @@
 # Plan: P0-M013 — Coordinated audit appends and first-use audit logs
 
-Status: Draft
+Status: Approved
 Milestone: P0-M013
 Created: 2026-09-24
 Owner: AgentForge project
