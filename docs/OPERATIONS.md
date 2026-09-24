@@ -153,6 +153,13 @@ forge task launch . <task-id> --profile claude-code --base HEAD
   <you>`. Launch never needs the merge approval (P1-M008). Retire the worktree only after
   integration succeeds (use `&&`, not `;`).
 
+## Remote-worker leases
+
+Workers are registered as `.forge/workers/<id>.conf` profiles, and leases are managed with `forge
+lease grant|list|renew|release|expire` (P4-M004; details in `docs/REMOTE_WORKERS.md`). A leased
+task, or one overlapping a lease, cannot run locally. `forged` expires due leases every 5 s. No
+worker is contacted yet.
+
 ## Recovery procedures
 
 | Symptom | Cause and fix |
@@ -164,4 +171,6 @@ forge task launch . <task-id> --profile claude-code --base HEAD
 | `daemon is busy` | One daemon execution at a time; wait or check `forge daemon status` ([`DAEMON.md`](DAEMON.md)). |
 | A release run built every target but **Publish GitHub release** failed | Do not move the tag. Publish from that run's artifacts with the procedure in [`RELEASE.md`](RELEASE.md#if-the-publish-job-fails), then fix the workflow. |
 | `task integrate` says the merge was approved for another commit, or is not bound to a reviewed commit | The task branch moved after approval, or the approval predates P1-M008. Review `forge task diff` again, then `forge task approve ... merge_protected_branch` binds the current head. |
+| A launch says a task "is leased to worker ..." or "overlaps task ... leased to worker ..." | Release the lease (`forge lease release`) or wait for it to expire, then launch. `forge lease list` shows who holds what. |
+| `lease state is locked by another operation` | Another lease command or the daemon sweep is running; retry. If the lock outlived a crash and no `forge` or `forged` process runs for the project, remove `.forge/state/remote-leases.lock`. |
 | A CI job fails intermittently | Classify it, then reproduce with repeat dispatches before repairing; see `docs/DOGFOODING.md` and the P2-M023 plan for examples. |

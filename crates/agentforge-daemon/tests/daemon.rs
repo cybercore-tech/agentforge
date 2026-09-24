@@ -224,3 +224,68 @@ fn git(root: &Path, arguments: &[&str]) {
         .expect("git command");
     assert!(output.status.success(), "git {:?}: {:?}", arguments, output);
 }
+
+#[test]
+fn running_daemon_expires_due_leases() {
+    use agentforge_core::remote::{
+        LeaseBook, LeaseId, LeaseState, RemoteWorkerDescriptor, RemoteWorkerId, WorkerCapability,
+    };
+    use agentforge_state::{FileLeaseStore, LeaseStore};
+    let _lifecycle_guard = daemon_lifecycle_guard();
+    let root = temporary_repo();
+    let worker = RemoteWorkerDescriptor::new(
+        RemoteWorkerId::parse("w-a").expect("worker"),
+        "linux-x86_64",
+        vec![WorkerCapability::parse("rust").expect("capability")],
+        1,
+    )
+    .expect("descriptor");
+    let now = agentforge_orchestrator::wall_clock_ms();
+    let mut book = LeaseBook::new();
+    book.grant(
+        &worker,
+        LeaseId::parse("P4-M004-T0001.L1").expect("lease"),
+        agentforge_core::task::TaskId::parse("P4-M004-T0001").expect("task"),
+        now,
+        now + 100,
+    )
+    .expect("grant");
+    let store = FileLeaseStore::for_project_root(&root);
+    store.save(&book).expect("save");
+
+    let Some((server, _)) = start_foreground(&root) else {
+        fs::remove_dir_all(root).expect("cleanup");
+        return;
+    };
+    // The sweep runs every 5 s; allow a generous margin on slow CI runners.
+    let deadline = Instant::now() + Duration::from_secs(20);
+    let state = loop {
+        let state = store
+            .load()
+            .expect("load")
+            .expect("book")
+            .leases()
+            .next()
+            .expect("lease")
+            .state();
+        if state == LeaseState::Expired || Instant::now() >= deadline {
+            break state;
+        }
+        thread::sleep(Duration::from_millis(100));
+    };
+    stop(&root).expect("cooperative stop");
+    assert!(wait_for_exit(&server).is_ok());
+    assert_eq!(state, LeaseState::Expired);
+    use agentforge_audit::AuditStore as _;
+    let audit =
+        agentforge_audit::FileAuditStore::open(root.join(".forge/audit.log")).expect("audit");
+    let event = audit.records()[0].event();
+    assert_eq!(
+        event.kind(),
+        agentforge_audit::AuditEventKind::LeaseRecorded
+    );
+    assert_eq!(event.actor(), "forged");
+    assert_eq!(event.fields()["action"], "expired");
+    assert!(!root.join(".forge/state/remote-leases.lock").exists());
+    fs::remove_dir_all(root).expect("cleanup");
+}

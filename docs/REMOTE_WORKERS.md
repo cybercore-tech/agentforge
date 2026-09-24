@@ -1,8 +1,9 @@
 # Remote workers
 
 P4-M001 establishes the domain contract needed before AgentForge can support distributed
-execution. P4-M002 adds durable local lease state, and P4-M003 adds deterministic local dispatch
-planning. The contract remains transport-neutral and lives in `agentforge-core::remote`; it does
+execution. P4-M002 adds durable local lease state, P4-M003 adds deterministic local dispatch
+planning, and P4-M004 makes leases operable from `forge` and `forged` (see
+[Operating leases](#operating-leases)). The contract remains transport-neutral and lives in `agentforge-core::remote`; it does
 not open a network connection or grant a cloud service authority over a local project.
 
 ## Worker descriptor
@@ -103,3 +104,63 @@ conflict, readiness, or lease failure leaves the caller's original lease book un
 planner does not start a process, persist state automatically, contact a worker, or infer remote
 identity from reachability. A caller may persist the committed book with `FileLeaseStore` after a
 successful decision.
+
+## Operating leases
+
+P4-M004 (ADR-0046) makes leases an audited operator action. Nothing contacts a worker yet: until an
+authenticated transport exists, the operator acts for the worker.
+
+### Register a worker
+
+Create one reviewed profile per worker. The file name is the worker ID:
+
+```text
+# .forge/workers/builder-1.conf
+platform=linux-x86_64
+capability=rust
+capability=docker
+max_leases=2
+```
+
+`platform`, at least one `capability`, and `max_leases` (1–256) are required. Unknown or repeated
+keys, symlinks, and files over 4 KiB fail closed. `forge worker list <root>` shows each worker and
+its active lease count.
+
+### Lease commands
+
+```bash
+forge lease grant <root> <task-id> [--worker <id>] [--ttl-ms <ms>] --actor <you>
+forge lease list <root>
+forge lease renew <root> <lease-id> [--ttl-ms <ms>] --actor <you>
+forge lease release <root> <lease-id> --actor <you>
+forge lease expire <root> --actor <you>
+```
+
+- `grant` accepts only a ready, `pending` task and goes through `plan_remote_dispatch`: the first
+  worker (in ID order) with capacity, or the named one. The default TTL is 15 minutes, and the
+  maximum is 24 hours. The lease ID is `<task-id>.L<n>`, and generations increase on each re-grant.
+- A grant is refused when the task's paths overlap a running task or another actively leased
+  task.
+- `renew` sets the expiry to now + TTL. `renew` and `release` of a past-due lease are refused, and
+  the expiry is recorded.
+- `list` shows the effective state at the current time. An active lease past its expiry reads
+  `expired` before a sweep records it.
+- Every change is a `LeaseRecorded` audit event (`action`, `lease_id`, `worker_id`, `generation`,
+  `expires_at_ms`). Changes are serialized by `.forge/state/remote-leases.lock`. If a crash leaves
+  that file behind, remove it only when no `forge` or `forged` process is running for the project.
+
+### Leases block local runs
+
+A task with an active lease, or whose owned paths overlap one, cannot run locally.
+
+- `forge run`, `forge task launch`, and daemon `run` and `launch` refuse it before any worktree,
+  state, or audit change.
+- `forge task launch-batch` skips it with the reason and runs the rest.
+
+Release the lease, or let it expire, to run the task locally.
+
+### Daemon expiry
+
+A running `forged` expires due leases every 5 seconds and audits them with actor `forged`. It
+sweeps only while no execution holds its slot, so it never appends to the audit log during an
+execution.

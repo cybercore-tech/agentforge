@@ -4,12 +4,13 @@ use agentforge_adapter::{AdapterRequest, AgentAdapter, ExecutionReport, Executio
 use agentforge_audit::{AuditEvent, AuditEventKind, AuditLog};
 use agentforge_audit::{AuditStore, FileAuditStore};
 use agentforge_core::agent::{AgentTask, ApprovalBoundary, Capability};
+use agentforge_core::remote::LeaseBook;
 use agentforge_core::task::{TaskGraph, TaskId, TaskState};
 use agentforge_gate::{GateDefinition, GateOutcome, GateProfileStore, GateReport, GateRunner};
 use agentforge_policy::{ApprovalGrant, PolicyDecision, PolicyEngine, PolicyRequest};
 use agentforge_scheduler::plan_launch_batch;
 pub use agentforge_scheduler::{DeferReason, DeferredTask};
-use agentforge_state::{FileTaskStore, TaskStore};
+use agentforge_state::{FileLeaseStore, FileTaskStore, LeaseStore, TaskStore};
 use agentforge_worktree::{WorktreeManager, WorktreeSpec, WorktreeStatus};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -259,6 +260,7 @@ pub fn launch_process_persisted<A: AgentAdapter>(
         ));
     }
     validate_launch_policy(&task, approvals)?;
+    check_remote_leases(&root, &graph, task_id)?;
     // Required gates are checked before the worktree is created or observed.
     let gates = GateProfileStore::new(&root)
         .list()
@@ -419,6 +421,7 @@ pub fn launch_batch_persisted<A: AgentAdapter + Sync>(
             .validate()
             .map_err(|error| SliceError::Preflight(error.to_string()))
             .and_then(|()| validate_launch_policy(&task, &task_approvals))
+            .and_then(|()| check_remote_leases(&root, &graph, &task_id))
             .and_then(|()| preflight_repository(&root, &task))
             .and_then(|()| select_gates(&gates, &task))
             .and_then(|task_gates| {
@@ -623,6 +626,81 @@ fn prepare_worktree(
     }
 }
 
+/// Returns the current wall-clock time in milliseconds since the Unix epoch.
+#[must_use]
+pub fn wall_clock_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |elapsed| {
+            u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX)
+        })
+}
+
+/// Returns the first path in `left` that overlaps a path in `right` (equal, or one contains the
+/// other), using the scheduler's path-ownership rule.
+#[must_use]
+pub fn first_path_overlap(left: &[String], right: &[String]) -> Option<String> {
+    let overlaps = |a: &str, b: &str| {
+        let a = a.trim_matches('/');
+        let b = b.trim_matches('/');
+        a == b
+            || a.strip_prefix(b).is_some_and(|rest| rest.starts_with('/'))
+            || b.strip_prefix(a).is_some_and(|rest| rest.starts_with('/'))
+    };
+    left.iter()
+        .find(|path| right.iter().any(|other| overlaps(path, other)))
+        .cloned()
+}
+
+/// Returns why `task_id` may not run locally at `observed_at_ms` because of remote-worker leases:
+/// it holds an active lease, or its owned paths overlap a task that does (P4-M004).
+#[must_use]
+pub fn remote_lease_conflict(
+    graph: &TaskGraph,
+    leases: &LeaseBook,
+    task_id: &TaskId,
+    observed_at_ms: u64,
+) -> Option<String> {
+    if let Some(lease) = leases.active_lease_for_task_at(task_id, observed_at_ms) {
+        return Some(format!(
+            "task {task_id} is leased to worker {} ({}, expires_at_ms={}); release the lease \
+             before running it locally",
+            lease.worker_id().as_str(),
+            lease.lease_id().as_str(),
+            lease.expires_at_ms()
+        ));
+    }
+    let task = graph.get(task_id)?.task();
+    for lease in leases.active_leases_at(observed_at_ms) {
+        let Some(owner) = graph.get(lease.task_id()) else {
+            continue;
+        };
+        if let Some(path) = first_path_overlap(&task.allowed_paths, &owner.task().allowed_paths) {
+            return Some(format!(
+                "task {task_id} path {path} overlaps task {} leased to worker {} ({})",
+                lease.task_id(),
+                lease.worker_id().as_str(),
+                lease.lease_id().as_str()
+            ));
+        }
+    }
+    None
+}
+
+/// Refuses a local run of a leased task, or one overlapping a leased task, before side effects.
+fn check_remote_leases(root: &Path, graph: &TaskGraph, task_id: &TaskId) -> Result<(), SliceError> {
+    let Some(leases) = FileLeaseStore::for_project_root(root)
+        .load()
+        .map_err(|error| SliceError::Preflight(format!("remote lease state: {error}")))?
+    else {
+        return Ok(());
+    };
+    match remote_lease_conflict(graph, &leases, task_id, wall_clock_ms()) {
+        Some(reason) => Err(SliceError::Preflight(reason)),
+        None => Ok(()),
+    }
+}
+
 fn validate_launch_policy(
     task: &AgentTask,
     approvals: &[ApprovalBoundary],
@@ -702,6 +780,7 @@ pub fn execute_process_persisted<A: AgentAdapter>(
         .load()
         .map_err(|e| SliceError::Preflight(e.to_string()))?
         .ok_or_else(|| SliceError::Preflight("task state snapshot is missing".into()))?;
+    check_remote_leases(root.as_ref(), &graph, task_id)?;
     match execute_process_attempt(
         root,
         &mut graph,

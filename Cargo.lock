@@ -66,6 +66,8 @@ dependencies = [
  "agentforge-audit",
  "agentforge-ci",
  "agentforge-core",
+ "agentforge-orchestrator",
+ "agentforge-scheduler",
  "agentforge-state",
  "agentforge-worktree",
 ]

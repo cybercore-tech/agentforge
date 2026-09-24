@@ -368,3 +368,69 @@ fn a_non_zero_agent_exit_fails_the_batch_outcome_and_keeps_evidence() {
     }
     assert_eq!(project.state("P1-M006-T0001"), TaskState::Running);
 }
+
+/// Grants active leases for `tasks` to one worker, as `forge lease grant` would (P4-M004).
+fn lease(root: &Path, tasks: &[&str]) -> agentforge_core::remote::LeaseBook {
+    use agentforge_core::remote::{
+        LeaseBook, LeaseId, RemoteWorkerDescriptor, RemoteWorkerId, WorkerCapability,
+    };
+    use agentforge_state::{FileLeaseStore, LeaseStore};
+    let worker = RemoteWorkerDescriptor::new(
+        RemoteWorkerId::parse("w-a").unwrap(),
+        "linux-x86_64",
+        vec![WorkerCapability::parse("rust").unwrap()],
+        8,
+    )
+    .unwrap();
+    let now = agentforge_orchestrator::wall_clock_ms();
+    let mut book = LeaseBook::new();
+    for task in tasks {
+        book.grant(
+            &worker,
+            LeaseId::parse(format!("{task}.L1")).unwrap(),
+            TaskId::parse(*task).unwrap(),
+            now,
+            now + 600_000,
+        )
+        .unwrap();
+    }
+    FileLeaseStore::for_project_root(root).save(&book).unwrap();
+    book
+}
+
+#[test]
+fn leased_and_lease_overlapping_tasks_are_skipped_without_blocking_siblings() {
+    // T0001 owns `src`, which contains leased T0003's `src/core`; T0004 is leased itself.
+    let project = Project::new(
+        vec![
+            task("P1-M006-T0001", "src"),
+            task("P1-M006-T0002", "docs"),
+            task("P1-M006-T0003", "src/core"),
+            task("P1-M006-T0004", "tests"),
+        ],
+        &[],
+    );
+    lease(&project.root, &["P1-M006-T0003", "P1-M006-T0004"]);
+    let (result, _) = project.launch(&true_adapter(), &BTreeMap::new(), 4);
+    let batch = result.unwrap();
+    let skipped = |id: &str| {
+        batch.outcomes.iter().find_map(|outcome| match outcome {
+            BatchTaskOutcome::Skipped { task_id, reason } if task_id.as_str() == id => {
+                Some(reason.clone())
+            }
+            _ => None,
+        })
+    };
+    let overlap = skipped("P1-M006-T0001").expect("T0001 skipped");
+    assert!(
+        overlap.contains("overlaps task P1-M006-T0003 leased to worker w-a"),
+        "{overlap}"
+    );
+    let leased = skipped("P1-M006-T0004").expect("T0004 skipped");
+    assert!(leased.contains("is leased to worker w-a"), "{leased}");
+    assert_eq!(project.state("P1-M006-T0002"), TaskState::Running);
+    for id in ["P1-M006-T0001", "P1-M006-T0003", "P1-M006-T0004"] {
+        assert_eq!(project.state(id), TaskState::Pending, "{id}");
+        assert!(!project.worktree_exists(id), "{id}");
+    }
+}

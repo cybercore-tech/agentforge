@@ -378,6 +378,117 @@ fn foreground_launch_rejects_missing_approval_before_worktree_creation() {
 }
 
 #[test]
+fn leased_tasks_are_refused_before_any_local_side_effect() {
+    use agentforge_core::remote::{
+        LeaseBook, LeaseId, RemoteWorkerDescriptor, RemoteWorkerId, WorkerCapability,
+    };
+    use agentforge_state::{FileLeaseStore, LeaseStore};
+    let root = unique_temp_repo();
+    git(&root, &["init", "-q"]);
+    git(
+        &root,
+        &["config", "user.email", "agentforge@example.invalid"],
+    );
+    git(&root, &["config", "user.name", "AgentForge Test"]);
+    std::fs::write(root.join("README.md"), "fixture\n").unwrap();
+    git(&root, &["add", "README.md"]);
+    git(&root, &["commit", "-qm", "fixture"]);
+    let mut task = AgentTask::new(
+        "P4-M004-T0001",
+        "P4-M004",
+        AgentRole::Implementer,
+        "leased fixture",
+    );
+    task.capabilities = vec![Capability::RunLocalCommands];
+    task.allowed_paths = vec!["README.md".into()];
+    let task_id = TaskId::parse(task.task_id.clone()).unwrap();
+    let task_store = FileTaskStore::from_path(root.join("tasks.snapshot"));
+    task_store
+        .save(&TaskGraph::from_tasks([task]).unwrap())
+        .unwrap();
+    let worker = RemoteWorkerDescriptor::new(
+        RemoteWorkerId::parse("w-a").unwrap(),
+        "linux-x86_64",
+        vec![WorkerCapability::parse("rust").unwrap()],
+        1,
+    )
+    .unwrap();
+    let now = agentforge_orchestrator::wall_clock_ms();
+    let mut book = LeaseBook::new();
+    book.grant(
+        &worker,
+        LeaseId::parse("P4-M004-T0001.L1").unwrap(),
+        task_id.clone(),
+        now,
+        now + 600_000,
+    )
+    .unwrap();
+    let leases = FileLeaseStore::for_project_root(&root);
+    leases.save(&book).unwrap();
+    let mut audit_store = FileAuditStore::open(root.join("audit.log")).unwrap();
+
+    let launched = launch_process_persisted(
+        &root,
+        &task_store,
+        &mut audit_store,
+        &task_id,
+        &FailingAdapter,
+        &[],
+        "HEAD",
+    )
+    .unwrap_err();
+    assert!(
+        matches!(&launched, SliceError::Preflight(reason) if reason.contains("is leased to worker w-a")),
+        "{launched}"
+    );
+    let manager = WorktreeManager::new(&root).unwrap();
+    assert!(manager.inspect(&task_id).unwrap().is_none());
+
+    manager
+        .create(&WorktreeSpec::new(task_id.clone(), "HEAD"))
+        .unwrap();
+    let executed = execute_process_persisted(
+        &root,
+        &task_store,
+        &mut audit_store,
+        &task_id,
+        &FailingAdapter,
+        &[],
+    )
+    .unwrap_err();
+    assert!(matches!(executed, SliceError::Preflight(_)), "{executed}");
+    assert!(audit_store.records().is_empty());
+    assert_eq!(
+        task_store
+            .load()
+            .unwrap()
+            .unwrap()
+            .get(&task_id)
+            .unwrap()
+            .state(),
+        TaskState::Pending
+    );
+
+    // Once released, the task runs locally again.
+    let lease_id = LeaseId::parse("P4-M004-T0001.L1").unwrap();
+    book.release(&lease_id, worker.worker_id(), 1, now + 1)
+        .unwrap();
+    leases.save(&book).unwrap();
+    let after = execute_process_persisted(
+        &root,
+        &task_store,
+        &mut audit_store,
+        &task_id,
+        &FailingAdapter,
+        &[],
+    )
+    .unwrap_err();
+    assert!(!matches!(after, SliceError::Preflight(_)), "{after}");
+    let _ = manager.retire(&task_id);
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn foreground_launch_does_not_require_post_execution_approvals() {
     let root = unique_temp_repo();
     git(&root, &["init", "-q"]);

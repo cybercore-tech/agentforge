@@ -128,6 +128,15 @@ drops its listener. macOS then rejects the client's socket-timeout call on the r
 `EINVAL` (`Invalid argument`), where Linux accepts it. The client treats that, like a connection
 reset, as the endpoint going away and keeps observing the stop (P2-M032).
 
+## Remote-worker lease expiry
+
+Since P4-M004 the daemon also expires due remote-worker leases every 5 seconds, recorded as
+`LeaseRecorded` audit events with actor `forged`. A sweep holds the execution slot for the few
+milliseconds it takes, and only when the slot is free. An execution has its own audit handle, and
+a concurrent append would reuse a sequence number. `stop` and new executions wait out an
+in-progress sweep instead of being refused. Daemon `run` and `launch` refuse leased tasks like the
+direct commands do (see [REMOTE_WORKERS.md](REMOTE_WORKERS.md#operating-leases)).
+
 ## Long-running executions
 
 `daemon run` and `daemon launch` run the agent, and since P1-M004 its gates, before they respond,

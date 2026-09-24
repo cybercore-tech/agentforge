@@ -69,6 +69,19 @@ gates, review, accept, integrate. This file is the run log and the list of frict
    only after `accept`, and each is bound to the reviewed commit, which `integrate` enforces
    (ADR-0045).
 
+9. **Audit appends are not coordinated across handles.** Found while planning P4-M004.
+   `FileAuditStore` tracks the next sequence number in memory. A daemon execution keeps its handle
+   open for minutes, so any other appender during that time (for example `forge task approve` in
+   another shell) makes the execution's next append reuse a sequence number. The log then fails
+   closed. P4-M004 keeps the daemon's own lease sweep out of the way by sharing the execution slot.
+   The cross-process case needs an append lock or re-read-before-append in `agentforge-audit`.
+   **Open.**
+10. **A fresh project cannot record its first approval.** Found by P4-M004's CLI test. `forge init`
+    and `forge task create` do not create `.forge/audit.log`, and `forge task approve` requires it
+    ("audit log is missing"). A task with a pre-execution approval therefore cannot be approved
+    before anything else has written the log. Lease operations create the log when missing; operator
+    approvals should too. **Open.**
+
 ## P1-M007 run log (2026-09-24)
 
 | Attempt | Duration | Outcome |

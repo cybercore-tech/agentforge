@@ -13,8 +13,10 @@ use std::io::{self, Read, Write};
 use std::net::{IpAddr, SocketAddr, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::sync::{Arc, Mutex};
+use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 use std::{ffi::OsStr, thread};
 
@@ -33,6 +35,10 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(1);
 // gives up only after the idle timeout passes without any frame.
 const KEEPALIVE_INTERVAL: Duration = Duration::from_secs(1);
 const EXECUTION_IDLE_TIMEOUT: Duration = Duration::from_secs(10);
+/// How often a running daemon expires due remote-worker leases (P4-M004).
+const LEASE_SWEEP_INTERVAL: Duration = Duration::from_secs(5);
+/// Execution-slot label held while a lease sweep appends audit evidence.
+const SWEEP_SLOT: &str = "(lease expiry sweep)";
 const DAEMON_DIR: &str = ".forge/daemon";
 const ENDPOINT_FILE: &str = "endpoint";
 const LOCK_FILE: &str = "lock";
@@ -541,9 +547,65 @@ fn slot_holder(slot: &ExecutionSlot) -> Option<String> {
     )
 }
 
+/// Waits briefly for an in-progress lease sweep to release the slot. Sweeps take milliseconds,
+/// so a stop or execution request arriving during one proceeds instead of being refused.
+fn wait_out_sweep(slot: &ExecutionSlot) {
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while slot_holder(slot).as_deref() == Some(SWEEP_SLOT) && Instant::now() < deadline {
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
+/// Expires due leases every [`LEASE_SWEEP_INTERVAL`] until `stop` is set.
+fn sweep_leases(root: &Path, slot: &ExecutionSlot, stop: &AtomicBool) {
+    let mut next = Instant::now() + LEASE_SWEEP_INTERVAL;
+    while !stop.load(Ordering::SeqCst) {
+        thread::sleep(Duration::from_millis(100));
+        if Instant::now() < next {
+            continue;
+        }
+        next = Instant::now() + LEASE_SWEEP_INTERVAL;
+        sweep_leases_once(root, slot);
+    }
+}
+
+/// One sweep. It takes the execution slot only when it is free, because an execution holds its
+/// own audit handle and a concurrent append would reuse a sequence number.
+fn sweep_leases_once(root: &Path, slot: &ExecutionSlot) {
+    if !agentforge_state::FileLeaseStore::for_project_root(root)
+        .path()
+        .is_file()
+    {
+        return;
+    }
+    {
+        let mut holder = slot.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        if holder.is_some() {
+            return;
+        }
+        *holder = Some(SWEEP_SLOT.to_owned());
+    }
+    let _guard = SlotGuard(Arc::clone(slot));
+    let now = agentforge_orchestrator::wall_clock_ms();
+    match agentforge_operator::leases::try_expire_leases(root, now, "forged") {
+        Ok(Some(expired)) if !expired.is_empty() => {
+            let ids = expired
+                .iter()
+                .map(|lease| lease.lease_id.as_str())
+                .collect::<Vec<_>>()
+                .join(",");
+            eprintln!("forged: expired {} lease(s): {ids}", expired.len());
+        }
+        Ok(_) => {}
+        Err(error) => eprintln!("forged: lease sweep failed: {error}"),
+    }
+}
+
 struct Server {
     root: PathBuf,
     active: ExecutionSlot,
+    sweeper_stop: Arc<AtomicBool>,
+    sweeper: Option<JoinHandle<()>>,
     listener: TcpListener,
     endpoint_path: PathBuf,
     lock_path: PathBuf,
@@ -607,6 +669,8 @@ impl Server {
         Ok(Self {
             root,
             active: Arc::new(Mutex::new(None)),
+            sweeper_stop: Arc::new(AtomicBool::new(false)),
+            sweeper: None,
             listener,
             endpoint_path,
             lock_path,
@@ -614,7 +678,13 @@ impl Server {
         })
     }
 
-    fn run(self) -> Result<(), DaemonError> {
+    fn run(mut self) -> Result<(), DaemonError> {
+        let (root, slot, stop) = (
+            self.root.clone(),
+            Arc::clone(&self.active),
+            Arc::clone(&self.sweeper_stop),
+        );
+        self.sweeper = Some(thread::spawn(move || sweep_leases(&root, &slot, &stop)));
         for stream in self.listener.incoming() {
             let mut stream = match stream {
                 Ok(stream) => stream,
@@ -640,6 +710,7 @@ impl Server {
                     let _ = write_response(&mut stream, &Response::Status);
                 }
                 Request::Stop => {
+                    wait_out_sweep(&self.active);
                     // Never exit while an execution owns task state; the operator retries
                     // once it finishes.
                     if let Some(task) = slot_holder(&self.active) {
@@ -667,6 +738,7 @@ impl Server {
             .task_id()
             .map(ToString::to_string)
             .unwrap_or_default();
+        wait_out_sweep(&self.active);
         {
             let mut slot = self
                 .active
@@ -756,6 +828,10 @@ fn execute_request(root: &Path, request: Request) -> Response {
 
 impl Drop for Server {
     fn drop(&mut self) {
+        self.sweeper_stop.store(true, Ordering::SeqCst);
+        if let Some(sweeper) = self.sweeper.take() {
+            let _ = sweeper.join();
+        }
         let _ = self.lock.take();
         let _ = fs::remove_file(&self.endpoint_path);
         let _ = fs::remove_file(&self.lock_path);
@@ -1190,6 +1266,86 @@ fn sanitize(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn due_lease_project() -> PathBuf {
+        use agentforge_core::remote::{
+            LeaseBook, LeaseId, RemoteWorkerDescriptor, RemoteWorkerId, WorkerCapability,
+        };
+        use agentforge_state::LeaseStore;
+        let root = std::env::temp_dir().join(format!(
+            "agentforge-daemon-sweep-{}-{}",
+            std::process::id(),
+            agentforge_orchestrator::wall_clock_ms()
+        ));
+        fs::create_dir_all(&root).expect("root");
+        let worker = RemoteWorkerDescriptor::new(
+            RemoteWorkerId::parse("w-a").expect("worker"),
+            "linux-x86_64",
+            vec![WorkerCapability::parse("rust").expect("capability")],
+            1,
+        )
+        .expect("descriptor");
+        let mut book = LeaseBook::new();
+        book.grant(
+            &worker,
+            LeaseId::parse("P4-M004-T0001.L1").expect("lease"),
+            TaskId::parse("P4-M004-T0001").expect("task"),
+            1_000,
+            2_000,
+        )
+        .expect("grant");
+        agentforge_state::FileLeaseStore::for_project_root(&root)
+            .save(&book)
+            .expect("save");
+        root
+    }
+
+    fn lease_state(root: &Path) -> agentforge_core::remote::LeaseState {
+        use agentforge_state::LeaseStore;
+        agentforge_state::FileLeaseStore::for_project_root(root)
+            .load()
+            .expect("load")
+            .expect("book")
+            .leases()
+            .next()
+            .expect("lease")
+            .state()
+    }
+
+    #[test]
+    fn lease_sweep_never_runs_while_an_execution_holds_the_slot() {
+        use agentforge_core::remote::LeaseState;
+        let root = due_lease_project();
+        let slot: ExecutionSlot = Arc::new(Mutex::new(Some("P4-M004-T0009".into())));
+        sweep_leases_once(&root, &slot);
+        assert_eq!(
+            lease_state(&root),
+            LeaseState::Active,
+            "slot busy: no sweep"
+        );
+        assert!(!root.join(".forge/audit.log").exists(), "no audit append");
+        assert_eq!(slot_holder(&slot).as_deref(), Some("P4-M004-T0009"));
+
+        *slot.lock().expect("slot") = None;
+        sweep_leases_once(&root, &slot);
+        assert_eq!(lease_state(&root), LeaseState::Expired);
+        assert!(root.join(".forge/audit.log").is_file());
+        assert_eq!(slot_holder(&slot), None, "the sweep frees the slot");
+        fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[test]
+    fn stop_waits_out_a_sweep_instead_of_refusing() {
+        let slot: ExecutionSlot = Arc::new(Mutex::new(Some(SWEEP_SLOT.into())));
+        let releaser = Arc::clone(&slot);
+        let handle = thread::spawn(move || {
+            thread::sleep(Duration::from_millis(50));
+            *releaser.lock().expect("slot") = None;
+        });
+        wait_out_sweep(&slot);
+        assert_eq!(slot_holder(&slot), None);
+        handle.join().expect("releaser");
+    }
 
     #[test]
     fn protocol_rejects_non_loopback_and_unbounded_shapes() {

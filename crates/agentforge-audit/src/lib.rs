@@ -38,6 +38,8 @@ pub enum AuditEventKind {
     TaskTransition,
     /// A reviewed task branch was integrated into a protected target.
     IntegrationRecorded,
+    /// A remote-worker lease was granted, renewed, released, or expired.
+    LeaseRecorded,
 }
 
 impl AuditEventKind {
@@ -54,6 +56,7 @@ impl AuditEventKind {
             Self::ReviewHandoff => 9,
             Self::TaskTransition => 10,
             Self::IntegrationRecorded => 11,
+            Self::LeaseRecorded => 12,
         }
     }
     fn from_code(code: u8) -> Result<Self, AuditError> {
@@ -69,6 +72,7 @@ impl AuditEventKind {
             9 => Self::ReviewHandoff,
             10 => Self::TaskTransition,
             11 => Self::IntegrationRecorded,
+            12 => Self::LeaseRecorded,
             _ => return Err(AuditError::UnknownEventKind(code)),
         })
     }

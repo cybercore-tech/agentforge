@@ -82,6 +82,25 @@ fn file_round_trip_preserves_chain_and_fields() {
 }
 
 #[test]
+fn lease_event_kind_round_trips_as_versioned_evidence() {
+    let path = path();
+    let mut store = FileAuditStore::open(&path).unwrap();
+    store
+        .append(
+            event(1, AuditEventKind::LeaseRecorded)
+                .with_field("action", "granted")
+                .with_field("lease_id", "P4-M004-T0001.L1"),
+        )
+        .unwrap();
+    drop(store);
+    let store = FileAuditStore::open(&path).unwrap();
+    let recorded = store.records()[0].event();
+    assert_eq!(recorded.kind(), AuditEventKind::LeaseRecorded);
+    assert_eq!(recorded.fields()["action"], "granted");
+    fs::remove_file(path).unwrap();
+}
+
+#[test]
 fn integration_event_kind_round_trips_as_versioned_evidence() {
     let path = path();
     let mut store = FileAuditStore::open(&path).unwrap();

@@ -55,6 +55,8 @@ fn main() -> ExitCode {
         Some("task") => task_command(args.collect()),
         Some("agent") => agent_command(args.collect()),
         Some("gate") => gate_command(args.collect()),
+        Some("worker") => worker_command(args.collect()),
+        Some("lease") => lease_command(args.collect()),
         Some("ci") => ci_command(args.collect()),
         Some("run") => run_command(args.collect()),
         Some("daemon") => daemon_command(args.collect()),
@@ -74,7 +76,7 @@ fn main() -> ExitCode {
 
 fn print_usage() {
     println!(
-        "usage: forge <version|doctor|status|init <root>|intake <root> [--task] [--input-file <path>]|blueprint validate <root>|task create|inspect|launch|launch-batch|diff|approve|integrate|accept|cancel|retry ...|agent list|validate|inspect <root> [<profile>]|gate list <root>|ci observe <root> <repository> <workflow> <sha> [--task <task-id>]|run <root> <task-id> <absolute-executable> [--interactive] [--pty]|run <root> <task-id> --profile <profile> [--interactive] [--pty]|daemon start|restart|status|run|launch|stop ...|worktree create|inspect|list|retire ...|hud <root> [--watch [--interval-ms <milliseconds>]]>"
+        "usage: forge <version|doctor|status|init <root>|intake <root> [--task] [--input-file <path>]|blueprint validate <root>|task create|inspect|launch|launch-batch|diff|approve|integrate|accept|cancel|retry ...|agent list|validate|inspect <root> [<profile>]|gate list <root>|worker list <root>|lease list|grant|renew|release|expire ...|ci observe <root> <repository> <workflow> <sha> [--task <task-id>]|run <root> <task-id> <absolute-executable> [--interactive] [--pty]|run <root> <task-id> --profile <profile> [--interactive] [--pty]|daemon start|restart|status|run|launch|stop ...|worktree create|inspect|list|retire ...|hud <root> [--watch [--interval-ms <milliseconds>]]>"
     );
 }
 
@@ -109,6 +111,182 @@ fn gate_command(arguments: Vec<String>) -> ExitCode {
             eprintln!("gate requires: list <root>");
             print_usage();
             ExitCode::from(2)
+        }
+    }
+}
+
+fn worker_command(arguments: Vec<String>) -> ExitCode {
+    match arguments.first().map(String::as_str) {
+        Some("list") if arguments.len() == 2 => {
+            let now = agentforge_operator::leases::now_ms();
+            match agentforge_operator::leases::list_workers(&arguments[1], now) {
+                Ok(workers) => {
+                    if workers.is_empty() {
+                        println!("no workers (add profiles under .forge/workers/)");
+                    }
+                    for worker in workers {
+                        let descriptor = &worker.descriptor;
+                        println!(
+                            "worker id={} platform={} capabilities={} max_leases={} active_leases={}",
+                            descriptor.worker_id().as_str(),
+                            descriptor.platform(),
+                            descriptor
+                                .capabilities()
+                                .iter()
+                                .map(|capability| capability.as_str())
+                                .collect::<Vec<_>>()
+                                .join(","),
+                            descriptor.max_concurrent_leases(),
+                            worker.active_leases
+                        );
+                    }
+                    ExitCode::SUCCESS
+                }
+                Err(error) => {
+                    eprintln!("worker list failed: {error}");
+                    ExitCode::from(1)
+                }
+            }
+        }
+        _ => {
+            eprintln!("worker requires: list <root>");
+            ExitCode::from(2)
+        }
+    }
+}
+
+/// Options accepted after a lease command's positional arguments.
+#[derive(Default)]
+struct LeaseOptions {
+    worker: Option<String>,
+    ttl_ms: Option<u64>,
+    actor: Option<String>,
+}
+
+fn parse_lease_options(arguments: &[String], allowed: &[&str]) -> Result<LeaseOptions, String> {
+    let mut options = LeaseOptions::default();
+    let mut index = 0;
+    while index < arguments.len() {
+        let flag = arguments[index].as_str();
+        let value = arguments
+            .get(index + 1)
+            .ok_or_else(|| format!("{flag} needs a value"))?;
+        if !allowed.contains(&flag) {
+            return Err(format!("unexpected argument: {flag}"));
+        }
+        match flag {
+            "--worker" if options.worker.is_none() => options.worker = Some(value.clone()),
+            "--actor" if options.actor.is_none() => options.actor = Some(value.clone()),
+            "--ttl-ms" if options.ttl_ms.is_none() => {
+                options.ttl_ms = Some(
+                    value
+                        .parse()
+                        .map_err(|_| format!("--ttl-ms is not a number: {value}"))?,
+                );
+            }
+            _ => return Err(format!("repeated option: {flag}")),
+        }
+        index += 2;
+    }
+    if allowed.contains(&"--actor") && options.actor.is_none() {
+        return Err("--actor is required".into());
+    }
+    Ok(options)
+}
+
+fn print_lease(prefix: &str, lease: &agentforge_operator::leases::LeaseView) {
+    println!(
+        "{prefix} lease={} task={} worker={} generation={} state={} issued_at_ms={} expires_at_ms={}",
+        lease.lease_id,
+        lease.task_id,
+        lease.worker_id,
+        lease.generation,
+        lease.state,
+        lease.issued_at_ms,
+        lease.expires_at_ms
+    );
+}
+
+fn lease_command(arguments: Vec<String>) -> ExitCode {
+    use agentforge_operator::leases::{
+        DEFAULT_LEASE_TTL_MS, expire_leases, grant_lease, list_leases, now_ms, release_lease,
+        renew_lease,
+    };
+    let usage = "lease requires: list <root> | grant <root> <task-id> [--worker <id>] [--ttl-ms <ms>] --actor <actor> | renew <root> <lease-id> [--ttl-ms <ms>] --actor <actor> | release <root> <lease-id> --actor <actor> | expire <root> --actor <actor>";
+    let now = now_ms();
+    let (action, positional, rest): (&str, usize, &[String]) = match arguments
+        .first()
+        .map(String::as_str)
+    {
+        Some(action @ ("list" | "expire")) if arguments.len() >= 2 => (action, 1, &arguments[2..]),
+        Some(action @ ("grant" | "renew" | "release")) if arguments.len() >= 3 => {
+            (action, 2, &arguments[3..])
+        }
+        _ => {
+            eprintln!("{usage}");
+            return ExitCode::from(2);
+        }
+    };
+    let allowed: &[&str] = match action {
+        "list" => &[],
+        "grant" => &["--worker", "--ttl-ms", "--actor"],
+        "renew" => &["--ttl-ms", "--actor"],
+        _ => &["--actor"],
+    };
+    let options = match parse_lease_options(rest, allowed) {
+        Ok(options) => options,
+        Err(error) => {
+            eprintln!("lease {action}: {error}");
+            eprintln!("{usage}");
+            return ExitCode::from(2);
+        }
+    };
+    let root = &arguments[1];
+    let actor = options.actor.as_deref().unwrap_or_default();
+    let ttl_ms = options.ttl_ms.unwrap_or(DEFAULT_LEASE_TTL_MS);
+    let result = match action {
+        "list" => list_leases(root, now).map(|leases| {
+            if leases.is_empty() {
+                println!("no leases");
+            }
+            for lease in &leases {
+                print_lease("lease", lease);
+            }
+        }),
+        "grant" => {
+            let task_id = match TaskId::parse(arguments[positional].clone()) {
+                Ok(task_id) => task_id,
+                Err(error) => {
+                    eprintln!("invalid task ID: {error}");
+                    return ExitCode::from(2);
+                }
+            };
+            grant_lease(
+                root,
+                &task_id,
+                options.worker.as_deref(),
+                ttl_ms,
+                now,
+                actor,
+            )
+            .map(|lease| print_lease("granted", &lease))
+        }
+        "renew" => renew_lease(root, &arguments[positional], ttl_ms, now, actor)
+            .map(|lease| print_lease("renewed", &lease)),
+        "release" => release_lease(root, &arguments[positional], now, actor)
+            .map(|lease| print_lease("released", &lease)),
+        _ => expire_leases(root, now, actor).map(|expired| {
+            println!("expired {} lease(s)", expired.len());
+            for lease in &expired {
+                print_lease("expired", lease);
+            }
+        }),
+    };
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("lease {action} failed: {error}");
+            ExitCode::from(1)
         }
     }
 }
