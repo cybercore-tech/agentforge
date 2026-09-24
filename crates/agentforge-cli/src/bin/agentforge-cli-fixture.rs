@@ -10,6 +10,10 @@ fn main() {
             return;
         }
     }
+    if std::env::var("AGENTFORGE_CLI_FIXTURE_MODE").as_deref() == Ok("rendezvous") {
+        rendezvous();
+        return;
+    }
     if std::env::var("AGENTFORGE_CLI_FIXTURE_MODE").as_deref() == Ok("fail") {
         eprintln!("fixture failing by request");
         std::process::exit(3);
@@ -60,5 +64,42 @@ fn ci_provider(scenario: &str) {
         _ => {
             println!("run\t501\t{other}\tcompleted\tsuccess");
         }
+    }
+}
+
+/// Registers this process in a shared directory, then waits (bounded) until the expected number
+/// of fixture agents have registered. Serial execution can never satisfy the wait.
+fn rendezvous() {
+    let directory = std::path::PathBuf::from(
+        std::env::var("AGENTFORGE_RENDEZVOUS_DIR").expect("AGENTFORGE_RENDEZVOUS_DIR"),
+    );
+    let expected: usize = std::env::var("AGENTFORGE_RENDEZVOUS_COUNT")
+        .expect("AGENTFORGE_RENDEZVOUS_COUNT")
+        .parse()
+        .expect("rendezvous count");
+    fs::write(
+        directory.join(format!("arrived-{}", std::process::id())),
+        b"",
+    )
+    .expect("register arrival");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    loop {
+        let arrived = fs::read_dir(&directory)
+            .expect("rendezvous directory")
+            .filter(|entry| {
+                entry
+                    .as_ref()
+                    .is_ok_and(|entry| entry.file_name().to_string_lossy().starts_with("arrived-"))
+            })
+            .count();
+        if arrived >= expected {
+            println!("rendezvous complete");
+            return;
+        }
+        if std::time::Instant::now() >= deadline {
+            eprintln!("rendezvous timed out with {arrived}/{expected} agents");
+            std::process::exit(4);
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
     }
 }

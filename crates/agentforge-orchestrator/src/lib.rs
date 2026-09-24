@@ -7,10 +7,14 @@ use agentforge_core::agent::{AgentTask, ApprovalBoundary, Capability};
 use agentforge_core::task::{TaskGraph, TaskId, TaskState};
 use agentforge_gate::{GateDefinition, GateOutcome, GateProfileStore, GateReport, GateRunner};
 use agentforge_policy::{ApprovalGrant, PolicyDecision, PolicyEngine, PolicyRequest};
+use agentforge_scheduler::plan_launch_batch;
+pub use agentforge_scheduler::{DeferReason, DeferredTask};
 use agentforge_state::{FileTaskStore, TaskStore};
 use agentforge_worktree::{WorktreeManager, WorktreeSpec, WorktreeStatus};
+use std::collections::BTreeMap;
 use std::fmt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::thread;
 
 /// Ordered stages in the vertical slice.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
@@ -233,30 +237,7 @@ pub fn launch_process_persisted<A: AgentAdapter>(
     let base_commit = manager
         .resolve_base(base_ref)
         .map_err(|error| SliceError::Preflight(error.to_string()))?;
-    let (worktree, worktree_created) = match manager
-        .inspect(task_id)
-        .map_err(|error| SliceError::Preflight(error.to_string()))?
-    {
-        Some(status) => {
-            if status.is_dirty() {
-                return Err(SliceError::Preflight(format!(
-                    "managed worktree is dirty: {task_id}"
-                )));
-            }
-            if status.operation().is_some() {
-                return Err(SliceError::Preflight(format!(
-                    "managed worktree has an unresolved Git operation: {task_id}"
-                )));
-            }
-            (status, false)
-        }
-        None => {
-            let status = manager
-                .create(&WorktreeSpec::new(task_id.clone(), base_ref))
-                .map_err(|error| SliceError::Preflight(error.to_string()))?;
-            (status, true)
-        }
-    };
+    let (worktree, worktree_created) = prepare_worktree(&manager, task_id, base_ref)?;
 
     append_worktree_observation(
         audit_store,
@@ -273,6 +254,337 @@ pub fn launch_process_persisted<A: AgentAdapter>(
         worktree,
         worktree_created,
     })
+}
+
+/// Result of one concurrent batch launch.
+#[derive(Debug)]
+pub struct BatchLaunch {
+    /// Exact commit resolved from the requested base ref.
+    pub base_commit: String,
+    /// One outcome per selected task, in canonical task-ID order.
+    pub outcomes: Vec<BatchTaskOutcome>,
+    /// Ready tasks left for a later batch.
+    pub deferred: Vec<DeferredTask>,
+}
+
+impl BatchLaunch {
+    /// Returns whether every launched task's adapter ran and all of its gates passed, and no
+    /// selected task was skipped.
+    #[must_use]
+    pub fn succeeded(&self) -> bool {
+        self.outcomes.iter().all(BatchTaskOutcome::succeeded)
+    }
+}
+
+/// Outcome for one task selected into a batch.
+#[derive(Debug)]
+pub enum BatchTaskOutcome {
+    /// The agent ran; gates ran when it exited with status zero.
+    Launched {
+        /// Task identity.
+        task_id: TaskId,
+        /// Bounded adapter evidence.
+        report: ExecutionReport,
+        /// Gate results in lexical order.
+        gates: Vec<GateRun>,
+        /// Task worktree path.
+        worktree: PathBuf,
+        /// Whether this launch created the worktree.
+        worktree_created: bool,
+    },
+    /// The adapter could not run the agent; the task is `failed`.
+    AdapterFailed {
+        /// Task identity.
+        task_id: TaskId,
+        /// Adapter error.
+        error: String,
+    },
+    /// The task failed its own preflight and was not started; its state is unchanged.
+    Skipped {
+        /// Task identity.
+        task_id: TaskId,
+        /// Preflight failure.
+        reason: String,
+    },
+}
+
+impl BatchTaskOutcome {
+    /// Returns the task identity.
+    #[must_use]
+    pub fn task_id(&self) -> &TaskId {
+        match self {
+            Self::Launched { task_id, .. }
+            | Self::AdapterFailed { task_id, .. }
+            | Self::Skipped { task_id, .. } => task_id,
+        }
+    }
+
+    /// Returns whether the task launched and every gate passed.
+    #[must_use]
+    pub fn succeeded(&self) -> bool {
+        matches!(self, Self::Launched { gates, .. } if gates.iter().all(GateRun::passed))
+    }
+}
+
+struct PreparedTask {
+    task_id: TaskId,
+    task: AgentTask,
+    approvals: Vec<ApprovalBoundary>,
+    worktree: PathBuf,
+    worktree_created: bool,
+}
+
+type AgentResult = Result<(ExecutionReport, Vec<GateRun>), String>;
+
+/// Launches up to `max` disjoint ready tasks concurrently.
+///
+/// Prepare runs sequentially: it validates each task, creates or verifies worktrees, marks tasks
+/// `running`, and persists. Execute runs each agent (and its gates) on its own scoped thread with
+/// no access to shared state. Finalize applies outcomes in task-ID order and persists once. Only
+/// the calling thread ever touches the task snapshot or audit log.
+pub fn launch_batch_persisted<A: AgentAdapter + Sync>(
+    root: impl AsRef<Path>,
+    task_store: &FileTaskStore,
+    audit_store: &mut FileAuditStore,
+    adapter: &A,
+    approvals: &BTreeMap<TaskId, Vec<ApprovalBoundary>>,
+    base_ref: &str,
+    max: usize,
+) -> Result<BatchLaunch, SliceError> {
+    let root = root.as_ref().to_path_buf();
+    let mut graph = task_store
+        .load()
+        .map_err(|error| SliceError::Preflight(error.to_string()))?
+        .ok_or_else(|| SliceError::Preflight("task state snapshot is missing".into()))?;
+    let batch =
+        plan_launch_batch(&graph, max).map_err(|error| SliceError::Preflight(error.to_string()))?;
+    let gates = GateProfileStore::new(&root)
+        .list()
+        .map_err(|error| SliceError::Preflight(format!("gate configuration: {error}")))?;
+    let manager =
+        WorktreeManager::new(&root).map_err(|error| SliceError::Preflight(error.to_string()))?;
+    let base_commit = manager
+        .resolve_base(base_ref)
+        .map_err(|error| SliceError::Preflight(error.to_string()))?;
+
+    // Prepare: sequential, so Git worktree metadata is never written concurrently.
+    let mut outcomes = Vec::new();
+    let mut prepared = Vec::new();
+    let mut log = audit_store.new_attempt_log();
+    for task_id in batch.task_ids {
+        let task = graph
+            .get(&task_id)
+            .expect("planned task exists")
+            .task()
+            .clone();
+        let task_approvals = approvals.get(&task_id).cloned().unwrap_or_default();
+        let checked = task
+            .validate()
+            .map_err(|error| SliceError::Preflight(error.to_string()))
+            .and_then(|()| validate_launch_policy(&task, &task_approvals))
+            .and_then(|()| preflight_repository(&root, &task))
+            .and_then(|()| prepare_worktree(&manager, &task_id, base_ref));
+        let (worktree, worktree_created) = match checked {
+            Ok(value) => value,
+            Err(error) => {
+                outcomes.push(BatchTaskOutcome::Skipped {
+                    task_id,
+                    reason: error.to_string(),
+                });
+                continue;
+            }
+        };
+        append_fields(
+            &mut log,
+            "worktree-observed",
+            AuditEventKind::WorktreeObserved,
+            &task,
+            &[
+                ("base_commit", base_commit.as_str()),
+                ("head", worktree.head()),
+                ("path", &worktree.path().to_string_lossy()),
+                (
+                    "mode",
+                    if worktree_created {
+                        "created"
+                    } else {
+                        "reused"
+                    },
+                ),
+            ],
+        )?;
+        graph
+            .transition(&task_id, TaskState::Running)
+            .map_err(|error| SliceError::Preflight(error.to_string()))?;
+        append_fields(
+            &mut log,
+            "task-running",
+            AuditEventKind::TaskTransition,
+            &task,
+            &[("state", "running")],
+        )?;
+        append_fields(
+            &mut log,
+            "agent-started",
+            AuditEventKind::AgentStarted,
+            &task,
+            &[("adapter", adapter.id()), ("batch", "true")],
+        )?;
+        prepared.push(PreparedTask {
+            task_id,
+            task,
+            approvals: task_approvals,
+            worktree: worktree.path().to_path_buf(),
+            worktree_created,
+        });
+    }
+    persist_execution(task_store, audit_store, &graph, &log)?;
+
+    // Execute: agents and gates run in parallel; threads share only read-only inputs.
+    let results: Vec<AgentResult> = thread::scope(|scope| {
+        let handles = prepared
+            .iter()
+            .map(|entry| {
+                let manager = &manager;
+                let gates = &gates;
+                scope.spawn(move || -> AgentResult {
+                    let report = adapter
+                        .execute(AdapterRequest {
+                            task: &entry.task,
+                            worktrees: manager,
+                            acknowledged_approvals: &entry.approvals,
+                        })
+                        .map_err(|error| error.to_string())?;
+                    let succeeded = report.termination() == ExecutionTermination::Exited
+                        && report.exit_code() == Some(0);
+                    let gate_runs = if succeeded {
+                        run_gates(gates, report.worktree_path())
+                    } else {
+                        Vec::new()
+                    };
+                    Ok((report, gate_runs))
+                })
+            })
+            .collect::<Vec<_>>();
+        handles
+            .into_iter()
+            .map(|handle| {
+                handle
+                    .join()
+                    .unwrap_or_else(|_| Err("agent thread panicked".to_owned()))
+            })
+            .collect()
+    });
+
+    // Finalize: sequential, in task-ID order, one persistence step.
+    let mut log = audit_store.new_attempt_log();
+    for (entry, result) in prepared.into_iter().zip(results) {
+        match result {
+            Ok((report, gate_runs)) => {
+                append_fields(
+                    &mut log,
+                    "agent-finished",
+                    AuditEventKind::AgentFinished,
+                    &entry.task,
+                    &[("termination", "observed"), ("batch", "true")],
+                )?;
+                record_gate_evidence(
+                    &mut graph,
+                    &entry.task_id,
+                    &entry.task,
+                    &gate_runs,
+                    &mut log,
+                )?;
+                outcomes.push(BatchTaskOutcome::Launched {
+                    task_id: entry.task_id,
+                    report,
+                    gates: gate_runs,
+                    worktree: entry.worktree,
+                    worktree_created: entry.worktree_created,
+                });
+            }
+            Err(error) => {
+                graph
+                    .transition(&entry.task_id, TaskState::Failed)
+                    .map_err(|transition| SliceError::Preflight(transition.to_string()))?;
+                append_fields(
+                    &mut log,
+                    "agent-failed",
+                    AuditEventKind::FailureClassified,
+                    &entry.task,
+                    &[("error", &audit_text(&error)), ("batch", "true")],
+                )?;
+                outcomes.push(BatchTaskOutcome::AdapterFailed {
+                    task_id: entry.task_id,
+                    error,
+                });
+            }
+        }
+    }
+    persist_execution(task_store, audit_store, &graph, &log)?;
+    outcomes.sort_by(|left, right| left.task_id().cmp(right.task_id()));
+    Ok(BatchLaunch {
+        base_commit,
+        outcomes,
+        deferred: batch.deferred,
+    })
+}
+
+fn append_fields(
+    log: &mut AuditLog,
+    prefix: &str,
+    kind: AuditEventKind,
+    task: &AgentTask,
+    fields: &[(&str, &str)],
+) -> Result<(), SliceError> {
+    let sequence = log.next_sequence();
+    let mut event = AuditEvent::new(
+        sequence,
+        format!("{prefix}-{sequence}"),
+        kind,
+        "orchestrator",
+        1,
+    )
+    .with_task_id(task.task_id.clone());
+    for (key, value) in fields {
+        event = event.with_field(*key, *value);
+    }
+    log.append(event)
+        .map(|_| ())
+        .map_err(|error| SliceError::Preflight(error.to_string()))
+}
+
+/// Reuses a clean owned worktree or creates one from `base_ref`. Unrelated worktrees are never
+/// adopted.
+fn prepare_worktree(
+    manager: &WorktreeManager,
+    task_id: &TaskId,
+    base_ref: &str,
+) -> Result<(WorktreeStatus, bool), SliceError> {
+    match manager
+        .inspect(task_id)
+        .map_err(|error| SliceError::Preflight(error.to_string()))?
+    {
+        Some(status) => {
+            if status.is_dirty() {
+                return Err(SliceError::Preflight(format!(
+                    "managed worktree is dirty: {task_id}"
+                )));
+            }
+            if status.operation().is_some() {
+                return Err(SliceError::Preflight(format!(
+                    "managed worktree has an unresolved Git operation: {task_id}"
+                )));
+            }
+            Ok((status, false))
+        }
+        None => {
+            let status = manager
+                .create(&WorktreeSpec::new(task_id.clone(), base_ref))
+                .map_err(|error| SliceError::Preflight(error.to_string()))?;
+            Ok((status, true))
+        }
+    }
 }
 
 fn validate_launch_policy(

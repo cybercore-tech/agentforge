@@ -310,6 +310,15 @@ forge ci observe /path/to/project owner/repo "AgentForge CI" <40-hex-sha> [--tas
 
 See [`docs/CI.md`](docs/CI.md#operator-ci-observation).
 
+Launch every ready task with disjoint owned paths at once. The agents run concurrently in their own
+worktrees; overlapping tasks are deferred to a later batch:
+
+```bash
+forge task launch-batch /path/to/project --profile local-agent [--max 4]
+```
+
+See [`docs/SCHEDULING.md`](docs/SCHEDULING.md#concurrent-batch-launch).
+
 For a supervised local daemon:
 
 ```bash

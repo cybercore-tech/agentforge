@@ -74,7 +74,7 @@ fn main() -> ExitCode {
 
 fn print_usage() {
     println!(
-        "usage: forge <version|doctor|status|init <root>|intake <root> [--task] [--input-file <path>]|blueprint validate <root>|task create|inspect|launch|diff|approve|integrate|accept|cancel|retry ...|agent list|validate|inspect <root> [<profile>]|gate list <root>|ci observe <root> <repository> <workflow> <sha> [--task <task-id>]|run <root> <task-id> <absolute-executable> [--interactive] [--pty]|run <root> <task-id> --profile <profile> [--interactive] [--pty]|daemon start|restart|status|run|launch|stop ...|worktree create|inspect|list|retire ...|hud <root> [--watch [--interval-ms <milliseconds>]]>"
+        "usage: forge <version|doctor|status|init <root>|intake <root> [--task] [--input-file <path>]|blueprint validate <root>|task create|inspect|launch|launch-batch|diff|approve|integrate|accept|cancel|retry ...|agent list|validate|inspect <root> [<profile>]|gate list <root>|ci observe <root> <repository> <workflow> <sha> [--task <task-id>]|run <root> <task-id> <absolute-executable> [--interactive] [--pty]|run <root> <task-id> --profile <profile> [--interactive] [--pty]|daemon start|restart|status|run|launch|stop ...|worktree create|inspect|list|retire ...|hud <root> [--watch [--interval-ms <milliseconds>]]>"
     );
 }
 
@@ -1235,6 +1235,7 @@ fn task_command(arguments: Vec<String>) -> ExitCode {
         Some("create") => task_create_command(arguments[1..].to_vec()),
         Some("inspect") => task_inspect_command(&arguments[1..]),
         Some("launch") => task_launch_command(&arguments[1..]),
+        Some("launch-batch") => task_launch_batch_command(&arguments[1..]),
         Some("diff") => task_diff_command(&arguments[1..]),
         Some("approve") => task_approve_command(&arguments[1..]),
         Some("integrate") => task_integrate_command(&arguments[1..]),
@@ -1249,11 +1250,222 @@ fn task_command(arguments: Vec<String>) -> ExitCode {
         }
         _ => {
             eprintln!(
-                "task requires: create, inspect, launch, diff, approve, integrate, accept, cancel, or retry"
+                "task requires: create, inspect, launch, launch-batch, diff, approve, integrate, accept, cancel, or retry"
             );
             print_usage();
             ExitCode::from(2)
         }
+    }
+}
+
+const DEFAULT_BATCH_MAX: usize = 4;
+const MAX_BATCH_MAX: usize = 16;
+
+fn task_launch_batch_command(arguments: &[String]) -> ExitCode {
+    let usage = "task launch-batch requires: <root> <absolute-executable> or --profile <profile> [--base <ref>] [--max <1-16>]";
+    let Some(root) = arguments.first().map(std::path::PathBuf::from) else {
+        eprintln!("{usage}");
+        return ExitCode::from(2);
+    };
+    let mut executable: Option<String> = None;
+    let mut profile: Option<String> = None;
+    let mut base_ref: Option<String> = None;
+    let mut max: Option<usize> = None;
+    let mut index = 1;
+    while index < arguments.len() {
+        let value = arguments.get(index + 1);
+        match arguments[index].as_str() {
+            "--base" => match value {
+                Some(value)
+                    if !value.is_empty() && !value.starts_with('-') && base_ref.is_none() =>
+                {
+                    base_ref = Some(value.clone());
+                    index += 2;
+                }
+                _ => {
+                    eprintln!("--base requires one non-empty ref");
+                    return ExitCode::from(2);
+                }
+            },
+            "--max" => match value.and_then(|value| value.parse::<usize>().ok()) {
+                Some(parsed) if (1..=MAX_BATCH_MAX).contains(&parsed) && max.is_none() => {
+                    max = Some(parsed);
+                    index += 2;
+                }
+                _ => {
+                    eprintln!("--max requires one number from 1 to {MAX_BATCH_MAX}");
+                    return ExitCode::from(2);
+                }
+            },
+            "--profile" => match value {
+                Some(value)
+                    if !value.is_empty()
+                        && !value.starts_with('-')
+                        && profile.is_none()
+                        && executable.is_none() =>
+                {
+                    profile = Some(value.clone());
+                    index += 2;
+                }
+                _ => {
+                    eprintln!("--profile requires one profile ID");
+                    return ExitCode::from(2);
+                }
+            },
+            option if option.starts_with('-') => {
+                eprintln!("unknown task launch-batch option: {option}");
+                return ExitCode::from(2);
+            }
+            other => {
+                if executable.is_some() || profile.is_some() {
+                    eprintln!("task launch-batch accepts one executable or one --profile");
+                    return ExitCode::from(2);
+                }
+                executable = Some(other.to_owned());
+                index += 1;
+            }
+        }
+    }
+    let config = match (profile, executable) {
+        (Some(profile), None) => match AgentProfileStore::new(&root).load(&profile) {
+            Ok(profile) => profile.adapter_config(),
+            Err(error) => {
+                eprintln!("cannot load agent profile: {error}");
+                return ExitCode::from(2);
+            }
+        },
+        (None, Some(executable)) => ProcessAdapterConfig::new("task-launch-batch", executable),
+        _ => {
+            eprintln!("{usage}");
+            return ExitCode::from(2);
+        }
+    };
+    let adapter = match ProcessAdapter::new(config) {
+        Ok(value) => value,
+        Err(error) => {
+            eprintln!("invalid adapter configuration: {error}");
+            return ExitCode::from(2);
+        }
+    };
+
+    let task_store = FileTaskStore::for_project_root(&root);
+    let graph = match task_store.load() {
+        Ok(Some(graph)) => graph,
+        Ok(None) => {
+            eprintln!("task launch-batch failed: task state snapshot is missing");
+            return ExitCode::from(1);
+        }
+        Err(error) => {
+            eprintln!("task launch-batch failed: {error}");
+            return ExitCode::from(1);
+        }
+    };
+    let mut approvals = std::collections::BTreeMap::new();
+    for record in graph.records() {
+        match approved_boundaries(&root, record.id()) {
+            Ok(boundaries) => {
+                approvals.insert(record.id().clone(), boundaries);
+            }
+            Err(error) => {
+                eprintln!("cannot verify approvals: {error}");
+                return ExitCode::from(1);
+            }
+        }
+    }
+    let audit_dir = root.join(".forge");
+    if let Err(error) = std::fs::create_dir_all(&audit_dir) {
+        eprintln!("cannot create audit directory: {error}");
+        return ExitCode::from(1);
+    }
+    let mut audit_store = match FileAuditStore::open(audit_dir.join("audit.log")) {
+        Ok(store) => store,
+        Err(error) => {
+            eprintln!("cannot open audit log: {error}");
+            return ExitCode::from(1);
+        }
+    };
+    let batch = match agentforge_orchestrator::launch_batch_persisted(
+        &root,
+        &task_store,
+        &mut audit_store,
+        &adapter,
+        &approvals,
+        base_ref.as_deref().unwrap_or("HEAD"),
+        max.unwrap_or(DEFAULT_BATCH_MAX),
+    ) {
+        Ok(batch) => batch,
+        Err(error) => {
+            eprintln!("task launch-batch failed: {error}");
+            return ExitCode::from(1);
+        }
+    };
+    if batch.outcomes.is_empty() && batch.deferred.is_empty() {
+        println!("no ready tasks");
+        return ExitCode::SUCCESS;
+    }
+    for outcome in &batch.outcomes {
+        match outcome {
+            agentforge_orchestrator::BatchTaskOutcome::Launched {
+                task_id,
+                report,
+                gates,
+                worktree,
+                worktree_created,
+            } => {
+                let passed = gates.iter().filter(|gate| gate.passed()).count();
+                println!(
+                    "launched {task_id} termination={:?} exit={} gates={passed}/{} worktree-created={worktree_created} path={}",
+                    report.termination(),
+                    report
+                        .exit_code()
+                        .map_or_else(|| "none".to_owned(), |code| code.to_string()),
+                    gates.len(),
+                    worktree.display()
+                );
+            }
+            agentforge_orchestrator::BatchTaskOutcome::AdapterFailed { task_id, error } => {
+                println!("failed {task_id} error={error}");
+            }
+            agentforge_orchestrator::BatchTaskOutcome::Skipped { task_id, reason } => {
+                println!("skipped {task_id} reason={reason}");
+            }
+        }
+    }
+    for deferred in &batch.deferred {
+        match &deferred.reason {
+            agentforge_orchestrator::DeferReason::Overlap { owner, path } => println!(
+                "deferred {} reason=overlap owner={owner} path={path}",
+                deferred.task_id
+            ),
+            agentforge_orchestrator::DeferReason::Capacity => {
+                println!("deferred {} reason=capacity", deferred.task_id);
+            }
+        }
+    }
+    let launched = batch
+        .outcomes
+        .iter()
+        .filter(|outcome| {
+            matches!(
+                outcome,
+                agentforge_orchestrator::BatchTaskOutcome::Launched { .. }
+            )
+        })
+        .count();
+    println!(
+        "batch base={} launched={launched} succeeded={} deferred={}",
+        batch.base_commit,
+        batch
+            .outcomes
+            .iter()
+            .filter(|outcome| outcome.succeeded())
+            .count(),
+        batch.deferred.len()
+    );
+    if batch.succeeded() {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::from(1)
     }
 }
 

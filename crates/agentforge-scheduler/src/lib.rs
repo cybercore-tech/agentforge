@@ -4,7 +4,7 @@ use agentforge_core::agent::AgentRole;
 use agentforge_core::remote::{
     LeaseBook, LeaseId, RemoteWorkerDescriptor, RemoteWorkerError, RemoteWorkerId,
 };
-use agentforge_core::task::{TaskGraph, TaskGraphError, TaskId};
+use agentforge_core::task::{TaskGraph, TaskGraphError, TaskId, TaskState};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
@@ -129,6 +129,100 @@ pub fn plan_batch(graph: &TaskGraph) -> Result<RunnableBatch, ScheduleError> {
         chosen.push(id);
     }
     Ok(RunnableBatch { task_ids: chosen })
+}
+
+/// Why a ready task was left out of a launch batch.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum DeferReason {
+    /// An earlier task in the batch already owns an overlapping path.
+    Overlap {
+        /// The batch task that owns the overlapping path.
+        owner: TaskId,
+        /// The deferred task's conflicting path.
+        path: String,
+    },
+    /// The batch already holds the requested maximum number of tasks.
+    Capacity,
+}
+
+/// A ready task deferred to a later batch.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DeferredTask {
+    /// Deferred task identity.
+    pub task_id: TaskId,
+    /// Deterministic deferral reason.
+    pub reason: DeferReason,
+}
+
+/// A deterministic selection of disjoint ready tasks to launch together.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LaunchBatch {
+    /// Selected tasks in canonical task-ID order.
+    pub task_ids: Vec<TaskId>,
+    /// Ready tasks left for a later batch, in canonical task-ID order.
+    pub deferred: Vec<DeferredTask>,
+}
+
+/// Selects up to `max` ready tasks with pairwise-disjoint owned paths.
+///
+/// Unlike [`plan_batch`], an overlap does not reject the graph: the later task (in task-ID order)
+/// is deferred, because leaving it pending is always safe. Paths owned by `running` tasks count as
+/// claimed. `max` of zero selects nothing.
+pub fn plan_launch_batch(graph: &TaskGraph, max: usize) -> Result<LaunchBatch, ScheduleError> {
+    let ready = graph
+        .ready_task_ids()
+        .map_err(|e| ScheduleError::InvalidGraph(e.to_string()))?;
+    let mut task_ids = Vec::new();
+    let mut deferred = Vec::new();
+    // Paths owned by tasks that are still running (for example from an earlier batch) are
+    // already claimed; a ready task that overlaps them waits.
+    let mut owned: Vec<(String, TaskId)> = graph
+        .records()
+        .filter(|record| record.state() == TaskState::Running)
+        .flat_map(|record| {
+            record
+                .task()
+                .allowed_paths
+                .iter()
+                .map(|path| (path.clone(), record.id().clone()))
+                .collect::<Vec<_>>()
+        })
+        .collect();
+    for id in ready {
+        let record = graph
+            .records()
+            .find(|r| r.id() == &id)
+            .expect("ready task exists");
+        let overlap = record.task().allowed_paths.iter().find_map(|path| {
+            owned
+                .iter()
+                .find(|(existing, _)| overlaps(existing, path))
+                .map(|(_, owner)| (owner.clone(), path.clone()))
+        });
+        if let Some((owner, path)) = overlap {
+            deferred.push(DeferredTask {
+                task_id: id,
+                reason: DeferReason::Overlap { owner, path },
+            });
+            continue;
+        }
+        if task_ids.len() >= max {
+            deferred.push(DeferredTask {
+                task_id: id,
+                reason: DeferReason::Capacity,
+            });
+            continue;
+        }
+        owned.extend(
+            record
+                .task()
+                .allowed_paths
+                .iter()
+                .map(|path| (path.clone(), id.clone())),
+        );
+        task_ids.push(id);
+    }
+    Ok(LaunchBatch { task_ids, deferred })
 }
 
 /// Plans deterministic remote assignments without partially mutating the lease book.
@@ -312,6 +406,69 @@ mod tests {
         let g = TaskGraph::from_tasks([task("a", "a"), task("b", "b")]).unwrap();
         assert_eq!(plan_batch(&g).unwrap().task_ids.len(), 2);
     }
+    fn ids(values: &[TaskId]) -> Vec<&str> {
+        values.iter().map(TaskId::as_str).collect()
+    }
+
+    #[test]
+    fn launch_batch_defers_overlap_instead_of_failing() {
+        let g = TaskGraph::from_tasks([task("c", "docs"), task("a", "src"), task("b", "src/lib")])
+            .unwrap();
+        let batch = plan_launch_batch(&g, 4).unwrap();
+        assert_eq!(ids(&batch.task_ids), ["a", "c"]);
+        assert_eq!(
+            batch.deferred,
+            vec![DeferredTask {
+                task_id: TaskId::parse("b").unwrap(),
+                reason: DeferReason::Overlap {
+                    owner: TaskId::parse("a").unwrap(),
+                    path: "src/lib".into(),
+                },
+            }]
+        );
+    }
+
+    #[test]
+    fn launch_batch_respects_capacity_and_readiness() {
+        let mut blocked = task("d", "d");
+        blocked.dependency_task_ids = vec!["a".into()];
+        let g = TaskGraph::from_tasks([task("a", "a"), task("b", "b"), task("c", "c"), blocked])
+            .unwrap();
+        let batch = plan_launch_batch(&g, 2).unwrap();
+        assert_eq!(ids(&batch.task_ids), ["a", "b"]);
+        assert_eq!(batch.deferred.len(), 1, "d is not ready and is not listed");
+        assert_eq!(batch.deferred[0].task_id.as_str(), "c");
+        assert_eq!(batch.deferred[0].reason, DeferReason::Capacity);
+        assert!(plan_launch_batch(&g, 0).unwrap().task_ids.is_empty());
+    }
+
+    #[test]
+    fn launch_batch_defers_overlap_with_running_tasks() {
+        let mut g =
+            TaskGraph::from_tasks([task("a", "src"), task("b", "src/lib"), task("c", "docs")])
+                .unwrap();
+        g.transition(&TaskId::parse("a").unwrap(), TaskState::Running)
+            .unwrap();
+        let batch = plan_launch_batch(&g, 4).unwrap();
+        assert_eq!(ids(&batch.task_ids), ["c"]);
+        assert!(matches!(
+            &batch.deferred[0].reason,
+            DeferReason::Overlap { owner, .. } if owner.as_str() == "a"
+        ));
+    }
+
+    #[test]
+    fn launch_batch_is_deterministic_across_insertion_order() {
+        let forward =
+            TaskGraph::from_tasks([task("a", "x"), task("b", "x/y"), task("c", "z")]).unwrap();
+        let reverse =
+            TaskGraph::from_tasks([task("c", "z"), task("b", "x/y"), task("a", "x")]).unwrap();
+        assert_eq!(
+            plan_launch_batch(&forward, 4).unwrap(),
+            plan_launch_batch(&reverse, 4).unwrap()
+        );
+    }
+
     #[test]
     fn overlap_fails_closed() {
         let g = TaskGraph::from_tasks([task("a", "src"), task("b", "src/lib")]).unwrap();

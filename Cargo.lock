@@ -79,6 +79,7 @@ dependencies = [
  "agentforge-core",
  "agentforge-gate",
  "agentforge-policy",
+ "agentforge-scheduler",
  "agentforge-state",
  "agentforge-worktree",
 ]
