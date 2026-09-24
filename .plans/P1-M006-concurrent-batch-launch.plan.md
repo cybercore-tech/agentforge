@@ -1,6 +1,6 @@
 # Plan: P1-M006 — Concurrent batch launch of disjoint ready tasks
 
-Status: Draft
+Status: Approved
 Milestone: P1-M006
 Created: 2026-09-23
 Owner: AgentForge project
