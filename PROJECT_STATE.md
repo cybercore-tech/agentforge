@@ -13,9 +13,24 @@ agent-built milestones, Phase 4 remote-worker wiring, the P3 tool gateway, and P
 
 ## Active milestone
 
-No active milestone. P2-M030 — Milestone tags — is complete. Every completed milestone has an
-annotated `milestone/<ID>` tag on its closure commit (`git tag -l 'milestone/*'`), and tagging is the
-final closure step (AGENTS.md rule 14).
+No active milestone. P2-M031 — Tagger closure detection fix — is complete. Next: P2-M032, fixing the
+intermittent macOS daemon-stop flake seen in CI run `36005350819`.
+
+## Known issues
+
+- Intermittent on macOS: `forge daemon stop` right after a long daemon execution can fail with
+  `daemon I/O failed: Invalid argument (os error 22)`. Seen once in four runs of `12796ef`
+  (`36005350819`); P2-M032.
+
+## P2-M031 completion evidence
+
+- Approved plan: `.plans/P2-M031-tagger-closure-detection.plan.md`.
+- Implementation commit: `12796ef`. Closure detection now uses the plan status line and verifies it
+  before tagging.
+- CI: `36005319580`, `36005682117`, and `36005691600` are green. `36005350819` failed only on the
+  unrelated macOS flake above.
+- `milestone/P2-M030` was recreated on `fa0672c`; the erroneous draft tag's deletion is recorded in
+  the ADR-0044 addendum.
 
 ## P2-M030 completion evidence
 
@@ -57,10 +72,6 @@ final closure step (AGENTS.md rule 14).
 - CI `35969105365` (push-triggered) and `35969113717` (dispatched) are green on all seven jobs.
 - The incident was reproduced in a disposable clone before the fix and disproven after it; see the
   plan's completion record and `docs/DOGFOODING.md`.
-
-## Known issues
-
-None open. Resolved dogfooding findings are tracked in `docs/DOGFOODING.md`.
 
 
 ## P2-M025 completion evidence

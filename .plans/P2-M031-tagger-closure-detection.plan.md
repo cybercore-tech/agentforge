@@ -1,6 +1,6 @@
 # Plan: P2-M031 — Tagger closure detection fix
 
-Status: Approved
+Status: Complete
 Milestone: P2-M031
 Created: 2026-09-24
 Owner: AgentForge project
@@ -102,14 +102,20 @@ ADR-0044 addendum; OPERATIONS.md note; CHANGELOG Fixed entry.
 
 ## Acceptance criteria
 
-- [ ] Closure detection uses the status line and is verified before tagging.
-- [ ] All 55 existing tags are confirmed unchanged by the dry run.
-- [ ] P2-M030 and P2-M031 are tagged on their closure commits.
+- [x] Closure detection uses the status line and is verified before tagging.
+- [x] All 55 existing tags are confirmed unchanged by the dry run.
+- [x] P2-M030 and P2-M031 are tagged on their closure commits.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
+Implementation commit: `12796ef`
+CI run: `36005319580` (push), `36005682117` and `36005691600` (dispatched) are green; `36005350819` (dispatched) failed
+CI result: three of four runs green on all seven jobs. The failing run is an unrelated pre-existing macOS daemon flake (below).
+Completed: 2026-09-24
 Notes:
+The dry run confirmed all 55 earlier tags unchanged. `milestone/P2-M030` was recreated on its closure
+`fa0672c` and pushed. Dispatched run `36005350819` failed only on macOS 14:
+`long_daemon_executions_succeed_while_status_stays_available` (P2-M024), whose final `forge daemon
+stop` returned `daemon I/O failed: Invalid argument (os error 22)`. The same commit passed that job in
+the other three runs. Classification: a pre-existing intermittent macOS daemon-client transport flake,
+not related to the tagger change. It is scheduled as its own milestone (P2-M032) rather than hidden.

@@ -63,7 +63,7 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 | P2-M028 | complete | Hermetic repository gate under hooks and in worktrees | The gate clears hook Git variables before cargo steps and builds linked worktrees into their own target directory, proven by reproducing the incident before and after the fix. |
 | P2-M029 | complete | Agent run visibility and build isolation | Every agent run shows its exit code, keeps its full output as audited evidence, and fails the CLI when the agent fails; agent builds in worktrees are isolated; an operations reference exists. |
 | P2-M030 | complete | Milestone tags | Every completed milestone has an annotated `milestone/<ID>` tag on its closure commit, tagging is part of closure, and release tags stay separate. |
-| P2-M031 | active | Tagger closure detection fix | Milestone tags are created only on commits whose plan status line reads `Status: Complete`, verified before tagging; all earlier tags unchanged. |
+| P2-M031 | complete | Tagger closure detection fix | Milestone tags are created only on commits whose plan status line reads `Status: Complete`, verified before tagging; all earlier tags unchanged. |
 
 ## Phase 3 — external systems and Mission Control
 
