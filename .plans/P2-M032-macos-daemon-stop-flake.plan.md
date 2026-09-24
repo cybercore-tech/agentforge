@@ -1,6 +1,6 @@
 # Plan: P2-M032 — macOS daemon stop flake (EINVAL on a reset socket)
 
-Status: Draft
+Status: Approved
 Milestone: P2-M032
 Created: 2026-09-24
 Owner: AgentForge project
