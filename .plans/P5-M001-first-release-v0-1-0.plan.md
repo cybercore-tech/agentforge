@@ -83,6 +83,7 @@ None; `Cargo.lock` changes only for the workspace members' own versions.
 - `crates/agentforge-cli/Cargo.toml`
 - `CHANGELOG.md`
 - `docs/RELEASE.md`
+- `docs/REGISTRY.md` (Amendment 1)
 - `README.md`
 - `site/index.html`
 - `docs/MILESTONES.md`
@@ -126,6 +127,13 @@ CHANGELOG release section, RELEASE.md, README, and site status.
 - [ ] `v0.1.0` is published with four checksummed archives.
 - [ ] Version metadata, the CHANGELOG, and the docs agree on `0.1.0`.
 - [ ] Milestone closed and tagged, and the release tag verified.
+
+## Amendment 1 (2026-09-24)
+
+A pre-implementation grep found `docs/REGISTRY.md` stating "AgentForge is a `0.0.x` alpha". It is
+added to the file boundary so the release line reads `0.1.x` everywhere. Historical records
+(`PROJECT_STATE.md` evidence for earlier milestones, ADRs) keep their `0.0.1` references
+unchanged.
 
 ## Completion record
 
