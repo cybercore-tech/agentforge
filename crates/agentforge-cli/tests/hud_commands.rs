@@ -78,11 +78,81 @@ fn hud_renders_sources_without_mutating_the_project() {
     assert!(stdout.contains("tasks:"));
     assert!(stdout.contains("audit_records: 0"));
     assert!(stdout.contains("worktrees: 0"));
+    assert!(stdout.contains("agent_runs:\n  - none\n"), "{stdout}");
     let after = fs::read_dir(&root)
         .expect("root entries")
         .map(|entry| entry.expect("entry").file_name())
         .collect::<Vec<_>>();
     assert_eq!(before, after);
+    fs::remove_dir_all(root).expect("cleanup");
+}
+
+#[test]
+fn hud_shows_a_launched_agent_run_with_its_evidence() {
+    let root = temporary_root();
+    let root_text = root.to_str().expect("root");
+    git(&root, &["init", "-q"]);
+    git(
+        &root,
+        &["config", "user.email", "agentforge@example.invalid"],
+    );
+    git(&root, &["config", "user.name", "AgentForge Test"]);
+    fs::write(root.join("README.md"), "fixture\n").expect("fixture");
+    git(&root, &["add", "README.md"]);
+    git(&root, &["commit", "-qm", "fixture"]);
+    assert!(forge(&root, &["init", root_text]).status.success());
+    let created = forge(
+        &root,
+        &[
+            "task",
+            "create",
+            root_text,
+            "P2-M033-T0001",
+            "P2-M033",
+            "implementer",
+            "agent runs",
+            "--allowed",
+            "README.md",
+            "--capability",
+            "run_local_commands",
+        ],
+    );
+    assert!(created.status.success(), "{created:?}");
+    let launched = forge(
+        &root,
+        &[
+            "task",
+            "launch",
+            root_text,
+            "P2-M033-T0001",
+            env!("CARGO_BIN_EXE_agentforge-cli-fixture"),
+            "--base",
+            "HEAD",
+        ],
+    );
+    assert!(launched.status.success(), "{launched:?}");
+
+    let output = forge(&root, &["hud", root_text]);
+    assert!(output.status.success(), "{output:?}");
+    let stdout = String::from_utf8(output.stdout).expect("UTF-8 HUD");
+    let section = stdout
+        .split_once("agent_runs:\n")
+        .expect("agent_runs section")
+        .1;
+    let run = section.lines().next().expect("agent run line");
+    assert!(
+        run.contains(" task=P2-M033-T0001 agent-exit=0 "),
+        "{stdout}"
+    );
+    assert!(run.contains(" termination=exited "), "{stdout}");
+    assert!(
+        run.contains(" stdout=.forge/evidence/P2-M033-T0001/"),
+        "{stdout}"
+    );
+    assert!(
+        run.contains(" stderr=.forge/evidence/P2-M033-T0001/"),
+        "{stdout}"
+    );
     fs::remove_dir_all(root).expect("cleanup");
 }
 

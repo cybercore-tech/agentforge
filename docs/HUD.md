@@ -14,6 +14,30 @@ Output is plain text with stable section and task-ID ordering. Recent audit acti
 the complete report is bounded, so the snapshot can support a future interactive HUD without
 becoming a second source of truth.
 
+## Agent runs
+
+The `agent_runs:` section follows `audit_recent` and lists the five most recent agent runs, oldest
+first, one line per `AgentFinished` audit event:
+
+```text
+agent_runs:
+  - #12 task=P1-M007-T0003 agent-exit=0 termination=exited gates=1/1 stdout=.forge/evidence/P1-M007-T0003/12-stdout.log stderr=.forge/evidence/P1-M007-T0003/12-stderr.log
+  - #20 task=P1-M007-T0004 agent-exit=3 termination=exited gates=0/1 failed-gate=workspace:failed stdout=... stderr=...
+```
+
+- `agent-exit` is the recorded exit code (`none` when the platform reported none). Runs recorded
+  before P2-M029, which carry no exit fields, show `agent-exit=unknown`.
+- `termination` is `exited`, `timed_out`, or `output_limit_exceeded`; `output-truncated=true`
+  appears when the captured output was cut short.
+- `gates=<passed>/<total>` counts the `GateFinished` events for the same task that follow the run,
+  up to that task's next `AgentStarted`. `failed-gate=<gate>:<outcome>` names the first gate that
+  did not pass.
+- `stdout` and `stderr` are the project-relative evidence logs holding the agent's full output.
+  When they could not be written, `evidence-error` gives the reason instead.
+
+With no recorded runs the section reads `  - none`. The HUD shows evidence paths only and never
+reads log contents; each field value is limited to one line of 256 characters.
+
 ## Watch mode
 
 For a live read-only view, run:

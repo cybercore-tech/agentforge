@@ -1,16 +1,21 @@
 //! Deterministic, read-only operator reports for AgentForge projects.
 
-use agentforge_audit::{AuditStore, FileAuditStore};
+use agentforge_audit::{AuditEvent, AuditEventKind, AuditStore, FileAuditStore};
 use agentforge_core::task::TaskState;
 use agentforge_intake::IntakeError;
 use agentforge_state::{FileTaskStore, StateError, TaskStore};
 use agentforge_worktree::{GitOperation, WorktreeError, WorktreeManager};
+use std::collections::BTreeMap;
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 const AUDIT_RELATIVE_PATH: &str = ".forge/audit.log";
 const MAX_RECENT_EVENTS: usize = 8;
 const MAX_RENDERED_BYTES: usize = 16 * 1024;
+/// Maximum number of recent agent runs shown in the HUD.
+pub const MAX_AGENT_RUNS: usize = 5;
+/// Maximum characters rendered from one audit field value.
+const MAX_FIELD_CHARS: usize = 256;
 /// Default watch refresh interval in milliseconds.
 pub const DEFAULT_WATCH_INTERVAL_MS: u64 = 1_000;
 /// Minimum accepted watch refresh interval in milliseconds.
@@ -198,6 +203,110 @@ pub struct WorktreeSummary {
     pub operation: Option<String>,
 }
 
+/// Gate results recorded for one agent run.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct GateSummary {
+    /// Number of gates that passed.
+    pub passed: usize,
+    /// Number of gates recorded for the run.
+    pub total: usize,
+    /// First gate that did not pass, as `(gate, outcome)`.
+    pub first_failure: Option<(String, String)>,
+}
+
+/// One agent run projected from an `AgentFinished` audit event.
+///
+/// The fields recorded since P2-M029 are optional, so earlier runs that carry none of them still
+/// project cleanly.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AgentRunSummary {
+    /// Sequence of the `AgentFinished` event.
+    pub sequence: u64,
+    /// Owning task ID, if recorded.
+    pub task_id: Option<String>,
+    /// Recorded agent exit code (`none` when the platform provided none).
+    pub exit_code: Option<String>,
+    /// Recorded termination label.
+    pub termination: Option<String>,
+    /// Whether captured output was truncated.
+    pub output_truncated: bool,
+    /// Project-relative stdout evidence log.
+    pub stdout_log: Option<String>,
+    /// Project-relative stderr evidence log.
+    pub stderr_log: Option<String>,
+    /// Why the evidence logs could not be written, if they could not.
+    pub evidence_error: Option<String>,
+    /// Gates recorded for this task after the run and before its next agent start.
+    pub gates: GateSummary,
+}
+
+impl AgentRunSummary {
+    fn from_event(event: &AuditEvent) -> Self {
+        let field = |key: &str| event.fields().get(key).map(|value| bound_field(value));
+        Self {
+            sequence: event.sequence(),
+            task_id: event.task_id().map(bound_field),
+            exit_code: field("exit_code"),
+            termination: field("termination"),
+            output_truncated: event
+                .fields()
+                .get("output_truncated")
+                .is_some_and(|value| value == "true"),
+            stdout_log: field("stdout_log"),
+            stderr_log: field("stderr_log"),
+            evidence_error: field("evidence_error"),
+            gates: GateSummary::default(),
+        }
+    }
+
+    fn record_gate(&mut self, event: &AuditEvent) {
+        let outcome = event
+            .fields()
+            .get("outcome")
+            .map_or("unknown", String::as_str);
+        self.gates.total += 1;
+        if outcome == "passed" {
+            self.gates.passed += 1;
+        } else if self.gates.first_failure.is_none() {
+            let gate = event.fields().get("gate").map_or("unknown", String::as_str);
+            self.gates.first_failure = Some((bound_field(gate), bound_field(outcome)));
+        }
+    }
+}
+
+/// Projects the newest [`MAX_AGENT_RUNS`] agent runs, oldest first, from audit events in sequence
+/// order.
+///
+/// Each `AgentFinished` event starts a run. Later `GateFinished` events for the same task belong
+/// to that run until the task's next `AgentStarted` or `AgentFinished`.
+pub fn agent_runs<'a>(events: impl IntoIterator<Item = &'a AuditEvent>) -> Vec<AgentRunSummary> {
+    let mut runs = Vec::new();
+    let mut open = BTreeMap::<String, usize>::new();
+    for event in events {
+        match event.kind() {
+            AuditEventKind::AgentStarted => {
+                if let Some(task) = event.task_id() {
+                    open.remove(task);
+                }
+            }
+            AuditEventKind::AgentFinished => {
+                if let Some(task) = event.task_id() {
+                    open.insert(task.to_owned(), runs.len());
+                }
+                runs.push(AgentRunSummary::from_event(event));
+            }
+            AuditEventKind::GateFinished => {
+                if let Some(&index) = event.task_id().and_then(|task| open.get(task)) {
+                    runs[index].record_gate(event);
+                }
+            }
+            _ => {}
+        }
+    }
+    let start = runs.len().saturating_sub(MAX_AGENT_RUNS);
+    runs.split_off(start)
+}
+
 /// Fully collected, bounded HUD state.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct HudSnapshot {
@@ -209,6 +318,8 @@ pub struct HudSnapshot {
     pub audit: AuditSummary,
     /// Verified managed worktrees in task-ID order.
     pub worktrees: Vec<WorktreeSummary>,
+    /// Most recent agent runs, oldest first, capped by [`MAX_AGENT_RUNS`].
+    pub agent_runs: Vec<AgentRunSummary>,
 }
 
 /// Collects all required sources without creating or modifying project files.
@@ -268,6 +379,7 @@ pub fn collect(root: impl AsRef<Path>) -> Result<HudSnapshot, HudError> {
         latest_sequence: records.last().map(|record| record.event().sequence()),
         recent_events,
     };
+    let agent_runs = agent_runs(records.iter().map(|record| record.event()));
 
     let manager = WorktreeManager::new(root)
         .map_err(|error| HudError::Source(HudDiagnostic::new("worktree", error.to_string())))?;
@@ -292,6 +404,7 @@ pub fn collect(root: impl AsRef<Path>) -> Result<HudSnapshot, HudError> {
         tasks: task_summary,
         audit: audit_summary,
         worktrees,
+        agent_runs,
     })
 }
 
@@ -327,6 +440,13 @@ pub fn render(snapshot: &HudSnapshot) -> String {
     for event in &snapshot.audit.recent_events {
         let _ = writeln!(output, "  - {event}");
     }
+    let _ = writeln!(output, "agent_runs:");
+    if snapshot.agent_runs.is_empty() {
+        let _ = writeln!(output, "  - none");
+    }
+    for run in &snapshot.agent_runs {
+        let _ = writeln!(output, "  - {}", agent_run_line(run));
+    }
     let _ = writeln!(output, "worktrees: {}", snapshot.worktrees.len());
     for worktree in &snapshot.worktrees {
         let operation = worktree.operation.as_deref().unwrap_or("none");
@@ -344,6 +464,54 @@ pub fn render(snapshot: &HudSnapshot) -> String {
         output.push_str("\n[truncated]\n");
     }
     output
+}
+
+fn agent_run_line(run: &AgentRunSummary) -> String {
+    let mut line = format!(
+        "#{} task={} agent-exit={}",
+        run.sequence,
+        run.task_id.as_deref().unwrap_or("none"),
+        run.exit_code.as_deref().unwrap_or("unknown")
+    );
+    if let Some(termination) = &run.termination {
+        let _ = write!(line, " termination={termination}");
+    }
+    if run.output_truncated {
+        line.push_str(" output-truncated=true");
+    }
+    let _ = write!(line, " gates={}/{}", run.gates.passed, run.gates.total);
+    if let Some((gate, outcome)) = &run.gates.first_failure {
+        let _ = write!(line, " failed-gate={gate}:{outcome}");
+    }
+    if let Some(stdout) = &run.stdout_log {
+        let _ = write!(line, " stdout={stdout}");
+    }
+    if let Some(stderr) = &run.stderr_log {
+        let _ = write!(line, " stderr={stderr}");
+    }
+    if let Some(error) = &run.evidence_error {
+        let _ = write!(line, " evidence-error={error}");
+    }
+    line
+}
+
+/// Bounds one audit value to a single line of at most [`MAX_FIELD_CHARS`] characters.
+fn bound_field(value: &str) -> String {
+    let mut bounded = value
+        .chars()
+        .take(MAX_FIELD_CHARS)
+        .map(|character| {
+            if character.is_control() {
+                ' '
+            } else {
+                character
+            }
+        })
+        .collect::<String>();
+    if value.chars().count() > MAX_FIELD_CHARS {
+        bounded.push('…');
+    }
+    bounded
 }
 
 fn operation_name(operation: GitOperation) -> String {
@@ -384,10 +552,36 @@ fn _worktree_message(error: &WorktreeError) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        AuditSummary, HudSnapshot, ProjectSummary, TaskSummary, WatchCommand, WatchConfig,
-        WorktreeSummary, parse_watch_command, render,
+        AuditSummary, HudSnapshot, MAX_AGENT_RUNS, ProjectSummary, TaskSummary, WatchCommand,
+        WatchConfig, WorktreeSummary, agent_runs, parse_watch_command, render,
     };
+    use agentforge_audit::{AuditEvent, AuditEventKind};
     use std::path::PathBuf;
+
+    fn event(sequence: u64, kind: AuditEventKind, task: &str) -> AuditEvent {
+        AuditEvent::new(sequence, format!("event-{sequence}"), kind, "test", 1).with_task_id(task)
+    }
+
+    fn finished(sequence: u64, task: &str, exit_code: &str) -> AuditEvent {
+        event(sequence, AuditEventKind::AgentFinished, task)
+            .with_field("termination", "exited")
+            .with_field("exit_code", exit_code)
+            .with_field("output_truncated", "false")
+            .with_field(
+                "stdout_log",
+                format!(".forge/evidence/{task}/{sequence}-stdout.log"),
+            )
+            .with_field(
+                "stderr_log",
+                format!(".forge/evidence/{task}/{sequence}-stderr.log"),
+            )
+    }
+
+    fn gate(sequence: u64, task: &str, name: &str, outcome: &str) -> AuditEvent {
+        event(sequence, AuditEventKind::GateFinished, task)
+            .with_field("gate", name)
+            .with_field("outcome", outcome)
+    }
 
     fn snapshot() -> HudSnapshot {
         HudSnapshot {
@@ -416,7 +610,130 @@ mod tests {
                 dirty: false,
                 operation: None,
             }],
+            agent_runs: Vec::new(),
         }
+    }
+
+    #[test]
+    fn agent_runs_summarize_exit_codes_gates_and_evidence() {
+        let events = [
+            event(1, AuditEventKind::AgentStarted, "task-1"),
+            finished(2, "task-1", "0"),
+            gate(3, "task-1", "workspace", "passed"),
+            event(4, AuditEventKind::AgentStarted, "task-2"),
+            finished(5, "task-2", "3"),
+            gate(6, "task-2", "lint", "passed"),
+            gate(7, "task-2", "test", "failed"),
+            gate(8, "task-2", "docs", "timed_out"),
+            event(9, AuditEventKind::FailureClassified, "task-2"),
+            event(10, AuditEventKind::AgentStarted, "task-1"),
+            gate(11, "task-1", "workspace", "failed"),
+        ];
+        let runs = agent_runs(&events);
+        assert_eq!(runs.len(), 2);
+
+        assert_eq!(runs[0].sequence, 2);
+        assert_eq!(runs[0].task_id.as_deref(), Some("task-1"));
+        assert_eq!(runs[0].exit_code.as_deref(), Some("0"));
+        assert_eq!(runs[0].termination.as_deref(), Some("exited"));
+        assert_eq!((runs[0].gates.passed, runs[0].gates.total), (1, 1));
+        assert_eq!(runs[0].gates.first_failure, None);
+        assert_eq!(
+            runs[0].stdout_log.as_deref(),
+            Some(".forge/evidence/task-1/2-stdout.log")
+        );
+        assert_eq!(
+            runs[0].stderr_log.as_deref(),
+            Some(".forge/evidence/task-1/2-stderr.log")
+        );
+
+        assert_eq!(runs[1].exit_code.as_deref(), Some("3"));
+        assert_eq!((runs[1].gates.passed, runs[1].gates.total), (1, 3));
+        assert_eq!(
+            runs[1].gates.first_failure,
+            Some(("test".to_owned(), "failed".to_owned()))
+        );
+
+        let mut value = snapshot();
+        value.agent_runs = runs;
+        let rendered = render(&value);
+        assert!(rendered.contains(
+            "agent_runs:\n  - #2 task=task-1 agent-exit=0 termination=exited gates=1/1 \
+             stdout=.forge/evidence/task-1/2-stdout.log stderr=.forge/evidence/task-1/2-stderr.log\n"
+        ));
+        assert!(rendered.contains(
+            "  - #5 task=task-2 agent-exit=3 termination=exited gates=1/3 failed-gate=test:failed \
+             stdout=.forge/evidence/task-2/5-stdout.log stderr=.forge/evidence/task-2/5-stderr.log\n"
+        ));
+        let audit_recent = rendered.find("audit_recent:").expect("audit_recent");
+        let agent_runs_start = rendered.find("agent_runs:").expect("agent_runs");
+        let worktrees = rendered.find("worktrees:").expect("worktrees");
+        assert!(audit_recent < agent_runs_start && agent_runs_start < worktrees);
+    }
+
+    #[test]
+    fn agent_runs_keep_only_the_newest() {
+        let events = (1..=u64::try_from(MAX_AGENT_RUNS).expect("bound") + 3)
+            .map(|sequence| finished(sequence, "task-1", "0"))
+            .collect::<Vec<_>>();
+        let runs = agent_runs(&events);
+        assert_eq!(runs.len(), MAX_AGENT_RUNS);
+        assert_eq!(runs[0].sequence, 4);
+        assert_eq!(
+            runs.last().map(|run| run.sequence),
+            Some(u64::try_from(MAX_AGENT_RUNS).expect("bound") + 3)
+        );
+    }
+
+    #[test]
+    fn pre_exit_field_runs_render_unknown_exit() {
+        let events = [event(7, AuditEventKind::AgentFinished, "legacy")];
+        let runs = agent_runs(&events);
+        assert_eq!(runs.len(), 1);
+        assert_eq!(runs[0].exit_code, None);
+        let mut value = snapshot();
+        value.agent_runs = runs;
+        assert!(render(&value).contains("  - #7 task=legacy agent-exit=unknown gates=0/0\n"));
+    }
+
+    #[test]
+    fn agent_runs_report_evidence_errors_and_truncation() {
+        let events = [event(3, AuditEventKind::AgentFinished, "task-1")
+            .with_field("exit_code", "none")
+            .with_field("termination", "timed_out")
+            .with_field("output_truncated", "true")
+            .with_field("evidence_error", "disk full\nretry")];
+        let mut value = snapshot();
+        value.agent_runs = agent_runs(&events);
+        assert!(render(&value).contains(
+            "  - #3 task=task-1 agent-exit=none termination=timed_out output-truncated=true \
+             gates=0/0 evidence-error=disk full retry\n"
+        ));
+    }
+
+    #[test]
+    fn empty_agent_runs_render_none() {
+        assert!(render(&snapshot()).contains("agent_runs:\n  - none\n"));
+    }
+
+    #[test]
+    fn agent_run_rendering_is_deterministic_and_bounded() {
+        let long = "x".repeat(8 * 1024);
+        let events = (1..=u64::try_from(MAX_AGENT_RUNS).expect("bound"))
+            .map(|sequence| {
+                event(sequence, AuditEventKind::AgentFinished, &long)
+                    .with_field("exit_code", "1")
+                    .with_field("stdout_log", long.as_str())
+                    .with_field("stderr_log", long.as_str())
+                    .with_field("evidence_error", long.as_str())
+            })
+            .collect::<Vec<_>>();
+        let mut value = snapshot();
+        value.agent_runs = agent_runs(&events);
+        let rendered = render(&value);
+        assert_eq!(rendered, render(&value));
+        assert!(rendered.len() <= 16 * 1024 + "\n[truncated]\n".len());
+        assert!(rendered.contains("agent_runs:\n  - #1 task=xxx"));
     }
 
     #[test]
