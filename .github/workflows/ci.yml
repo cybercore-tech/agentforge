@@ -45,6 +45,9 @@ jobs:
       - name: Self-test real-agent bridge
         run: ./scripts/agents/claude-code-bridge --self-test
 
+      - name: Self-test milestone tagger
+        run: ./scripts/tag-milestone --self-test
+
   stable-code:
     name: Stable code gate
     timeout-minutes: 30

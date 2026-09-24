@@ -529,7 +529,7 @@ Clippy, tests, and documentation tests. Do not bypass hooks or validation with `
 - [Release process](docs/RELEASE.md)
 - [Project site and updates feed](docs/SITE.md)
 - [Operations reference](docs/OPERATIONS.md): workflows, scripts, hooks, remotes, CI evidence,
-  agent runs, and recovery
+  tags, agent runs, and recovery
 - [Dogfooding log](docs/DOGFOODING.md)
 - [Package identity and distribution](docs/REGISTRY.md)
 - [Architecture notes](docs/architecture/README.md)
@@ -554,7 +554,8 @@ paths and restored reliable CI:
 - **P2-M027** a real agent (Claude Code) builds AgentForge through AgentForge. Its first
   milestone was **P1-M007** (task-declared required gates);
 - **P2-M028** the repository gate is hermetic under Git hooks and in worktrees;
-- **P2-M029** every agent run shows its exit code and keeps its full output as evidence.
+- **P2-M029** every agent run shows its exit code and keeps its full output as evidence;
+- **P2-M030** every completed milestone is tagged (`milestone/<ID>`) on its closure commit.
 
 Candidate next milestones, each still requiring its own approved plan:
 

@@ -1,0 +1,189 @@
+#!/usr/bin/env python3
+"""Create annotated milestone/<ID> tags on milestone closure commits.
+
+Usage:
+  scripts/tag-milestone <ID> [--dry-run]   tag one completed milestone
+  scripts/tag-milestone --all [--dry-run]  backfill every completed milestone
+  scripts/tag-milestone --self-test        check parsing on built-in samples
+
+The closure commit is the commit that introduced "Status: Complete" into the milestone's plan
+(.plans/<ID>-*.plan.md). For older plans that never recorded it, the last commit touching the plan
+is used. When a milestone has several plan files (for example a repair plan), the latest closure
+wins. The tag message carries the title and acceptance signal from docs/MILESTONES.md and the
+plan's completion record.
+
+Tags are never moved or deleted. An existing tag on the same commit is left alone; an existing tag
+on a different commit is an error. Pushing is explicit:
+  git push <remote> 'refs/tags/milestone/*'
+Release tags (vX.Y.Z) are a separate decision; this namespace never triggers the release workflow.
+"""
+
+import argparse
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+ROW = re.compile(r"^\| (P\d+-M\d{3}) \| ([a-z]+) \| (.+?) \| (.+) \|$")
+ID = re.compile(r"^P\d+-M\d{3}$")
+
+
+class TagError(Exception):
+    pass
+
+
+def git(*arguments, check=True):
+    completed = subprocess.run(["git", *arguments], cwd=ROOT, capture_output=True, text=True)
+    if check and completed.returncode != 0:
+        raise TagError(f"git {' '.join(arguments)} failed: {completed.stderr.strip()}")
+    return completed
+
+
+def parse_milestones(text):
+    rows = {}
+    for line in text.splitlines():
+        match = ROW.match(line)
+        if match:
+            milestone_id, status, title, signal = (part.strip() for part in match.groups())
+            rows[milestone_id] = {"status": status, "title": title, "signal": signal}
+    return rows
+
+
+def completion_record(plan_text):
+    """The plan's completion record, from its heading up to (not including) the Notes line."""
+    match = re.search(r"^## Completion record\s*\n(.*)", plan_text, re.MULTILINE | re.DOTALL)
+    if not match:
+        return ""
+    lines = []
+    for line in match.group(1).splitlines():
+        if line.startswith("Notes:") or line.startswith("## "):
+            break
+        lines.append(line.rstrip())
+    return "\n".join(lines).strip()
+
+
+def tag_message(milestone_id, row, record):
+    message = f"AgentForge {milestone_id} — {row['title']}\n\n{row['signal']}\n"
+    if record:
+        message += f"\n{record}\n"
+    return message
+
+
+def closure_commit(plans):
+    candidates = []
+    for plan in plans:
+        relative = plan.relative_to(ROOT).as_posix()
+        introduced = git("log", "--format=%H %ct", "--reverse", "-S", "Status: Complete", "--", relative)
+        lines = introduced.stdout.split()
+        if lines:
+            candidates.append((int(lines[1]), lines[0]))
+            continue
+        last = git("log", "-1", "--format=%H %ct", "--", relative).stdout.split()
+        if last:
+            candidates.append((int(last[1]), last[0]))
+    if not candidates:
+        return None
+    return max(candidates)[1]
+
+
+def plan_for(milestone_id):
+    plans = sorted((ROOT / ".plans").glob(f"{milestone_id}-*.plan.md"))
+    return plans
+
+
+def tag_one(milestone_id, rows, dry_run):
+    if not ID.match(milestone_id):
+        raise TagError(f"not a milestone ID: {milestone_id}")
+    row = rows.get(milestone_id)
+    if row is None:
+        raise TagError(f"{milestone_id} is not in docs/MILESTONES.md")
+    if row["status"] != "complete":
+        raise TagError(f"{milestone_id} is {row['status']}, not complete")
+    plans = plan_for(milestone_id)
+    if not plans:
+        raise TagError(f"{milestone_id} has no plan file")
+    commit = closure_commit(plans)
+    if commit is None:
+        raise TagError(f"{milestone_id}: no closure commit found")
+    if git("merge-base", "--is-ancestor", commit, "HEAD", check=False).returncode != 0:
+        raise TagError(f"{milestone_id}: closure commit {commit[:7]} is not in HEAD's history")
+    name = f"milestone/{milestone_id}"
+    existing = git("rev-parse", "--verify", "--quiet", f"refs/tags/{name}^{{commit}}", check=False)
+    if existing.returncode == 0:
+        if existing.stdout.strip() == commit:
+            print(f"{name}: already tags {commit[:7]}")
+            return False
+        raise TagError(f"{name} already tags {existing.stdout.strip()[:7]}, expected {commit[:7]}; not moving it")
+    record = "\n\n".join(filter(None, (completion_record(p.read_text(encoding="utf-8")) for p in plans)))
+    message = tag_message(milestone_id, row, record)
+    subject = git("log", "-1", "--format=%s", commit).stdout.strip()
+    if dry_run:
+        print(f"{name}: would tag {commit[:7]} ({subject})")
+        return False
+    subprocess.run(
+        ["git", "tag", "-a", name, "-F", "-", commit],
+        cwd=ROOT,
+        input=message,
+        text=True,
+        check=True,
+    )
+    print(f"{name}: tagged {commit[:7]} ({subject})")
+    return True
+
+
+def self_test():
+    rows = parse_milestones(
+        "| ID | Status | Milestone | Acceptance signal |\n"
+        "| --- | --- | --- | --- |\n"
+        "| P9-M001 | complete | Sample milestone | It works with `code`. |\n"
+        "| P9-M002 | active | Pending | Not yet. |\n"
+    )
+    assert rows["P9-M001"]["status"] == "complete"
+    assert rows["P9-M002"]["status"] == "active"
+    record = completion_record(
+        "# Plan\n\n## Completion record\n\nImplementation commit: `abc`\nCI run: `1`\n"
+        "Completed: 2026-09-24\nNotes:\nlong notes here\n"
+    )
+    assert record == "Implementation commit: `abc`\nCI run: `1`\nCompleted: 2026-09-24", record
+    message = tag_message("P9-M001", rows["P9-M001"], record)
+    assert message.startswith("AgentForge P9-M001 — Sample milestone\n\nIt works with `code`.\n")
+    assert "Completed: 2026-09-24" in message
+    for bad, expected in [("P9-M002", "not complete"), ("P9-M404", "not in docs"), ("nope", "not a milestone")]:
+        try:
+            tag_one(bad, rows, dry_run=True)
+        except TagError as error:
+            assert expected in str(error), (bad, error)
+        else:
+            raise AssertionError(f"{bad} was accepted")
+    print("tag-milestone self-test passed")
+    return 0
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Tag milestone closure commits.")
+    parser.add_argument("milestone", nargs="?")
+    parser.add_argument("--all", action="store_true")
+    parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--self-test", action="store_true")
+    arguments = parser.parse_args()
+    if arguments.self_test:
+        return self_test()
+    if bool(arguments.all) == bool(arguments.milestone):
+        parser.error("give exactly one milestone ID or --all")
+    rows = parse_milestones((ROOT / "docs/MILESTONES.md").read_text(encoding="utf-8"))
+    targets = sorted(m for m, row in rows.items() if row["status"] == "complete") if arguments.all else [arguments.milestone]
+    failures = 0
+    created = 0
+    for milestone_id in targets:
+        try:
+            created += tag_one(milestone_id, rows, arguments.dry_run)
+        except TagError as error:
+            failures += 1
+            print(f"error: {error}", file=sys.stderr)
+    print(f"tag-milestone: {created} created, {failures} error(s), {len(targets)} considered")
+    return 1 if failures else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

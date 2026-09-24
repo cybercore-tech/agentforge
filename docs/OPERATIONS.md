@@ -33,7 +33,7 @@ CI jobs:
 
 | Job | Checks |
 | --- | --- |
-| Repository policy | text policy, repository structure, plan-first policy, site feed sources (`scripts/site-updates`), agent bridge self-test |
+| Repository policy | text policy, repository structure, plan-first policy, site feed sources (`scripts/site-updates`), agent bridge and milestone tagger self-tests |
 | Stable code gate | `cargo fmt --check`, `cargo check`, `cargo clippy -D warnings`, `cargo test` (all `--locked`) |
 | MSRV 1.85.0 | `cargo check` and `cargo test` on the minimum supported Rust |
 | CLI smoke | `forge version`, `forge doctor`, `forged --version` |
@@ -66,6 +66,7 @@ gh workflow run 'AgentForge Pages' -R cybercore-tech/agentforge --ref main
 | `scripts/site-updates [--output]` | Builds the site's *What's new* feed from milestones, plans, and the changelog ([`SITE.md`](SITE.md)) |
 | `scripts/package-preflight` | Offline `cargo package` inspection of `agentforge-platform` ([`REGISTRY.md`](REGISTRY.md)) |
 | `scripts/ci-provider-github` | Reference CI provider for `forge ci observe` (GitHub CLI) |
+| `scripts/tag-milestone [<ID> \| --all] [--dry-run]` | Creates annotated `milestone/<ID>` tags on milestone closure commits (see Tags) |
 | `scripts/agents/claude-code-bridge` | Runs Claude Code as an AgentForge agent ([`AGENT_PROFILES.md`](AGENT_PROFILES.md#real-agents-the-claude-code-bridge)) |
 | `cargo run -p xtask -- validate` / `validate-plan-policy` | Repository structure and plan-first checks (used by the gate and CI) |
 
@@ -92,9 +93,31 @@ Every change follows [`AGENTS.md`](../AGENTS.md):
 5. `docs(...): close <ID>`: plan `Status: Complete` with a completion record, `docs/MILESTONES.md`
    row `complete`, evidence in `PROJECT_STATE.md` and `AGENT_HANDOFF.md`, and `.plans/ACTIVE`
    removed.
+6. Push the closure, and once it is green, tag it (see Tags).
 
 Every commit carries a detailed body: what changed, why, and the evidence. Closing a milestone also
 publishes it on the site at the next Pages deployment.
+
+## Tags
+
+| Namespace | Marks | Created by | Triggers |
+| --- | --- | --- | --- |
+| `milestone/<ID>` | The closure commit of a completed milestone | `scripts/tag-milestone` | Nothing |
+| `vX.Y.Z` | A release | An explicit release decision (`docs/RELEASE.md`) | The release workflow |
+
+```bash
+scripts/tag-milestone P2-M030                   # tag one milestone's closure commit
+scripts/tag-milestone --all --dry-run           # show the whole mapping without tagging
+git push origin refs/tags/milestone/P2-M030      # push one tag
+git push origin 'refs/tags/milestone/*'          # push all milestone tags
+git show milestone/P1-M007                       # title, acceptance signal, completion record
+git log --oneline milestone/P2-M028..milestone/P2-M029   # everything a milestone added
+```
+
+Each annotated tag points at the commit that introduced `Status: Complete` in the milestone's
+plan (or, for older plans, the plan's last commit). It carries the milestone's title, acceptance
+signal, and completion record. Tags are never moved or deleted. A conflicting existing tag is an
+error, not something to overwrite.
 
 ## Local `.forge/` setup (operator machine)
 

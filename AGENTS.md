@@ -16,6 +16,9 @@ These rules apply to every human or automated agent changing this repository.
 10. Do not weaken tests, lint, docs checks, or CI to make a change pass.
 11. Record exact implementation and validation evidence before milestone closure.
 12. After P0-M003 CI bootstrap, remote green status applies only to the exact commit SHA that produced it.
+13. Write a detailed commit body for every commit: what changed, why, and the evidence.
+14. After a milestone's closure commit is pushed and green, tag it: `scripts/tag-milestone <ID>`,
+    then `git push <remote> refs/tags/milestone/<ID>`. Milestone tags are never moved or deleted.
 
 ## Mechanical plan policy
 

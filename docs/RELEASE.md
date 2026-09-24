@@ -56,6 +56,12 @@ Each target produces an `agentforge-<version>-<target>.tar.gz` archive and a sib
 The GitHub release also contains a consolidated `SHA256SUMS` file. Artifacts are unsigned in this
 phase; signing and provenance attestations are future release-engineering work.
 
+## Milestone tags versus release tags
+
+`milestone/<ID>` tags mark milestone closure commits (ADR-0044, `scripts/tag-milestone`). They do
+not match the release workflow's `v*.*.*` trigger and never produce artifacts. Only a `vX.Y.Z` tag,
+created as an explicit release decision below, starts a release.
+
 ## Creating a release
 
 1. Update the workspace version and `CHANGELOG.md`.

@@ -48,6 +48,13 @@ worktrees whenever an agent's work is committed. Since P2-M028 the gate is herme
 If a gate in a task worktree ever misbehaves, check the main checkout's `.git/config`
 (`core.bare`, `[user]`) and the task branch history before anything else.
 
+## Milestone tags
+
+Every completed milestone is marked with an annotated `milestone/<ID>` tag on its closure commit
+(ADR-0044). Tagging is the last step of a closure, after the closure commit is pushed and green.
+Milestone tags are permanent project history: they are never moved or deleted, and they are kept
+separate from `vX.Y.Z` release tags.
+
 ## Escalation
 
 An agent must stop and request escalation when:
