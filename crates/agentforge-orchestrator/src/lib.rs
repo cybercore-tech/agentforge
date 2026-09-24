@@ -811,12 +811,17 @@ fn persist_execution(
     task_store
         .save(graph)
         .map_err(|error| SliceError::Preflight(error.to_string()))?;
-    for record in audit.records() {
-        audit_store
-            .append(record.event().clone())
-            .map_err(|error| SliceError::Preflight(error.to_string()))?;
-    }
-    Ok(())
+    // One batch under the audit append lock: another writer (the CLI, the daemon sweep) may have
+    // appended while the agent ran, and the attempt log is renumbered after it (P0-M013).
+    audit_store
+        .append_batch(
+            audit
+                .records()
+                .iter()
+                .map(|record| record.event().clone())
+                .collect(),
+        )
+        .map_err(|error| SliceError::Preflight(error.to_string()))
 }
 
 /// Runs a prepared task through the concrete process adapter and durable in-memory state/audit.

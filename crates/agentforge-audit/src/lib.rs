@@ -2,9 +2,11 @@
 
 use std::collections::BTreeMap;
 use std::fmt;
-use std::fs::{File, OpenOptions};
-use std::io::{self, Read, Write};
+use std::fs::{self, File, OpenOptions};
+use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
+use std::thread;
+use std::time::{Duration, Instant};
 
 const MAGIC: &[u8; 5] = b"AFAL\0";
 const FORMAT_VERSION: u16 = 1;
@@ -272,25 +274,82 @@ pub trait AuditStore {
 }
 
 /// A local append-only audit file.
+///
+/// Appends are coordinated across handles and processes (P0-M013): each append takes a short-held
+/// `<log>.lock`, re-reads and verifies whatever other writers appended since this handle last
+/// looked, and places the new event after them. An event numbered for this handle's stale view is
+/// renumbered (with a trailing `-<sequence>` in its ID) instead of corrupting the chain.
 #[derive(Debug)]
 pub struct FileAuditStore {
     path: PathBuf,
     log: AuditLog,
+    /// Verified bytes of the file this handle has read.
+    len: u64,
+}
+
+/// How long an append waits for another writer's append lock.
+const APPEND_LOCK_WAIT: Duration = Duration::from_secs(5);
+
+/// Exclusive, short-held append lock beside the log; removed on drop and never stolen.
+struct AppendLock {
+    path: PathBuf,
+}
+
+impl AppendLock {
+    fn acquire(log_path: &Path) -> Result<Self, AuditError> {
+        let mut name = log_path
+            .file_name()
+            .map(std::ffi::OsString::from)
+            .unwrap_or_default();
+        name.push(".lock");
+        let path = log_path.with_file_name(name);
+        let deadline = Instant::now() + APPEND_LOCK_WAIT;
+        loop {
+            match OpenOptions::new().write(true).create_new(true).open(&path) {
+                Ok(mut file) => {
+                    let _ = writeln!(file, "pid={}", std::process::id());
+                    return Ok(Self { path });
+                }
+                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+                    if Instant::now() >= deadline {
+                        return Err(AuditError::Io(io::Error::new(
+                            io::ErrorKind::WouldBlock,
+                            format!(
+                                "audit append lock {} is held by another writer; if no forge or \
+                                 forged process is running for this project, remove it",
+                                path.display()
+                            ),
+                        )));
+                    }
+                    thread::sleep(Duration::from_millis(2));
+                }
+                Err(error) => return Err(AuditError::Io(error)),
+            }
+        }
+    }
+}
+
+impl Drop for AppendLock {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.path);
+    }
+}
+
+/// Moves a trailing `-<old>` in an event ID to `-<new>`, keeping ID conventions after renumbering.
+fn renumber(mut event: AuditEvent, sequence: u64) -> AuditEvent {
+    let suffix = format!("-{}", event.sequence);
+    if let Some(stem) = event.event_id.strip_suffix(&suffix) {
+        event.event_id = format!("{stem}-{sequence}");
+    }
+    event.sequence = sequence;
+    event
 }
 impl FileAuditStore {
     /// Opens or creates a versioned audit file and verifies all existing records.
     pub fn open(path: impl Into<PathBuf>) -> Result<Self, AuditError> {
         let path = path.into();
         if !path.exists() {
-            let mut file = OpenOptions::new()
-                .create_new(true)
-                .write(true)
-                .open(&path)
-                .map_err(AuditError::Io)?;
-            file.write_all(MAGIC).map_err(AuditError::Io)?;
-            file.write_all(&FORMAT_VERSION.to_le_bytes())
-                .map_err(AuditError::Io)?;
-            file.sync_all().map_err(AuditError::Io)?;
+            create_atomically(&path)?;
         }
         let mut bytes = Vec::new();
         File::open(&path)
@@ -298,7 +357,115 @@ impl FileAuditStore {
             .read_to_end(&mut bytes)
             .map_err(AuditError::Io)?;
         let log = decode_log(&bytes)?;
-        Ok(Self { path, log })
+        let len = bytes.len() as u64;
+        Ok(Self { path, log, len })
+    }
+
+    /// Appends several contiguous, pre-numbered events (for example an attempt log) under one
+    /// lock, so no other writer interleaves. A batch numbered for this handle's stale view is
+    /// renumbered as a block.
+    pub fn append_batch(&mut self, events: Vec<AuditEvent>) -> Result<(), AuditError> {
+        let Some(first) = events.first().map(|event| event.sequence) else {
+            return Ok(());
+        };
+        for (offset, event) in events.iter().enumerate() {
+            validate_event(event)?;
+            if event.sequence != first + offset as u64 {
+                return Err(AuditError::Sequence {
+                    expected: first + offset as u64,
+                    actual: event.sequence,
+                });
+            }
+        }
+        let _lock = AppendLock::acquire(&self.path)?;
+        let stale = self.expected_sequence();
+        self.refresh()?;
+        let fresh = self.expected_sequence();
+        if first != fresh && first != stale {
+            return Err(AuditError::Sequence {
+                expected: fresh,
+                actual: first,
+            });
+        }
+        let placed = events
+            .into_iter()
+            .enumerate()
+            .map(|(offset, event)| renumber(event, fresh + offset as u64))
+            .collect();
+        self.write_records(placed)
+    }
+
+    fn expected_sequence(&self) -> u64 {
+        self.log.records.last().map_or(1, |r| r.event.sequence + 1)
+    }
+
+    /// Reads and verifies whatever other writers appended since this handle last looked.
+    fn refresh(&mut self) -> Result<(), AuditError> {
+        let mut file = File::open(&self.path).map_err(AuditError::Io)?;
+        let len = file.metadata().map_err(AuditError::Io)?.len();
+        if len < self.len {
+            return Err(AuditError::InvalidFormat(
+                "audit log shrank underneath this handle",
+            ));
+        }
+        if len == self.len {
+            return Ok(());
+        }
+        file.seek(SeekFrom::Start(self.len))
+            .map_err(AuditError::Io)?;
+        let mut bytes = Vec::new();
+        file.read_to_end(&mut bytes).map_err(AuditError::Io)?;
+        // Verify into a copy so a failed refresh leaves this handle unchanged (fail closed).
+        let mut log = self.log.clone();
+        decode_frames(&mut log, &bytes)?;
+        self.log = log;
+        self.len += bytes.len() as u64;
+        Ok(())
+    }
+
+    /// Chains, frames, writes (one write per call), syncs, and records already-placed events.
+    fn write_records(&mut self, events: Vec<AuditEvent>) -> Result<(), AuditError> {
+        let mut previous = self
+            .log
+            .records
+            .last()
+            .map_or([0; DIGEST_SIZE], |r| r.digest);
+        let mut buffer = Vec::new();
+        let mut records = Vec::with_capacity(events.len());
+        for event in events {
+            let body = encode_event(&event)?;
+            let mut input = body.clone();
+            input.extend_from_slice(&previous);
+            let current = digest(&input);
+            let mut frame = body;
+            frame.extend_from_slice(&previous);
+            frame.extend_from_slice(&current);
+            if frame.len() > MAX_RECORD {
+                return Err(AuditError::Limit("record"));
+            }
+            let length = u32::try_from(frame.len()).map_err(|_| AuditError::Limit("record"))?;
+            buffer.extend_from_slice(&length.to_le_bytes());
+            buffer.extend_from_slice(&frame);
+            records.push(AuditRecord {
+                event,
+                previous_digest: previous,
+                digest: current,
+            });
+            previous = current;
+        }
+        let mut file = OpenOptions::new()
+            .append(true)
+            .open(&self.path)
+            .map_err(AuditError::Io)?;
+        file.write_all(&buffer).map_err(AuditError::Io)?;
+        file.sync_all().map_err(AuditError::Io)?;
+        self.len += buffer.len() as u64;
+        for record in records {
+            self.log.next_sequence = record.event.sequence.saturating_add(1);
+            self.log.previous_digest = record.digest;
+            self.log.records.push(record);
+        }
+        Ok(())
     }
     /// Returns the backing path.
     #[must_use]
@@ -329,42 +496,17 @@ impl FileAuditStore {
 impl AuditStore for FileAuditStore {
     fn append(&mut self, event: AuditEvent) -> Result<&AuditRecord, AuditError> {
         validate_event(&event)?;
-        let expected = self.log.records.last().map_or(1, |r| r.event.sequence + 1);
-        if event.sequence != expected {
+        let _lock = AppendLock::acquire(&self.path)?;
+        let stale = self.expected_sequence();
+        self.refresh()?;
+        let fresh = self.expected_sequence();
+        if event.sequence != fresh && event.sequence != stale {
             return Err(AuditError::Sequence {
-                expected,
+                expected: fresh,
                 actual: event.sequence,
             });
         }
-        let previous = self
-            .log
-            .records
-            .last()
-            .map_or([0; DIGEST_SIZE], |r| r.digest);
-        let body = encode_event(&event)?;
-        let mut input = body.clone();
-        input.extend_from_slice(&previous);
-        let current = digest(&input);
-        let mut frame = body;
-        frame.extend_from_slice(&previous);
-        frame.extend_from_slice(&current);
-        if frame.len() > MAX_RECORD {
-            return Err(AuditError::Limit("record"));
-        }
-        let mut file = OpenOptions::new()
-            .append(true)
-            .open(&self.path)
-            .map_err(AuditError::Io)?;
-        let length = u32::try_from(frame.len()).map_err(|_| AuditError::Limit("record"))?;
-        file.write_all(&length.to_le_bytes())
-            .map_err(AuditError::Io)?;
-        file.write_all(&frame).map_err(AuditError::Io)?;
-        file.sync_all().map_err(AuditError::Io)?;
-        self.log.records.push(AuditRecord {
-            event,
-            previous_digest: previous,
-            digest: current,
-        });
+        self.write_records(vec![renumber(event, fresh)])?;
         Ok(self.log.records.last().expect("record was just pushed"))
     }
     fn records(&self) -> &[AuditRecord] {
@@ -581,8 +723,14 @@ fn decode_log(bytes: &[u8]) -> Result<AuditLog, AuditError> {
     if version != FORMAT_VERSION {
         return Err(AuditError::UnsupportedVersion(version));
     }
-    let mut p = 7;
     let mut log = AuditLog::new();
+    decode_frames(&mut log, &bytes[7..])?;
+    Ok(log)
+}
+
+/// Decodes and verifies frames as a continuation of `log`'s chain.
+fn decode_frames(log: &mut AuditLog, bytes: &[u8]) -> Result<(), AuditError> {
+    let mut p = 0;
     while p < bytes.len() {
         if bytes.len().saturating_sub(p) < 4 {
             return Err(AuditError::InvalidFormat("truncated frame length"));
@@ -614,7 +762,7 @@ fn decode_log(bytes: &[u8]) -> Result<AuditLog, AuditError> {
         }
         log.append_decoded(event, previous, current)?;
     }
-    Ok(log)
+    Ok(())
 }
 impl AuditLog {
     fn append_decoded(
@@ -663,4 +811,34 @@ fn digest(bytes: &[u8]) -> [u8; DIGEST_SIZE] {
         out[i * 8..i * 8 + 8].copy_from_slice(&h.to_le_bytes());
     }
     out
+}
+
+/// Creates an empty, versioned log without ever exposing a partial header: the header is written
+/// to a private temporary file that is hard-linked into place only if no log exists yet.
+fn create_atomically(path: &Path) -> Result<(), AuditError> {
+    static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let temporary = path.with_file_name(format!(
+        ".audit-create-{}-{}",
+        std::process::id(),
+        COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
+    let result = (|| {
+        let mut file = OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(&temporary)
+            .map_err(AuditError::Io)?;
+        let mut header = MAGIC.to_vec();
+        header.extend_from_slice(&FORMAT_VERSION.to_le_bytes());
+        file.write_all(&header).map_err(AuditError::Io)?;
+        file.sync_all().map_err(AuditError::Io)?;
+        match fs::hard_link(&temporary, path) {
+            Ok(()) => Ok(()),
+            // Another opener created it first; use theirs.
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => Ok(()),
+            Err(error) => Err(AuditError::Io(error)),
+        }
+    })();
+    let _ = fs::remove_file(&temporary);
+    result
 }

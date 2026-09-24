@@ -308,7 +308,7 @@ pub fn approve_task(
     {
         return Ok(source_head);
     }
-    let mut audit = open_existing_audit(root)?;
+    let mut audit = open_project_audit(root)?;
     let sequence = next_sequence(&audit);
     let mut event = AuditEvent::new(
         sequence,
@@ -353,7 +353,7 @@ pub fn transition_task(
         .get(task_id)
         .expect("transition retained task")
         .revision();
-    let mut audit = open_existing_audit(root)?;
+    let mut audit = open_project_audit(root)?;
     let sequence = next_sequence(&audit);
     let event = AuditEvent::new(
         sequence,
@@ -525,7 +525,7 @@ pub fn integrate_task(
         .integrate_expecting(task_id, target_branch, approved_head)
         .map_err(|error| OperatorError::new(error.to_string()))?;
 
-    let mut audit = open_existing_audit(root)?;
+    let mut audit = open_project_audit(root)?;
     let already_recorded = audit.records().iter().any(|record| {
         let event = record.event();
         event.kind() == AuditEventKind::IntegrationRecorded
@@ -570,10 +570,23 @@ fn load_graph(root: &Path) -> Result<TaskGraph, OperatorError> {
         .ok_or_else(|| OperatorError::new("task state snapshot is missing"))
 }
 
-fn open_existing_audit(root: &Path) -> Result<FileAuditStore, OperatorError> {
+/// Opens the project audit log, creating it on first use (P0-M013, finding 10).
+///
+/// `forge init` and `forge task create` do not create the log, so the first audited operator
+/// action does. The task snapshot must already exist, so a log is never created outside an
+/// initialized project.
+pub(crate) fn open_project_audit(root: &Path) -> Result<FileAuditStore, OperatorError> {
     let path = root.join(AUDIT_RELATIVE_PATH);
     if !path.is_file() {
-        return Err(OperatorError::new("audit log is missing"));
+        if !FileTaskStore::for_project_root(root).path().is_file() {
+            return Err(OperatorError::new(
+                "task state snapshot is missing; refusing to create an audit log",
+            ));
+        }
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|error| OperatorError::new(error.to_string()))?;
+        }
     }
     FileAuditStore::open(path).map_err(|error| OperatorError::new(error.to_string()))
 }

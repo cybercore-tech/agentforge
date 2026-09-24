@@ -252,6 +252,18 @@ fn running_daemon_expires_due_leases() {
     .expect("grant");
     let store = FileLeaseStore::for_project_root(&root);
     store.save(&book).expect("save");
+    // A real project: the task snapshot must exist before an audit log is created.
+    agentforge_state::TaskStore::save(
+        &agentforge_state::FileTaskStore::for_project_root(&root),
+        &agentforge_core::task::TaskGraph::from_tasks([agentforge_core::agent::AgentTask::new(
+            "P4-M004-T0001",
+            "P4-M004",
+            agentforge_core::agent::AgentRole::Implementer,
+            "sweep fixture",
+        )])
+        .expect("graph"),
+    )
+    .expect("task snapshot");
 
     let Some((server, _)) = start_foreground(&root) else {
         fs::remove_dir_all(root).expect("cleanup");

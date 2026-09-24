@@ -75,12 +75,14 @@ gates, review, accept, integrate. This file is the run log and the list of frict
    another shell) makes the execution's next append reuse a sequence number. The log then fails
    closed. P4-M004 keeps the daemon's own lease sweep out of the way by sharing the execution slot.
    The cross-process case needs an append lock or re-read-before-append in `agentforge-audit`.
-   **Open.**
+   **Resolved in P0-M013:** reproduction showed the stale append *corrupted* the log (the next open
+   failed the integrity check). Appends now take a short lock, verify other writers' new records,
+   and renumber stale events; attempt logs are appended as one batch (ADR-0047).
 10. **A fresh project cannot record its first approval.** Found by P4-M004's CLI test. `forge init`
     and `forge task create` do not create `.forge/audit.log`, and `forge task approve` requires it
     ("audit log is missing"). A task with a pre-execution approval therefore cannot be approved
-    before anything else has written the log. Lease operations create the log when missing; operator
-    approvals should too. **Open.**
+    before anything else has written the log. **Resolved in P0-M013:** operator actions create the
+    log on first use once the task snapshot exists.
 
 ## P1-M007 run log (2026-09-24)
 

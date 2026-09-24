@@ -1297,6 +1297,20 @@ mod tests {
         agentforge_state::FileLeaseStore::for_project_root(&root)
             .save(&book)
             .expect("save");
+        // A real project: the task snapshot must exist before an audit log is created.
+        agentforge_state::TaskStore::save(
+            &agentforge_state::FileTaskStore::for_project_root(&root),
+            &agentforge_core::task::TaskGraph::from_tasks([
+                agentforge_core::agent::AgentTask::new(
+                    "P4-M004-T0001",
+                    "P4-M004",
+                    agentforge_core::agent::AgentRole::Implementer,
+                    "sweep fixture",
+                ),
+            ])
+            .expect("graph"),
+        )
+        .expect("task snapshot");
         root
     }
 

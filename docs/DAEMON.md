@@ -132,8 +132,9 @@ reset, as the endpoint going away and keeps observing the stop (P2-M032).
 
 Since P4-M004 the daemon also expires due remote-worker leases every 5 seconds, recorded as
 `LeaseRecorded` audit events with actor `forged`. A sweep holds the execution slot for the few
-milliseconds it takes, and only when the slot is free. An execution has its own audit handle, and
-a concurrent append would reuse a sequence number. `stop` and new executions wait out an
+milliseconds it takes, and only when the slot is free. When this was added, an execution's own
+audit handle made a concurrent append unsafe. Since P0-M013 audit appends are coordinated
+(ADR-0047), and the slot rule is kept so sweeps stay out of executions' way. `stop` and new executions wait out an
 in-progress sweep instead of being refused. Daemon `run` and `launch` refuse leased tasks like the
 direct commands do (see [REMOTE_WORKERS.md](REMOTE_WORKERS.md#operating-leases)).
 

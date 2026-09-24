@@ -6,7 +6,7 @@
 //! transport exists, the operator acts for the worker when renewing or releasing a lease.
 
 use crate::{OperatorError, load_graph, next_sequence, validate_actor};
-use agentforge_audit::{AuditEvent, AuditEventKind, AuditStore, FileAuditStore};
+use agentforge_audit::{AuditEvent, AuditEventKind, AuditStore};
 use agentforge_core::remote::{
     LeaseBook, LeaseId, LeaseState, MAX_LEASE_DURATION_MS, RemoteWorkerDescriptor, RemoteWorkerId,
     TaskLease, WorkerCapability,
@@ -425,14 +425,7 @@ fn commit(
     changes: &[(&TaskLease, &str)],
     actor: &str,
 ) -> Result<(), OperatorError> {
-    // A lease grant can be a project's first audited action, so the audit log is created here
-    // when missing (task creation does not create it).
-    let audit_path = root.join(crate::AUDIT_RELATIVE_PATH);
-    if let Some(parent) = audit_path.parent() {
-        fs::create_dir_all(parent).map_err(|error| OperatorError::new(error.to_string()))?;
-    }
-    let mut audit =
-        FileAuditStore::open(audit_path).map_err(|error| OperatorError::new(error.to_string()))?;
+    let mut audit = crate::open_project_audit(root)?;
     FileLeaseStore::for_project_root(root)
         .save(book)
         .map_err(|error| OperatorError::new(error.to_string()))?;
