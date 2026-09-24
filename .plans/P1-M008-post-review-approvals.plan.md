@@ -1,6 +1,6 @@
 # Plan: P1-M008 — Post-review approvals bound to the reviewed commit
 
-Status: Draft
+Status: Approved
 Milestone: P1-M008
 Created: 2026-09-24
 Owner: AgentForge project
