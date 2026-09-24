@@ -120,6 +120,19 @@ failures on other hosts:
 
 Closure additionally requires repeated dispatched runs on the repair SHA with no failures.
 
+## Amendment 2 — Windows delete-pending teardown
+
+Repair `4f5a45e` passed its push run and three of four dispatched runs. Run `35961023320`
+(Windows) failed `stalled_client_does_not_block_stop` because `stop` returned
+`Io(PermissionDenied, "Access is denied.")`. Classification: semantic/test. On Windows a file whose
+deletion is still pending reports `Access is denied` instead of `NotFound`, so `stop` read the
+endpoint mid-removal and returned an error instead of continuing to observe teardown. This is also
+the most likely source of the historical Windows teardown `PermissionDenied` failures recorded
+since P2-M020. `Path::exists` has the same problem for the lock file: it reports a delete-pending
+lock as absent even though it still blocks re-creation. Repair: while waiting for a stop, treat
+`PermissionDenied` on the endpoint as "still tearing down", and count the lock as removed only on
+`NotFound`, all within the existing bound. No file-boundary change.
+
 ## Test-first matrix
 
 - With a `git` that sleeps one second on `PATH`, the foreground lifecycle and disconnected-client
