@@ -1,6 +1,6 @@
 # Plan: P1-M006 — Concurrent batch launch of disjoint ready tasks
 
-Status: Approved
+Status: Complete
 Milestone: P1-M006
 Created: 2026-09-23
 Owner: AgentForge project
@@ -155,16 +155,31 @@ README lists the command. ADR-0039 records the decision.
 
 ## Acceptance criteria
 
-- [ ] Disjoint ready tasks launch concurrently from one command.
-- [ ] Overlapping and over-limit tasks are deferred deterministically.
-- [ ] State and audit persistence has a single owner, with no lost updates.
-- [ ] Per-task failures are isolated and match single-task semantics.
-- [ ] Full local validation and exact-SHA CI evidence are recorded before closure.
+- [x] Disjoint ready tasks launch concurrently from one command.
+- [x] Overlapping and over-limit tasks are deferred deterministically.
+- [x] State and audit persistence has a single owner, with no lost updates.
+- [x] Per-task failures are isolated and match single-task semantics.
+- [x] Full local validation and exact-SHA CI evidence are recorded before closure.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
+Implementation commit: `b54f47acbd01ac1fb40da3302cb53b02fbeefda3`
+CI run: `35962553757` (push) plus dispatched `35962575356`, `35962581675`, `35962587949`
+CI result: green across all seven jobs in all four runs, including the portable rendezvous
+concurrency test on Ubuntu, macOS, and Windows.
+Completed: 2026-09-23
 Notes:
+`plan_launch_batch` defers ready tasks that overlap a task already in the batch or still `running`,
+and tasks beyond `--max` (default 4, allowed 1-16). `launch_batch_persisted` prepares and persists
+tasks sequentially, runs each agent and its gates on a scoped thread, and finalizes all outcomes in
+task-ID order under a single coordinator. `forge task launch-batch` exposes it. Concurrency is proven
+by rendezvous fixtures: each agent waits for the other to start, so serial execution fails. New tests:
+four scheduler tests, six orchestrator batch tests (concurrency, deferral, skipped approval,
+isolated adapter failure, gate failure, malformed-gate abort, capacity), and two portable CLI tests.
+One amendment (`01b1c6b`) added deferral for overlap with running tasks. This is the first use of
+`agentforge-scheduler` outside its own tests.
+
+Found during closure verification, outside this milestone: `forge daemon launch` and `daemon run`
+use the 2-second client read timeout for requests that execute the agent synchronously. With a
+3-second agent the client reports "stale daemon metadata ... remove it" while the live daemon is
+still running the task. Recorded as a known issue for a separate milestone.

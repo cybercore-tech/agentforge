@@ -2,8 +2,14 @@
 
 ## Repository state
 
-- Active milestone: none. P1-M005 — CI observation wiring — is complete. Next planned: P1-M006
-  (concurrent batch launch), before more P4 transport work.
+- Active milestone: none. P1-M006 — Concurrent batch launch — is complete, finishing the
+  integration pass (P2-M023, P1-M004, P1-M005, P1-M006). Known issue to address next: the daemon
+  client's 2-second read timeout breaks `daemon run`/`daemon launch` for agents longer than 2 seconds
+  (see PROJECT_STATE.md). Phase 4 transport work should follow that fix.
+- P1-M006 implementation commit: `b54f47a`; exact CI `35962553757`, `35962575356`, `35962581675`,
+  and `35962587949` are green on all seven jobs. `forge task launch-batch` runs disjoint ready tasks
+  concurrently under a single state coordinator.
+- P1-M005 — CI observation wiring — is complete.
 - P1-M005 implementation commit: `f1edf54`; exact CI `35962029748`, `35962047802`, and
   `35962053963` are green on all seven jobs. `forge ci observe` records classified exact-SHA CI
   evidence through the reviewed `.forge/ci/provider.conf`; `scripts/ci-provider-github` is the

@@ -7,12 +7,31 @@
 
 ## Current phase
 
-Phase 1/2 integration pass — connect existing subsystems before further Phase 4 transport work.
+Integration pass complete; next is the daemon run-request timeout fix, then Phase 4 transport.
 
 ## Active milestone
 
-No active milestone. P1-M005 — CI observation wiring — is complete. Operators record exact-SHA CI
-evidence with classified failed jobs through `forge ci observe`.
+No active milestone. P1-M006 — Concurrent batch launch — is complete. The integration pass
+recommended after P4-M003 is finished: gates (P1-M004), CI observation (P1-M005), and the scheduler
+(P1-M006) now all run in operator paths, and CI is reliable again (P2-M023).
+
+## Known issues
+
+- The daemon client applies its 2-second read timeout to `daemon run` and `daemon launch`, which
+  execute the agent synchronously. An agent that runs longer than 2 seconds makes the client report
+  "stale daemon metadata ... remove it" while the live daemon is still running the task. Reproduced
+  2026-09-23 with a 3-second agent profile. Needs its own milestone before daemon-based dogfooding.
+- `AgentTask.required_gates` is not enforced; P1-M004 runs every project gate instead.
+
+## P1-M006 completion evidence
+
+- Approved plan: `.plans/P1-M006-concurrent-batch-launch.plan.md` (one amendment).
+- Implementation commit: `b54f47acbd01ac1fb40da3302cb53b02fbeefda3`.
+- Exact CI on `b54f47a`: push run `35962553757` and dispatched repeats `35962575356`,
+  `35962581675`, and `35962587949` are green across all seven jobs.
+- `forge task launch-batch` runs disjoint ready tasks concurrently under a single state
+  coordinator and defers overlapping, running-overlap, and over-limit tasks deterministically.
+  Rendezvous fixtures prove concurrency on all three platforms.
 
 ## P1-M005 completion evidence
 
