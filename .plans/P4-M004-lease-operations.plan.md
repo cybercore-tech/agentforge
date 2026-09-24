@@ -1,6 +1,6 @@
 # Plan: P4-M004 — Remote-worker leases in the CLI and daemon
 
-Status: Draft
+Status: Approved
 Milestone: P4-M004
 Created: 2026-09-24
 Owner: AgentForge project
