@@ -289,6 +289,18 @@ cleared environment plus only explicit values. Profiles never grant task authori
 capability, approval, worktree, and audit checks still apply. See
 [`docs/AGENT_PROFILES.md`](docs/AGENT_PROFILES.md).
 
+Declare the project's quality gates the same way, one reviewed profile per gate in
+`.forge/gates/<gate-id>.conf`. After an agent exits with status zero, `forge run`,
+`forge task launch`, and the daemon equivalents run every gate in lexical order inside the task's
+worktree and record `GateFinished` audit evidence. Any failing gate marks the task `failed` and the
+command exits non-zero. A malformed gate profile stops the run before the agent starts.
+
+```bash
+forge gate list /path/to/project
+```
+
+See [`docs/GATES.md`](docs/GATES.md).
+
 For a supervised local daemon:
 
 ```bash

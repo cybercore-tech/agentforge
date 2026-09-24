@@ -54,6 +54,7 @@ fn main() -> ExitCode {
         Some("blueprint") => blueprint_command(args.collect()),
         Some("task") => task_command(args.collect()),
         Some("agent") => agent_command(args.collect()),
+        Some("gate") => gate_command(args.collect()),
         Some("run") => run_command(args.collect()),
         Some("daemon") => daemon_command(args.collect()),
         Some("worktree") => worktree_command(args.collect()),
@@ -72,8 +73,65 @@ fn main() -> ExitCode {
 
 fn print_usage() {
     println!(
-        "usage: forge <version|doctor|status|init <root>|intake <root> [--task] [--input-file <path>]|blueprint validate <root>|task create|inspect|launch|diff|approve|integrate|accept|cancel|retry ...|agent list|validate|inspect <root> [<profile>]|run <root> <task-id> <absolute-executable> [--interactive] [--pty]|run <root> <task-id> --profile <profile> [--interactive] [--pty]|daemon start|restart|status|run|launch|stop ...|worktree create|inspect|list|retire ...|hud <root> [--watch [--interval-ms <milliseconds>]]>"
+        "usage: forge <version|doctor|status|init <root>|intake <root> [--task] [--input-file <path>]|blueprint validate <root>|task create|inspect|launch|diff|approve|integrate|accept|cancel|retry ...|agent list|validate|inspect <root> [<profile>]|gate list <root>|run <root> <task-id> <absolute-executable> [--interactive] [--pty]|run <root> <task-id> --profile <profile> [--interactive] [--pty]|daemon start|restart|status|run|launch|stop ...|worktree create|inspect|list|retire ...|hud <root> [--watch [--interval-ms <milliseconds>]]>"
     );
+}
+
+fn gate_command(arguments: Vec<String>) -> ExitCode {
+    match arguments.first().map(String::as_str) {
+        Some("list") if arguments.len() == 2 => {
+            match agentforge_gate::GateProfileStore::new(&arguments[1]).list() {
+                Ok(gates) => {
+                    if gates.is_empty() {
+                        println!("no gates");
+                    }
+                    for gate in gates {
+                        println!(
+                            "gate id={} executable={} arguments={} environment={} timeout_ms={} max_output_bytes={}",
+                            gate.name(),
+                            gate.executable().display(),
+                            gate.arguments().len(),
+                            gate.environment().len(),
+                            gate.timeout().as_millis(),
+                            gate.max_output_bytes()
+                        );
+                    }
+                    ExitCode::SUCCESS
+                }
+                Err(error) => {
+                    eprintln!("gate list failed: {error}");
+                    ExitCode::from(1)
+                }
+            }
+        }
+        _ => {
+            eprintln!("gate requires: list <root>");
+            print_usage();
+            ExitCode::from(2)
+        }
+    }
+}
+
+/// Prints one line per orchestrated gate and returns whether all gates passed.
+fn report_gates(execution: &agentforge_orchestrator::ProcessExecution) -> bool {
+    for gate in &execution.gates {
+        println!(
+            "gate {} outcome={} exit={}",
+            gate.name(),
+            gate.outcome_label(),
+            gate.exit_code()
+                .map_or_else(|| "none".to_owned(), |code| code.to_string())
+        );
+    }
+    let passed = execution.gates.iter().filter(|gate| gate.passed()).count();
+    println!("gates={passed}/{}", execution.gates.len());
+    if !execution.gates_passed() {
+        eprintln!(
+            "gates failed; task {} was marked failed with gate evidence in the audit log",
+            execution.report.task_id()
+        );
+    }
+    execution.gates_passed()
 }
 
 fn agent_command(arguments: Vec<String>) -> ExitCode {
@@ -1287,6 +1345,7 @@ fn task_launch_command(arguments: &[String]) -> ExitCode {
                 launch.worktree_created,
                 launch.worktree.path().display()
             );
+            let gates_passed = report_gates(&launch.execution);
             println!(
                 "recovery: inspect with `forge task inspect {} {}` and review with `forge task diff {} {}`",
                 root.display(),
@@ -1294,7 +1353,11 @@ fn task_launch_command(arguments: &[String]) -> ExitCode {
                 root.display(),
                 task_id
             );
-            ExitCode::SUCCESS
+            if gates_passed {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::from(1)
+            }
         }
         Err(error) => {
             eprintln!("task launch failed: {error}");
@@ -1736,7 +1799,11 @@ fn run_command(arguments: Vec<String>) -> ExitCode {
                 execution.report.task_id(),
                 execution.report.termination()
             );
-            ExitCode::SUCCESS
+            if report_gates(&execution) {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::from(1)
+            }
         }
         Err(error) => {
             eprintln!("task run failed: {error}");

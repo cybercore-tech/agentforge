@@ -4,6 +4,10 @@ use std::fs;
 use std::io::{self, Read, Write};
 
 fn main() {
+    if std::env::var("AGENTFORGE_CLI_FIXTURE_MODE").as_deref() == Ok("fail") {
+        eprintln!("fixture failing by request");
+        std::process::exit(3);
+    }
     if std::env::var("AGENTFORGE_CLI_FIXTURE_MODE").as_deref() == Ok("interactive") {
         let mut input = Vec::new();
         io::stdin()

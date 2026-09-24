@@ -4,7 +4,9 @@ use agentforge_adapter::{AgentProfileStore, ProcessAdapter, ProcessAdapterConfig
 use agentforge_audit::FileAuditStore;
 use agentforge_core::task::TaskId;
 use agentforge_operator::approved_boundaries;
-use agentforge_orchestrator::{execute_process_persisted, launch_process_persisted};
+use agentforge_orchestrator::{
+    ProcessExecution, execute_process_persisted, launch_process_persisted,
+};
 use std::fmt;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
@@ -676,12 +678,13 @@ fn execute_with_adapter(
             )
             .map_err(|error| DaemonError::Execution(error.to_string()))?;
             Ok(format!(
-                "task={} termination={:?} base={} worktree-created={} path={}",
+                "task={} termination={:?} base={} worktree-created={} path={} {}",
                 launch.execution.report.task_id(),
                 launch.execution.report.termination(),
                 launch.base_commit,
                 launch.worktree_created,
-                launch.worktree.path().display()
+                launch.worktree.path().display(),
+                gate_summary(&launch.execution)
             ))
         }
         None => {
@@ -695,12 +698,26 @@ fn execute_with_adapter(
             )
             .map_err(|error| DaemonError::Execution(error.to_string()))?;
             Ok(format!(
-                "task={} termination={:?}",
+                "task={} termination={:?} {}",
                 execution.report.task_id(),
-                execution.report.termination()
+                execution.report.termination(),
+                gate_summary(&execution)
             ))
         }
     }
+}
+
+fn gate_summary(execution: &ProcessExecution) -> String {
+    let passed = execution.gates.iter().filter(|gate| gate.passed()).count();
+    let mut summary = format!("gates={passed}/{}", execution.gates.len());
+    if let Some(failed) = execution.gates.iter().find(|gate| !gate.passed()) {
+        summary.push_str(&format!(
+            " failed-gate={} outcome={}",
+            failed.name(),
+            failed.outcome_label()
+        ));
+    }
+    summary
 }
 
 #[derive(Debug)]

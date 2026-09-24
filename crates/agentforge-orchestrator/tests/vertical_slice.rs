@@ -404,3 +404,181 @@ fn git(root: &std::path::Path, args: &[&str]) {
         String::from_utf8_lossy(&output.stderr)
     );
 }
+
+struct PreparedRepo {
+    root: PathBuf,
+    task_id: TaskId,
+    task_store: FileTaskStore,
+    manager: WorktreeManager,
+}
+
+fn prepared_repo(gates: &[(&str, &str)]) -> PreparedRepo {
+    let root = unique_temp_repo();
+    git(&root, &["init", "-q"]);
+    git(
+        &root,
+        &["config", "user.email", "agentforge@example.invalid"],
+    );
+    git(&root, &["config", "user.name", "AgentForge Test"]);
+    std::fs::write(root.join("README.md"), "fixture\n").unwrap();
+    git(&root, &["add", "README.md"]);
+    git(&root, &["commit", "-qm", "fixture"]);
+    let gate_dir = root.join(agentforge_gate::GATE_PROFILE_RELATIVE_PATH);
+    for (id, body) in gates {
+        std::fs::create_dir_all(&gate_dir).unwrap();
+        std::fs::write(gate_dir.join(format!("{id}.conf")), body).unwrap();
+    }
+    let mut task = AgentTask::new(
+        "P1-M004-T0001",
+        "P1-M004",
+        AgentRole::Implementer,
+        "gate fixture",
+    );
+    task.capabilities = vec![Capability::RunLocalCommands];
+    task.allowed_paths = vec!["README.md".into()];
+    let task_id = TaskId::parse(task.task_id.clone()).unwrap();
+    let task_store = FileTaskStore::from_path(root.join("tasks.snapshot"));
+    task_store
+        .save(&TaskGraph::from_tasks([task]).unwrap())
+        .unwrap();
+    let manager = WorktreeManager::new(&root).unwrap();
+    manager
+        .create(&WorktreeSpec::new(task_id.clone(), "HEAD"))
+        .unwrap();
+    PreparedRepo {
+        root,
+        task_id,
+        task_store,
+        manager,
+    }
+}
+
+fn run_prepared(
+    repo: &PreparedRepo,
+    agent: &str,
+) -> (
+    Result<agentforge_orchestrator::ProcessExecution, SliceError>,
+    FileAuditStore,
+) {
+    let adapter = ProcessAdapter::new(ProcessAdapterConfig::new("agent", agent)).unwrap();
+    let mut audit_store = FileAuditStore::open(repo.root.join("audit.log")).unwrap();
+    let result = execute_process_persisted(
+        &repo.root,
+        &repo.task_store,
+        &mut audit_store,
+        &repo.task_id,
+        &adapter,
+        &[],
+    );
+    (result, audit_store)
+}
+
+fn task_state(repo: &PreparedRepo) -> TaskState {
+    repo.task_store
+        .load()
+        .unwrap()
+        .unwrap()
+        .records()
+        .next()
+        .unwrap()
+        .state()
+}
+
+fn events_of(store: &FileAuditStore, kind: AuditEventKind) -> Vec<AuditEvent> {
+    store
+        .records()
+        .iter()
+        .map(|record| record.event().clone())
+        .filter(|event| event.kind() == kind)
+        .collect()
+}
+
+fn cleanup(repo: PreparedRepo) {
+    let _ = repo.manager.retire(&repo.task_id);
+    std::fs::remove_dir_all(repo.root).unwrap();
+}
+
+#[test]
+fn passing_gates_record_evidence_and_keep_the_task_running() {
+    let repo = prepared_repo(&[("check", "version=1\nexecutable=/usr/bin/true\n")]);
+    let (result, audit) = run_prepared(&repo, "/usr/bin/true");
+    let execution = result.unwrap();
+    assert_eq!(execution.gates.len(), 1);
+    assert!(execution.gates_passed());
+    assert_eq!(task_state(&repo), TaskState::Running);
+    let gates = events_of(&audit, AuditEventKind::GateFinished);
+    assert_eq!(gates.len(), 1);
+    assert_eq!(
+        gates[0].fields().get("gate").map(String::as_str),
+        Some("check")
+    );
+    assert_eq!(
+        gates[0].fields().get("outcome").map(String::as_str),
+        Some("passed")
+    );
+    assert!(events_of(&audit, AuditEventKind::FailureClassified).is_empty());
+    cleanup(repo);
+}
+
+#[test]
+fn a_failing_gate_fails_the_task_with_durable_evidence() {
+    let repo = prepared_repo(&[
+        ("a-lint", "version=1\nexecutable=/usr/bin/false\n"),
+        ("b-test", "version=1\nexecutable=/usr/bin/true\n"),
+    ]);
+    let (result, audit) = run_prepared(&repo, "/usr/bin/true");
+    let execution = result.unwrap();
+    assert!(!execution.gates_passed());
+    let names = execution
+        .gates
+        .iter()
+        .map(|gate| gate.name().to_owned())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        names,
+        ["a-lint", "b-test"],
+        "all gates run in lexical order"
+    );
+    assert_eq!(task_state(&repo), TaskState::Failed);
+    let outcomes = events_of(&audit, AuditEventKind::GateFinished)
+        .iter()
+        .map(|event| event.fields().get("outcome").cloned().unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(outcomes, ["failed", "passed"]);
+    let failures = events_of(&audit, AuditEventKind::FailureClassified);
+    assert_eq!(failures.len(), 1);
+    assert_eq!(
+        failures[0].fields().get("stage").map(String::as_str),
+        Some("gates")
+    );
+    assert_eq!(
+        failures[0].fields().get("gate").map(String::as_str),
+        Some("a-lint")
+    );
+    cleanup(repo);
+}
+
+#[test]
+fn malformed_gate_profile_fails_before_the_task_runs() {
+    let repo = prepared_repo(&[("broken", "version=1\nexecutable=relative/path\n")]);
+    let (result, audit) = run_prepared(&repo, "/usr/bin/true");
+    let error = result.unwrap_err();
+    assert!(
+        matches!(&error, SliceError::Preflight(reason) if reason.contains("gate configuration")),
+        "{error:?}"
+    );
+    assert_eq!(task_state(&repo), TaskState::Pending);
+    assert!(audit.records().is_empty());
+    cleanup(repo);
+}
+
+#[test]
+fn gates_are_skipped_when_the_agent_exits_nonzero() {
+    let repo = prepared_repo(&[("check", "version=1\nexecutable=/usr/bin/false\n")]);
+    let (result, audit) = run_prepared(&repo, "/usr/bin/false");
+    let execution = result.unwrap();
+    assert!(execution.gates.is_empty());
+    assert_eq!(task_state(&repo), TaskState::Running);
+    assert!(events_of(&audit, AuditEventKind::GateFinished).is_empty());
+    cleanup(repo);
+}

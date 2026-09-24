@@ -1,10 +1,11 @@
 //! A bounded, provider-neutral single-agent orchestration flow.
 
-use agentforge_adapter::{AdapterRequest, AgentAdapter, ExecutionReport};
+use agentforge_adapter::{AdapterRequest, AgentAdapter, ExecutionReport, ExecutionTermination};
 use agentforge_audit::{AuditEvent, AuditEventKind, AuditLog};
 use agentforge_audit::{AuditStore, FileAuditStore};
 use agentforge_core::agent::{AgentTask, ApprovalBoundary, Capability};
 use agentforge_core::task::{TaskGraph, TaskId, TaskState};
+use agentforge_gate::{GateDefinition, GateOutcome, GateProfileStore, GateReport, GateRunner};
 use agentforge_policy::{ApprovalGrant, PolicyDecision, PolicyEngine, PolicyRequest};
 use agentforge_state::{FileTaskStore, TaskStore};
 use agentforge_worktree::{WorktreeManager, WorktreeSpec, WorktreeStatus};
@@ -110,6 +111,71 @@ pub struct ProcessExecution {
     pub report: ExecutionReport,
     /// Durable audit log containing ordered stage evidence.
     pub audit: AuditLog,
+    /// Project gate results in lexical gate order. Empty when the project declares no gates or
+    /// the agent did not exit successfully.
+    pub gates: Vec<GateRun>,
+}
+
+impl ProcessExecution {
+    /// Returns whether every executed gate passed. True when no gate ran.
+    #[must_use]
+    pub fn gates_passed(&self) -> bool {
+        self.gates.iter().all(GateRun::passed)
+    }
+}
+
+/// Evidence from one orchestrated gate.
+#[derive(Debug)]
+pub enum GateRun {
+    /// The gate process ran and produced a bounded report.
+    Reported(GateReport),
+    /// The gate process could not be run; this counts as a failure.
+    Errored {
+        /// Gate name.
+        name: String,
+        /// Runner error.
+        error: String,
+    },
+}
+
+impl GateRun {
+    /// Returns the gate name.
+    #[must_use]
+    pub fn name(&self) -> &str {
+        match self {
+            Self::Reported(report) => report.name(),
+            Self::Errored { name, .. } => name,
+        }
+    }
+
+    /// Returns whether the gate passed.
+    #[must_use]
+    pub fn passed(&self) -> bool {
+        matches!(self, Self::Reported(report) if report.outcome() == GateOutcome::Passed)
+    }
+
+    /// Returns a stable outcome label for evidence and operator output.
+    #[must_use]
+    pub fn outcome_label(&self) -> &'static str {
+        match self {
+            Self::Reported(report) => match report.outcome() {
+                GateOutcome::Passed => "passed",
+                GateOutcome::Failed => "failed",
+                GateOutcome::TimedOut => "timed_out",
+                GateOutcome::OutputLimitExceeded => "output_limit_exceeded",
+            },
+            Self::Errored { .. } => "error",
+        }
+    }
+
+    /// Returns the gate exit code when the platform provided one.
+    #[must_use]
+    pub fn exit_code(&self) -> Option<i32> {
+        match self {
+            Self::Reported(report) => report.exit_code(),
+            Self::Errored { .. } => None,
+        }
+    }
 }
 
 /// Result of preparing a managed worktree and launching one foreground process.
@@ -356,6 +422,14 @@ fn execute_process_attempt<A: AgentAdapter>(
         .task()
         .clone();
     preflight_repository(&root, &task).map_err(|error| (error, audit.clone()))?;
+    // Gate configuration is validated before any run side effect so a malformed profile can
+    // never leave a task running without its required evidence.
+    let gates = GateProfileStore::new(&root).list().map_err(|error| {
+        (
+            SliceError::Preflight(format!("gate configuration: {error}")),
+            audit.clone(),
+        )
+    })?;
     graph
         .transition(task_id, TaskState::Running)
         .map_err(|error| (SliceError::Preflight(error.to_string()), audit.clone()))?;
@@ -395,7 +469,20 @@ fn execute_process_attempt<A: AgentAdapter>(
                 "observed",
             )
             .map_err(|error| (error, audit.clone()))?;
-            Ok(ProcessExecution { report, audit })
+            let agent_succeeded = report.termination() == ExecutionTermination::Exited
+                && report.exit_code() == Some(0);
+            let gate_runs = if agent_succeeded {
+                run_gates(&gates, report.worktree_path())
+            } else {
+                Vec::new()
+            };
+            record_gate_evidence(graph, task_id, &task, &gate_runs, &mut audit)
+                .map_err(|error| (error, audit.clone()))?;
+            Ok(ProcessExecution {
+                report,
+                audit,
+                gates: gate_runs,
+            })
         }
         Err(error) => {
             let _ = graph.transition(task_id, TaskState::Failed);
@@ -410,6 +497,97 @@ fn execute_process_attempt<A: AgentAdapter>(
             .map_err(|append_error| (append_error, audit.clone()))?;
             Err((SliceError::Policy(error.to_string()), audit))
         }
+    }
+}
+
+fn run_gates(gates: &[GateDefinition], worktree: &Path) -> Vec<GateRun> {
+    let runner = GateRunner;
+    gates
+        .iter()
+        .map(|gate| match runner.run(gate, worktree) {
+            Ok(report) => GateRun::Reported(report),
+            Err(error) => GateRun::Errored {
+                name: gate.name().to_owned(),
+                error: error.to_string(),
+            },
+        })
+        .collect()
+}
+
+/// Appends one `GateFinished` event per gate and fails the task when any gate did not pass.
+fn record_gate_evidence(
+    graph: &mut TaskGraph,
+    task_id: &TaskId,
+    task: &AgentTask,
+    gates: &[GateRun],
+    audit: &mut AuditLog,
+) -> Result<(), SliceError> {
+    for gate in gates {
+        let sequence = audit.next_sequence();
+        let mut event = AuditEvent::new(
+            sequence,
+            format!("gate-finished-{sequence}"),
+            AuditEventKind::GateFinished,
+            "orchestrator",
+            1,
+        )
+        .with_task_id(task.task_id.clone())
+        .with_field("gate", gate.name())
+        .with_field("outcome", gate.outcome_label())
+        .with_field(
+            "exit_code",
+            gate.exit_code()
+                .map_or_else(|| "none".to_owned(), |code| code.to_string()),
+        );
+        event = match gate {
+            GateRun::Reported(report) => event.with_field(
+                "output_truncated",
+                if report.output_truncated() {
+                    "true"
+                } else {
+                    "false"
+                },
+            ),
+            GateRun::Errored { error, .. } => event.with_field("error", audit_text(error)),
+        };
+        audit
+            .append(event)
+            .map_err(|error| SliceError::Preflight(error.to_string()))?;
+    }
+    if let Some(failed) = gates.iter().find(|gate| !gate.passed()) {
+        graph
+            .transition(task_id, TaskState::Failed)
+            .map_err(|error| SliceError::Preflight(error.to_string()))?;
+        let sequence = audit.next_sequence();
+        let event = AuditEvent::new(
+            sequence,
+            format!("gate-failed-{sequence}"),
+            AuditEventKind::FailureClassified,
+            "orchestrator",
+            1,
+        )
+        .with_task_id(task.task_id.clone())
+        .with_field("stage", SliceStage::Gates.as_str())
+        .with_field("gate", failed.name())
+        .with_field("outcome", failed.outcome_label());
+        audit
+            .append(event)
+            .map_err(|error| SliceError::Preflight(error.to_string()))?;
+    }
+    Ok(())
+}
+
+/// Audit fields must be non-empty, bounded, and free of control characters.
+fn audit_text(value: &str) -> String {
+    let text: String = value
+        .chars()
+        .map(|c| if c.is_control() { ' ' } else { c })
+        .take(512)
+        .collect();
+    if text.trim().is_empty() {
+        "unspecified".to_owned()
+    } else {
+        text
     }
 }
 
