@@ -7,7 +7,9 @@
 
 ## Current phase
 
-Integration pass, daemon fixes, and repository move complete; next is Phase 4 remote-worker wiring.
+Self-hosting. AgentForge milestones can now be implemented by a real agent (Claude Code) through
+AgentForge itself, with hermetic gates, audited evidence, and operator review. Next candidates: more
+agent-built milestones, Phase 4 remote-worker wiring, the P3 tool gateway, and P5 signed releases.
 
 ## Active milestone
 
@@ -49,6 +51,8 @@ agent fails. `docs/OPERATIONS.md` is the single operations reference.
   plan's completion record and `docs/DOGFOODING.md`.
 
 ## Known issues
+
+None open. Resolved dogfooding findings are tracked in `docs/DOGFOODING.md`.
 
 
 ## P2-M025 completion evidence
