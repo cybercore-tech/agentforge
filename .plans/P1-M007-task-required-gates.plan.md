@@ -20,6 +20,30 @@ but orchestration ignores it: P1-M004 runs every project gate for every task. Af
    any agent starts. The batch path reports that task as `Skipped` with the same reason and keeps
    launching its siblings.
 
+## Amendment 1: blueprint default gates (2026-09-24)
+
+Found by the implementing agent in attempt `P1-M007-T0002`. The work was complete and all 27
+orchestrator tests passed, but 8 CLI tests failed with `required gate is not configured: full`.
+Cause: `forge init` writes a blueprint whose default gate is `full`, and
+`agentforge_intake::build_task` copies blueprint defaults into `required_gates` whenever the task
+names none. No `full` profile is ever created, so with strict preflight nearly every CLI-created
+task would fail. The original compatibility analysis ("tasks without required gates") missed this.
+Classification: semantic/test (plan defect).
+
+Rule added: **blueprint default gates are copied into a task only when a matching
+`.forge/gates/<name>.conf` profile exists in the project; unconfigured defaults are dropped
+silently. Explicit gates (`--gate`, or task gates entered in guided intake) are kept as given and
+stay strict at preflight.** `build_task`'s two call sites (`forge task create` and guided intake)
+pass the project root so the configured profiles can be checked. The default blueprint template is
+unchanged.
+
+The agent boundary widens to `crates/agentforge-intake/src/lib.rs`,
+`crates/agentforge-cli/src/main.rs` (call sites only), `crates/agentforge-cli/tests/intake_commands.rs`,
+and `docs/BLUEPRINT.md`. Added test rows: a default gate with a profile is copied; a default gate
+without a profile is dropped; an explicit unconfigured `--gate` is kept (and later fails
+preflight). The retry runs as task `P1-M007-T0003` on a fresh worktree, and attempt `T0002` is kept
+as evidence.
+
 ## Non-goals
 
 - No change to the gate profile format, `GateProfileStore`, the gate runner, or the task contract
@@ -76,6 +100,10 @@ None.
 - `crates/agentforge-orchestrator/tests/batch_launch.rs`
 - `docs/GATES.md`
 - `docs/TASK_CONTRACT.md`
+- `crates/agentforge-intake/src/lib.rs` (amendment 1)
+- `crates/agentforge-cli/src/main.rs` (amendment 1, `build_task` call sites only)
+- `crates/agentforge-cli/tests/intake_commands.rs` (amendment 1)
+- `docs/BLUEPRINT.md` (amendment 1)
 - closure records: `docs/MILESTONES.md`, `docs/DOGFOODING.md`, `CHANGELOG.md`, `PROJECT_STATE.md`,
   `AGENT_HANDOFF.md`
 
