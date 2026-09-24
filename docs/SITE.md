@@ -13,6 +13,8 @@ The **What's new** section (`#updates`) shows:
 - **In progress**: every milestone whose status is `active`;
 - **Phase progress**: completed/total milestones per phase;
 - **Coming in the next release**: the CHANGELOG's `[Unreleased]` Added, Changed, and Fixed entries.
+  Right after a release, when `[Unreleased]` is empty, it reads "Nothing unreleased since vX.Y.Z
+  (date)" with a link to that GitHub release (`latest_release` in the feed, P5-M001).
 
 Nothing in it is written by hand. `scripts/site-updates` (Python 3, standard library only) builds
 `site/updates.json` from records every milestone already maintains:
@@ -23,6 +25,7 @@ Nothing in it is written by hand. `scripts/site-updates` (Python 3, standard lib
 | `.plans/<ID>-*.plan.md` `Completed: YYYY-MM-DD` | Completion dates |
 | Last commit touching the plan | Fallback date for older plans, and ordering within a day |
 | `CHANGELOG.md` `[Unreleased]` | Upcoming release notes |
+| `CHANGELOG.md` first `## [X.Y.Z] - date` heading | `latest_release` (version and date) |
 
 The feed is a build artifact: the Pages workflow generates it (with full Git history) before
 upload, and `site/updates.json` is gitignored. The CI repository-policy job also runs the

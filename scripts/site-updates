@@ -6,7 +6,8 @@ The feed is built only from records every milestone closure already maintains:
 - docs/MILESTONES.md: phases and their milestone tables (ID, status, title, signal);
 - .plans/<ID>-*.plan.md: the completion date ("Completed: YYYY-MM-DD"), falling back to the
   date of the last commit that touched the plan file;
-- CHANGELOG.md: the Unreleased section's Added/Changed/Fixed entries.
+- CHANGELOG.md: the Unreleased section's Added/Changed/Fixed entries, and the latest released
+  version and date (the first `## [X.Y.Z] - YYYY-MM-DD` heading).
 
 Standard library only. Exits non-zero instead of writing an empty or partial feed.
 """
@@ -110,6 +111,14 @@ def parse_unreleased(text):
     return groups
 
 
+def parse_latest_release(text):
+    """Return the first versioned CHANGELOG heading as {version, date}, or None."""
+    match = re.search(r"^## \[(\d+\.\d+\.\d+)\] - (\d{4}-\d{2}-\d{2})\s*$", text, re.MULTILINE)
+    if not match:
+        return None
+    return {"version": match.group(1), "date": match.group(2)}
+
+
 def build():
     milestones_text = (ROOT / "docs/MILESTONES.md").read_text(encoding="utf-8")
     changelog_text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
@@ -145,6 +154,7 @@ def build():
         "recent": recent,
         "in_progress": [m for m in everything if m["status"] == "active"],
         "unreleased": parse_unreleased(changelog_text),
+        "latest_release": parse_latest_release(changelog_text),
     }
 
 

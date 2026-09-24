@@ -7,8 +7,9 @@ It treats models as replaceable workers—not as the source of truth. The durabl
 the repository: plans, task contracts, permissions, isolated worktrees, quality-gate evidence,
 CI observations, audit records, and human decisions. 🧭
 
-> **Status:** `0.0.1-alpha` · P2-M025 canonical repository move complete · pre-release,
-> incomplete, and not release-ready
+> **Status:** `0.1.0-alpha` · first tagged release
+> ([v0.1.0](https://github.com/cybercore-tech/agentforge/releases/tag/v0.1.0)) · alpha: evolving
+> APIs, local-first, not for unattended production use
 >
 > **Canonical repository:** [`cybercore-tech/agentforge`](https://github.com/cybercore-tech/agentforge).
 > The earlier [`darkstardevx/agentforge`](https://github.com/darkstardevx/agentforge) holds history

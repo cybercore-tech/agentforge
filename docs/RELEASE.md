@@ -32,7 +32,7 @@ anything, and a passing archive check does not authorize registry publication.
 ## Version policy
 
 The workspace version is the release version. Tags must use `vMAJOR.MINOR.PATCH` and must match the
-workspace version exactly. The current line is `0.0.x` because APIs and operator workflows are still
+workspace version exactly. The current line is `0.1.x` (first tagged release `v0.1.0`) because APIs and operator workflows are still
 evolving.
 
 - Patch releases contain compatible fixes and documentation corrections.
@@ -71,8 +71,8 @@ created as an explicit release decision below, starts a release.
 5. Create and push the matching tag, for example:
 
    ```bash
-   git tag -a v0.0.1 -m "AgentForge v0.0.1"
-   git push origin v0.0.1
+   git tag -a v0.1.0 -m "AgentForge v0.1.0"
+   git push origin v0.1.0
    ```
 
 6. Verify the four build jobs, checksums, and generated GitHub release before announcing it.

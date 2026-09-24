@@ -95,3 +95,9 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 | P1-M005 | complete | CI observation wiring | Operators record exact-SHA CI evidence and classified failed jobs in the audit log through a reviewed provider command, without CI gaining task authority. |
 | P1-M006 | complete | Concurrent batch launch | Disjoint ready tasks launch concurrently from one command with a single state coordinator; overlapping and over-limit tasks are deferred deterministically. |
 | P1-M007 | complete | Task-declared required gates | Tasks run exactly their declared gates, missing gate profiles fail preflight before any side effect, and blueprint defaults need a configured profile; implemented by a real agent through AgentForge. |
+
+## Phase 5 — release and deployment orchestration
+
+| ID | Status | Milestone | Acceptance signal |
+| --- | --- | --- | --- |
+| P5-M001 | active | First release v0.1.0 | `v0.1.0` is published from green CI with four checksummed archives, and version metadata, CHANGELOG, and docs agree on `0.1.0`. |

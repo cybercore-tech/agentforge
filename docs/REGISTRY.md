@@ -2,7 +2,7 @@
 
 ## Current status
 
-AgentForge is a `0.0.x` alpha and is not published to crates.io. The workspace crates are
+AgentForge is a `0.1.x` alpha and is not published to crates.io. The workspace crates are
 deliberately marked `publish = false`; the supported public distribution is the GitHub release
 archive containing the `forge` and `forged` binaries. Local development may also install those
 binaries with `cargo install --path` from a checked-out repository.

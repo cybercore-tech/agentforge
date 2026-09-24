@@ -2,8 +2,8 @@
 
 ## Current release
 
-- Workspace version: `0.0.1`
-- Release line: `0.0.x` alpha
+- Workspace version: `0.1.0`
+- Release line: `0.1.x` alpha; `v0.1.0` is the first tagged release (P5-M001)
 
 ## Current phase
 

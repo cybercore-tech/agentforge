@@ -6,6 +6,11 @@ All notable AgentForge changes are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-09-24
+
+The first tagged release. AgentForge now builds and integrates its own milestones through a real
+coding agent (Claude Code), with hermetic gates, audited agent evidence, and operator review.
+
 ### Added
 
 - An `agent_runs:` section in `forge hud` listing the five most recent agent runs with exit code,
@@ -62,7 +67,7 @@ All notable AgentForge changes are documented here. The format follows
   worktree (setting `core.bare`, injecting `[user]`, committing fixtures), and checkouts sharing a
   Cargo target directory running each other's binaries (P2-M028).
 
-## [0.0.1] - 2026-09-20
+## 0.0.1 - 2026-09-20 (never tagged)
 
 ### Added
 
@@ -76,10 +81,11 @@ All notable AgentForge changes are documented here. The format follows
 
 ### Notes
 
+- No `v0.0.1` tag or GitHub release was ever created; these changes first shipped in `v0.1.0`.
 - This is an early development release. The `forged` daemon remains a placeholder identity binary,
   and the workspace crates are not published to crates.io.
 - Release artifacts are intended for evaluation and controlled local use, not unattended production
   deployment.
 
-[Unreleased]: https://github.com/cybercore-tech/agentforge/compare/v0.0.1...HEAD
-[0.0.1]: https://github.com/cybercore-tech/agentforge/releases/tag/v0.0.1
+[Unreleased]: https://github.com/cybercore-tech/agentforge/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/cybercore-tech/agentforge/releases/tag/v0.1.0

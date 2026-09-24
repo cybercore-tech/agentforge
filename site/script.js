@@ -119,6 +119,14 @@
       entries.forEach((entry) => list.append(richText("li", "", entry)));
       unreleased.append(list);
     });
+    if (!unreleased.childElementCount && feed.latest_release) {
+      const { version, date } = feed.latest_release;
+      const note = element("p", "unreleased-empty", `Nothing unreleased since `);
+      const link = element("a", "", `v${version}`);
+      link.href = `https://github.com/cybercore-tech/agentforge/releases/tag/v${version}`;
+      note.append(link, document.createTextNode(` (${date}).`));
+      unreleased.append(note);
+    }
 
     summary.textContent = `${feed.totals.complete} of ${feed.totals.total} planned milestones shipped. Generated from the repository's milestone records, plans, and changelog when the site was published.`;
     grid.hidden = false;
