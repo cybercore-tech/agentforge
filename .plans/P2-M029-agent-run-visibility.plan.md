@@ -90,12 +90,18 @@ None.
 - `scripts/agents/claude-code-bridge`
 - `docs/OPERATIONS.md`
 - `docs/AGENT_PROFILES.md`
+- `docs/SCHEDULING.md` (amendment 1: batch exit-status rule)
 - `docs/DOGFOODING.md`
 - `README.md`
 - `CHANGELOG.md`
 - `docs/MILESTONES.md`
 - `PROJECT_STATE.md`
 - `AGENT_HANDOFF.md`
+
+## Amendment 1
+
+`docs/SCHEDULING.md` states that a non-zero agent exit does not fail `forge task launch-batch`.
+That rule changes in this milestone, so the file joins the boundary to keep the docs accurate.
 
 ## Test-first matrix
 
