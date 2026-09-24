@@ -1,6 +1,6 @@
 # Plan: P1-M005 — CI observation and failure classification in the operator path
 
-Status: Draft
+Status: Approved
 Milestone: P1-M005
 Created: 2026-09-23
 Owner: AgentForge project
