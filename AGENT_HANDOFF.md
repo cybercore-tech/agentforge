@@ -2,9 +2,17 @@
 
 ## Repository state
 
-- Active milestone: none. P2-M024 — Daemon long-running requests — is complete. Canonical repository:
-  `cybercore-tech/agentforge` (local `origin`); the old `darkstardevx/agentforge` is kept as the
-  `darkstardevx` remote. Next: P2-M025 repository identity update, then Phase 4 transport.
+- Active milestone: none. P2-M025 — Canonical repository identity — is complete. Canonical repository:
+  `cybercore-tech/agentforge` (local `origin`, HTTPS); the historical `darkstardevx/agentforge` is
+  kept as the `darkstardevx` remote. Next candidates: P4 daemon/CLI lease wiring, then a same-host
+  worker process.
+- P2-M025 implementation commit: `e840557`; dispatched CI `35964790564`, `35964797514`, and
+  `35964804756` are green, and Pages run `35964788019` deployed. Push-triggered workflows still do not
+  fire on the new repository; dispatch `AgentForge CI` (and `AgentForge Pages` for site changes)
+  with `gh workflow run ... --ref main`.
+- External docs now exist: Wiki page `src/orchestration/agentforge.md` and darknotes
+  `Dev/Rust/AgentForge/AgentForge.md`. Keep both current with real work.
+- P2-M024 — Daemon long-running requests — is complete.
 - P2-M024 implementation commit: `5ef03f1`; dispatched CI `35964099187`, `35964105073`, and
   `35964110929` are green on all seven jobs. Push-triggered workflows did not fire on the new
   repository at closure time; use `gh workflow run 'AgentForge CI' --ref main` until they do.

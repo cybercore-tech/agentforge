@@ -7,23 +7,34 @@
 
 ## Current phase
 
-Integration pass and daemon fixes complete; next is the repository identity update (P2-M025), then Phase 4 transport.
+Integration pass, daemon fixes, and repository move complete; next is Phase 4 remote-worker wiring.
 
 ## Active milestone
 
-No active milestone. P2-M024 — Daemon long-running requests — is complete. The canonical repository
-is now `https://github.com/cybercore-tech/agentforge` with Pages at
-`https://cybercore-tech.github.io/agentforge/`; `darkstardevx/agentforge` holds the history up to
-`976c4f9`.
+No active milestone. P2-M025 — Canonical repository identity — is complete. The canonical repository
+is `https://github.com/cybercore-tech/agentforge` with Pages at
+`https://cybercore-tech.github.io/agentforge/`; `darkstardevx/agentforge` is the historical
+location up to `976c4f9` (ADR-0041).
 
 ## Known issues
 
-- Repository metadata, README links, the Pages site, and `docs/REGISTRY.md` still point at
-  `darkstardevx`. Planned as P2-M025.
-- Pushes to `cybercore-tech/agentforge` did not trigger `push` workflows on 2026-09-23 (no push
-  events were recorded for the new repository). CI evidence was collected through
+- Pushes to `cybercore-tech/agentforge` are recorded by GitHub but do not trigger `push` workflows
+  (observed for every push on 2026-09-23). CI and Pages evidence is collected with
   `workflow_dispatch` on the same head.
 - `AgentTask.required_gates` is not enforced; P1-M004 runs every project gate instead.
+
+## P2-M025 completion evidence
+
+- Approved plan: `.plans/P2-M025-canonical-repository-identity.plan.md` (one amendment).
+- Implementation commit: `e84055726e6ab739dd1635c5a01a22c2dbd87cbf`.
+- Dispatched CI on `e840557`: `35964790564`, `35964797514`, and `35964804756` are green across all
+  seven jobs; Pages run `35964788019` deployed the updated site, and the live site links to the new
+  repository.
+- Metadata, README (status, capabilities, roadmap, docs map), CHANGELOG, registry docs, and the site
+  now name the canonical repository. The package preflight regression from P1-M004/P1-M005 is
+  repaired.
+- External docs: Cybercore Wiki AgentForge page (`97ad157`) and darknotes note
+  `Dev/Rust/AgentForge/AgentForge.md` (`ba52343`).
 
 ## P2-M024 completion evidence
 

@@ -1,6 +1,6 @@
 # Plan: P2-M025 — Canonical repository identity on cybercore-tech
 
-Status: Approved
+Status: Complete
 Milestone: P2-M025
 Created: 2026-09-23
 Owner: AgentForge project
@@ -125,15 +125,27 @@ CHANGELOG unreleased entries; REGISTRY and RELEASE URLs; ADR-0041.
 
 ## Acceptance criteria
 
-- [ ] All repository-owned links and metadata name `cybercore-tech/agentforge`.
-- [ ] README reflects the current capabilities and roadmap.
-- [ ] Pages deploys from the new repository with correct links.
-- [ ] Full local validation and exact-SHA CI evidence are recorded before closure.
+- [x] All repository-owned links and metadata name `cybercore-tech/agentforge`.
+- [x] README reflects the current capabilities and roadmap.
+- [x] Pages deploys from the new repository with correct links.
+- [x] Full local validation and exact-SHA CI evidence are recorded before closure.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
+Implementation commit: `e840557` (full SHA recorded in PROJECT_STATE.md)
+CI run: `35964790564`, `35964797514`, `35964804756`; Pages `35964788019` (all dispatched on
+`cybercore-tech/agentforge`)
+CI result: green across all seven jobs in all three runs; Pages deployed from the new repository.
+Completed: 2026-09-23
 Notes:
+Repository metadata, README, CHANGELOG, `docs/REGISTRY.md`, and the Pages site now name
+`cybercore-tech/agentforge`. Only two intentional notes mention the historical `darkstardevx`
+location. `cargo metadata` reports the new repository and homepage. The live site at
+`https://cybercore-tech.github.io/agentforge/` serves seven links to the new repository in
+`index.html` and the new README URL in `script.js`. README "What works today", roadmap, and docs map
+now cover P1-M004 to P2-M025, and CHANGELOG Unreleased covers the same span. Amendment 1 repaired
+the package preflight regression introduced by P1-M004 and P1-M005 (missing `agentforge-ci` and
+`agentforge-gate` patch entries); `./scripts/package-preflight` passes. Push events to the new
+repository still do not trigger workflows, so all evidence is from dispatched runs on the same
+head. Outside the repository, the Cybercore Wiki gained an AgentForge page (Wiki `97ad157`) and
+darknotes gained `Dev/Rust/AgentForge/AgentForge.md` (darknotes `ba52343`).
