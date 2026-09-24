@@ -1,6 +1,6 @@
 # Plan: P1-M005 — CI observation and failure classification in the operator path
 
-Status: Approved
+Status: Complete
 Milestone: P1-M005
 Created: 2026-09-23
 Owner: AgentForge project
@@ -152,16 +152,26 @@ reference provider. README lists the command. ADR-0038 records the decision.
 
 ## Acceptance criteria
 
-- [ ] `forge ci observe` records exact-SHA CI evidence and classified failures in the audit log.
-- [ ] Stale, missing, and ambiguous evidence is never recorded.
-- [ ] Classification never mutates task state.
-- [ ] The reference provider observes a real AgentForge run.
-- [ ] Full local validation and exact-SHA CI evidence are recorded before closure.
+- [x] `forge ci observe` records exact-SHA CI evidence and classified failures in the audit log.
+- [x] Stale, missing, and ambiguous evidence is never recorded.
+- [x] Classification never mutates task state.
+- [x] The reference provider observes a real AgentForge run.
+- [x] Full local validation and exact-SHA CI evidence are recorded before closure.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
+Implementation commit: `f1edf54ec0a473e73df2a3006cd50c80315b72dd`
+CI run: `35962029748` (push) plus dispatched `35962047802` and `35962053963`
+CI result: green across all seven jobs in all three runs.
+Completed: 2026-09-23
 Notes:
+`forge ci observe` loads the reviewed `.forge/ci/provider.conf`, runs the existing exact-SHA monitor
+once, and records one `CiObserved` event plus one `FailureClassified(stage=ci)` event per failed
+job. Missing, ambiguous, and malformed evidence records nothing, and task state is never changed.
+Exit codes: 0 success, 1 other conclusion or error, 3 pending, 2 usage. `scripts/ci-provider-github`
+reports the most recent run for a workflow and SHA. Dogfooded against this repository from a scratch
+project, it recorded run `35960725620` for `1eb3b0f` as a failure and classified the MSRV job
+`semantic_test` (the P2-M023 teardown-race panic). It recorded `29bc804` as success and `69bc572`
+as cancelled. New tests: six provider-profile tests and six portable CLI tests using fixture
+provider modes. One boundary amendment (`4687e08`) added the platform `Cargo.toml` and made the audit
+log be created on first observation. This is the first use of `agentforge-ci` outside its own tests.

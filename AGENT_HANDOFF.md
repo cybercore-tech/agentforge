@@ -2,9 +2,13 @@
 
 ## Repository state
 
-- Active milestone: none. P1-M004 — Orchestrated gate evidence — is complete. Next planned:
-  P1-M005 (CI observation wiring), then P1-M006 (concurrent batch launch), before more P4
-  transport work.
+- Active milestone: none. P1-M005 — CI observation wiring — is complete. Next planned: P1-M006
+  (concurrent batch launch), before more P4 transport work.
+- P1-M005 implementation commit: `f1edf54`; exact CI `35962029748`, `35962047802`, and
+  `35962053963` are green on all seven jobs. `forge ci observe` records classified exact-SHA CI
+  evidence through the reviewed `.forge/ci/provider.conf`; `scripts/ci-provider-github` is the
+  reference provider.
+- P1-M004 — Orchestrated gate evidence — is complete.
 - P1-M004 implementation commit: `aa30746`; exact CI `35961539333`, `35961557663`, and
   `35961562338` are green on all seven jobs. Gates in `.forge/gates/` now run automatically after
   a successful agent in `forge run`, `forge task launch`, and the daemon paths, and a failing gate

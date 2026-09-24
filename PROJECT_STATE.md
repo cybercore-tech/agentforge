@@ -11,8 +11,19 @@ Phase 1/2 integration pass — connect existing subsystems before further Phase 
 
 ## Active milestone
 
-No active milestone. P1-M004 — Orchestrated gate evidence — is complete. Configured project gates
-now run in every run and launch path and fail the task when they do not pass.
+No active milestone. P1-M005 — CI observation wiring — is complete. Operators record exact-SHA CI
+evidence with classified failed jobs through `forge ci observe`.
+
+## P1-M005 completion evidence
+
+- Approved plan: `.plans/P1-M005-ci-observation-wiring.plan.md` (one amendment).
+- Implementation commit: `f1edf54ec0a473e73df2a3006cd50c80315b72dd`.
+- Exact CI on `f1edf54`: push run `35962029748` and dispatched repeats `35962047802` and
+  `35962053963` are green across all seven jobs.
+- `forge ci observe` records `CiObserved` plus `FailureClassified(stage=ci)` per failed job. It
+  never changes task state. `scripts/ci-provider-github` is the opt-in GitHub reference provider.
+- Dogfooding against this repository classified the MSRV failure in run `35960725620` as
+  `semantic_test`.
 
 ## P1-M004 completion evidence
 
