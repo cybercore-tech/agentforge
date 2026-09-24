@@ -42,6 +42,9 @@ jobs:
       - name: Validate site updates feed sources
         run: ./scripts/site-updates --output "$RUNNER_TEMP/updates.json"
 
+      - name: Self-test real-agent bridge
+        run: ./scripts/agents/claude-code-bridge --self-test
+
   stable-code:
     name: Stable code gate
     timeout-minutes: 30

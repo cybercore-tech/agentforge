@@ -50,3 +50,47 @@ both stdin and stdout to be terminals; it fails closed in CI pipes and daemon ex
 
 The normal task preflight still applies: the task must exist, its managed worktree must be clean
 and verified, and required approvals and capabilities must already be present.
+
+## Real agents: the Claude Code bridge
+
+Real coding agents read natural-language instructions, not the length-delimited
+`agentforge-task-prompt-v1` document, and a task's changes only reach `forge task diff` and
+`forge task integrate` once they are committed on the task branch.
+`scripts/agents/claude-code-bridge` (Python 3, standard library) closes that gap for Claude Code:
+
+1. It strictly decodes the task prompt from stdin; malformed input exits 2 before any agent runs.
+2. It runs `claude -p` headless in the task worktree. The instructions cover the goal, non-goals,
+   allowed and forbidden paths, expected outputs, evidence, gates, and the repository's
+   `AGENTS.md`. Permissions are `acceptEdits` plus a bounded tool allowlist: read/edit tools,
+   `cargo`, `./scripts/gate.sh`, read-only `git`, and `ls`. `git commit`/`push`/`reset`/`checkout`/
+   `clean` and web tools are denied.
+3. It lists every changed path and refuses (exit 4, nothing committed, worktree kept) if any path
+   is outside the task's allowed paths or inside a forbidden one.
+4. It commits the changes itself, using the detailed message the agent writes to a scratch file,
+   plus `AgentForge-Task`/`AgentForge-Agent` trailers. The repository's pre-commit hook runs on
+   that commit, and a hook or gate failure exits 5.
+
+Exit codes: 0 committed, 2 invalid input, 3 no changes, 4 path violation, 5 commit/gate failure;
+anything else is Claude Code's own exit status. As with any adapter, exit 0 is evidence, not
+acceptance: project gates, review, and `forge task accept` still follow.
+
+Profile (the environment is cleared, so pass what Claude Code and your toolchain need):
+
+```text
+# .forge/agents/claude-code.conf
+version=1
+executable=/usr/bin/python3
+argument=/path/to/agentforge/scripts/agents/claude-code-bridge
+argument=--claude
+argument=/absolute/path/to/claude
+env.PATH=/usr/bin:/bin:/home/operator/.local/bin
+env.HOME=/home/operator
+timeout_ms=3600000
+max_output_bytes=8388608
+```
+
+Add `argument=--model` and `argument=<model>` to pin a model. Use `--dry-run` (reads a prompt on
+stdin and prints the instructions) to preview what the agent will be told, and `--self-test` (also
+run in CI) to check the decoder and path rules. The path check runs after the agent, so it is a
+commit guard, not a sandbox. See [`DOGFOODING.md`](DOGFOODING.md) for a full run on AgentForge
+itself.

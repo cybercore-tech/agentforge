@@ -333,6 +333,12 @@ forge task launch-batch /path/to/project --profile local-agent [--max 4]
 
 See [`docs/SCHEDULING.md`](docs/SCHEDULING.md#concurrent-batch-launch).
 
+Run a real coding agent: `scripts/agents/claude-code-bridge` lets Claude Code work as an AgentForge
+agent. It translates the task contract into instructions, refuses to commit changes outside the
+task's paths, and commits the agent's work so gates, review, and integration apply. See
+[`docs/AGENT_PROFILES.md`](docs/AGENT_PROFILES.md#real-agents-the-claude-code-bridge) and the
+[dogfooding log](docs/DOGFOODING.md).
+
 For a supervised local daemon:
 
 ```bash
@@ -541,7 +547,8 @@ paths and restored reliable CI:
 - **P1-M006** `forge task launch-batch` runs disjoint tasks concurrently;
 - **P2-M024** daemon executions of any length, with keepalives and a single execution slot;
 - **P2-M025** the canonical repository moved to `cybercore-tech/agentforge`;
-- **P2-M026** the project site gained a generated *What's new* section.
+- **P2-M026** the project site gained a generated *What's new* section;
+- **P2-M027** a real agent (Claude Code) builds AgentForge through AgentForge.
 
 Candidate next milestones, each still requiring its own approved plan:
 

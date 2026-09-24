@@ -1,0 +1,360 @@
+#!/usr/bin/env python3
+"""Run Claude Code as an AgentForge agent.
+
+AgentForge starts this bridge inside the task's verified worktree with a cleared environment and
+writes an `agentforge-task-prompt-v1` document to stdin. The bridge:
+
+1. decodes the prompt strictly (malformed input exits 2 before any agent runs);
+2. turns it into natural-language instructions and runs `claude -p` headless in the worktree;
+3. checks every changed path against the task's allowed and forbidden paths;
+4. commits the changes, so the repository's own pre-commit hook and gate run on them.
+
+Exit codes: 0 committed, 2 invalid input or configuration, 3 no changes, 4 path violation,
+5 commit or pre-commit gate failure; any other code is Claude Code's own exit status.
+
+Options:
+  --claude PATH   Claude Code executable (default: `claude` on PATH)
+  --model NAME    model to request (default: Claude Code's configured default)
+  --dry-run       print the instructions and command, run nothing
+  --self-test     check the prompt decoder and path rules, then exit
+"""
+
+import argparse
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+HEADER = b"agentforge-task-prompt-v1\n"
+SCALARS = ["contract_version", "task_id", "milestone_id", "primary_role", "goal"]
+LISTS = [
+    "non_goals",
+    "dependency_task_ids",
+    "allowed_paths",
+    "forbidden_paths",
+    "capabilities",
+    "required_approvals",
+    "required_gates",
+    "expected_outputs",
+    "evidence_requirements",
+]
+ALLOWED_TOOLS = [
+    "Read",
+    "Edit",
+    "Write",
+    "Glob",
+    "Grep",
+    "Bash(cargo *)",
+    "Bash(./scripts/gate.sh *)",
+    "Bash(./scripts/check-text-files)",
+    "Bash(git status *)",
+    "Bash(git diff *)",
+    "Bash(git log *)",
+    "Bash(ls *)",
+]
+DISALLOWED_TOOLS = [
+    "Bash(git commit *)",
+    "Bash(git push *)",
+    "Bash(git reset *)",
+    "Bash(git checkout *)",
+    "Bash(git clean *)",
+    "WebFetch",
+    "WebSearch",
+]
+MAX_SUMMARY_CHARS = 4000
+
+
+class PromptError(ValueError):
+    pass
+
+
+def decode_prompt(data):
+    """Strictly decodes the length-delimited v1 document produced by render_task_prompt."""
+    if not data.startswith(HEADER):
+        raise PromptError("missing agentforge-task-prompt-v1 header")
+    position = len(HEADER)
+
+    def read_header(expected):
+        nonlocal position
+        end = data.find(b"\n", position)
+        if end < 0:
+            raise PromptError(f"truncated before {expected}")
+        name, _, length = data[position:end].decode("utf-8").partition(" ")
+        if name != expected or not length.isdigit():
+            raise PromptError(f"expected field {expected!r}, found {name!r}")
+        position = end + 1
+        return int(length)
+
+    def read_value(name):
+        nonlocal position
+        length = read_header(name)
+        end = position + length
+        if end + 1 > len(data) or data[end : end + 1] != b"\n":
+            raise PromptError(f"truncated value for {name}")
+        value = data[position:end].decode("utf-8")
+        position = end + 1
+        return value
+
+    task = {}
+    for name in SCALARS:
+        task[name] = read_value(name)
+    for name in LISTS:
+        count = read_header(name)
+        task[name] = [read_value("item") for _ in range(count)]
+    if position != len(data):
+        raise PromptError("trailing bytes after the last field")
+    return task
+
+
+def encode_prompt(task):
+    """Test helper mirroring the Rust encoder."""
+    output = bytearray(HEADER)
+
+    def field(name, value):
+        raw = value.encode("utf-8")
+        output.extend(f"{name} {len(raw)}\n".encode())
+        output.extend(raw + b"\n")
+
+    for name in SCALARS:
+        field(name, task[name])
+    for name in LISTS:
+        output.extend(f"{name} {len(task[name])}\n".encode())
+        for value in task[name]:
+            field("item", value)
+    return bytes(output)
+
+
+def within(path, roots):
+    path = path.strip("/")
+    for root in roots:
+        root = root.strip("/")
+        if root in ("", ".") or path == root or path.startswith(root + "/"):
+            return True
+    return False
+
+
+def boundary_violations(paths, allowed, forbidden):
+    return sorted(
+        path for path in paths if not within(path, allowed) or (forbidden and within(path, forbidden))
+    )
+
+
+def changed_paths():
+    output = subprocess.run(
+        ["git", "status", "--porcelain=v1", "-z", "--untracked-files=all"],
+        check=True,
+        capture_output=True,
+    ).stdout
+    entries = output.split(b"\0")
+    paths = []
+    index = 0
+    while index < len(entries):
+        entry = entries[index]
+        index += 1
+        if not entry:
+            continue
+        status, path = entry[:2].decode(), entry[3:].decode("utf-8")
+        paths.append(path)
+        if "R" in status or "C" in status:
+            # Renames and copies are followed by the source path, which must also be in bounds.
+            paths.append(entries[index].decode("utf-8"))
+            index += 1
+    return sorted(set(paths))
+
+
+def bullets(values, empty="none"):
+    return "\n".join(f"- {value}" for value in values) if values else f"- {empty}"
+
+
+def instructions(task, message_file):
+    return f"""You are the implementer for AgentForge task {task['task_id']} (milestone {task['milestone_id']}, role {task['primary_role']}).
+You are running headless inside this task's isolated Git worktree. The current directory is the repository root.
+
+## Goal
+{task['goal']}
+
+## Non-goals
+{bullets(task['non_goals'])}
+
+## You may change only these paths
+{bullets(task['allowed_paths'], 'no paths are writable')}
+
+## Never change these paths
+{bullets(task['forbidden_paths'])}
+
+## Expected outputs
+{bullets(task['expected_outputs'])}
+
+## Evidence requirements
+{bullets(task['evidence_requirements'])}
+
+## Required gates
+{bullets(task['required_gates'])}
+
+## How to work
+1. Read AGENTS.md, PROJECT_STATE.md, and the active plan named in .plans/ACTIVE (if present) before
+   changing anything, and follow the repository's conventions, its plan boundary, and its
+   documentation style.
+2. Change only the allowed paths above. Any change outside them makes the whole run fail, and
+   nothing is committed.
+3. Add or update tests for the behavior you change.
+4. Run `./scripts/gate.sh full` and fix every failure it reports. Never weaken tests, lints, or
+   checks to make them pass.
+5. Do not commit, push, reset, or check out branches. The bridge commits your work after verifying
+   the path boundary, and the repository's pre-commit hook re-runs the gate on that commit.
+6. When you are done, write a detailed commit message to {message_file}: a conventional-commit
+   subject line (for example `feat(scope): ...`), a blank line, then a body that explains what
+   changed, why, and the evidence (tests added, gate results). Do not include Co-Authored-By
+   trailers.
+7. Finish with a short plain-text summary of what you changed and how you verified it.
+"""
+
+
+def fallback_message(task, paths):
+    subject_goal = task["goal"].splitlines()[0][:60].rstrip(".")
+    return (
+        f"feat(agent): {task['task_id']} {subject_goal}\n\n"
+        f"The agent did not supply a commit message; this one was generated by the bridge.\n\n"
+        f"Goal:\n{task['goal']}\n\nChanged files:\n{bullets(paths)}\n"
+    )
+
+
+def commit(task, paths, message_file, summary, model):
+    message = message_file.read_text(encoding="utf-8").strip() if message_file.exists() else ""
+    if not message:
+        message = fallback_message(task, paths).strip()
+    trailer = [
+        "",
+        f"AgentForge-Task: {task['task_id']} (milestone {task['milestone_id']})",
+        f"AgentForge-Agent: Claude Code via scripts/agents/claude-code-bridge"
+        + (f" (model {model})" if model else ""),
+        "Co-Authored-By: Claude <noreply@anthropic.com>",
+    ]
+    if summary:
+        message += "\n\nAgent summary:\n" + summary.strip()[-MAX_SUMMARY_CHARS:]
+    message += "\n" + "\n".join(trailer) + "\n"
+    subprocess.run(["git", "add", "--all", "--", *paths], check=True)
+    result = subprocess.run(["git", "commit", "-F", "-"], input=message, text=True, capture_output=True)
+    sys.stdout.write(result.stdout)
+    sys.stderr.write(result.stderr)
+    return result.returncode
+
+
+def self_test():
+    sample = {
+        "contract_version": "1",
+        "task_id": "P9-M001-T0001",
+        "milestone_id": "P9-M001",
+        "primary_role": "implementer",
+        "goal": "Multi-line goal\nwith ünïcode ✓",
+        "non_goals": ["no scope creep"],
+        "dependency_task_ids": [],
+        "allowed_paths": ["crates/example", "docs/EXAMPLE.md"],
+        "forbidden_paths": ["crates/example/secret"],
+        "capabilities": ["run_local_commands", "write_owned_paths"],
+        "required_approvals": [],
+        "required_gates": ["full"],
+        "expected_outputs": ["tests", "docs"],
+        "evidence_requirements": [],
+    }
+    encoded = encode_prompt(sample)
+    assert decode_prompt(encoded) == sample, "round trip"
+    goal_header = f"goal {len(sample['goal'].encode())}\n".encode()
+    assert goal_header in encoded
+    for broken in [
+        encoded[:-3],
+        b"wrong-header\n" + encoded[len(HEADER):],
+        encoded.replace(goal_header, b"goal xx\n", 1),
+        encoded.replace(goal_header, b"goal 999\n", 1),
+        encoded.replace(b"task_id", b"task_ix", 1),
+        encoded + b"extra",
+    ]:
+        try:
+            decode_prompt(broken)
+        except (PromptError, UnicodeDecodeError):
+            continue
+        raise AssertionError(f"accepted malformed prompt: {broken[:40]!r}")
+    allowed, forbidden = sample["allowed_paths"], sample["forbidden_paths"]
+    assert boundary_violations(["crates/example/src/lib.rs", "docs/EXAMPLE.md"], allowed, forbidden) == []
+    assert boundary_violations(["crates/examples/x.rs"], allowed, forbidden) == ["crates/examples/x.rs"]
+    assert boundary_violations(["README.md"], allowed, forbidden) == ["README.md"]
+    assert boundary_violations(["crates/example/secret/key"], allowed, forbidden) == [
+        "crates/example/secret/key"
+    ]
+    assert "P9-M001-T0001" in instructions(sample, Path("/tmp/msg"))
+    print("claude-code-bridge self-test passed")
+    return 0
+
+
+def main():
+    parser = argparse.ArgumentParser(add_help=True, description="Run Claude Code as an AgentForge agent.")
+    parser.add_argument("--claude", default="claude")
+    parser.add_argument("--model")
+    parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--self-test", action="store_true")
+    arguments = parser.parse_args()
+    if arguments.self_test:
+        return self_test()
+
+    try:
+        task = decode_prompt(sys.stdin.buffer.read())
+    except (PromptError, UnicodeDecodeError) as error:
+        print(f"claude-code-bridge: invalid task prompt: {error}", file=sys.stderr)
+        return 2
+    if not task["allowed_paths"]:
+        print("claude-code-bridge: the task declares no allowed paths", file=sys.stderr)
+        return 2
+
+    with tempfile.TemporaryDirectory(prefix="agentforge-bridge-") as scratch:
+        message_file = Path(scratch) / "COMMIT_MSG"
+        command = [
+            arguments.claude,
+            "-p",
+            instructions(task, message_file),
+            "--permission-mode",
+            "acceptEdits",
+            "--allowedTools",
+            *ALLOWED_TOOLS,
+            "--disallowedTools",
+            *DISALLOWED_TOOLS,
+            "--add-dir",
+            scratch,
+            "--no-session-persistence",
+            "--output-format",
+            "text",
+        ]
+        if arguments.model:
+            command += ["--model", arguments.model]
+        if arguments.dry_run:
+            print(command[2])
+            print("command:", " ".join(part if part != command[2] else "<instructions>" for part in command))
+            return 0
+
+        print(f"claude-code-bridge: running Claude Code for {task['task_id']}", flush=True)
+        agent = subprocess.run(command, stdin=subprocess.DEVNULL, capture_output=True, text=True)
+        sys.stdout.write(agent.stdout)
+        sys.stderr.write(agent.stderr)
+        if agent.returncode != 0:
+            print(f"claude-code-bridge: Claude Code exited {agent.returncode}; nothing committed", file=sys.stderr)
+            return agent.returncode
+
+        paths = changed_paths()
+        if not paths:
+            print("claude-code-bridge: the agent made no changes", file=sys.stderr)
+            return 3
+        violations = boundary_violations(paths, task["allowed_paths"], task["forbidden_paths"])
+        if violations:
+            print("claude-code-bridge: changes outside the task boundary; nothing committed:", file=sys.stderr)
+            for path in violations:
+                print(f"  {path}", file=sys.stderr)
+            return 4
+        print(f"claude-code-bridge: committing {len(paths)} changed path(s); the pre-commit gate runs now", flush=True)
+        if commit(task, paths, message_file, agent.stdout, arguments.model) != 0:
+            print("claude-code-bridge: commit or pre-commit gate failed; nothing committed", file=sys.stderr)
+            return 5
+    print("claude-code-bridge: committed")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

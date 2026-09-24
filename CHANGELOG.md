@@ -20,6 +20,8 @@ All notable AgentForge changes are documented here. The format follows
 - A *What's new* section on the project site with recently shipped milestones, work in progress,
   phase progress, and upcoming release notes, generated from repository records at deploy time
   (P2-M026).
+- `scripts/agents/claude-code-bridge`, which runs Claude Code as an AgentForge agent with strict
+  prompt decoding, a post-run path boundary check, and bridge-owned commits (P2-M027).
 
 ### Changed
 
