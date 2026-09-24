@@ -41,3 +41,27 @@ gates, review, accept, integrate. This file is the run log and the list of frict
 4. **Agent and bridge output is not kept anywhere.** `forge task launch` neither prints nor
    persists the adapter's stdout/stderr, so diagnosing the first run needed forensics on the branch
    and config (follow-up, together with finding 1).
+5. **The blueprint's default gate made the plan's compatibility claim false.** Found by the agent
+   in attempt `P1-M007-T0002`: `forge init` defaults every task to gate `full`, so strict
+   required-gate preflight would have broken nearly every CLI-created task. The agent stayed in
+   bounds, didn't weaken the rule, and asked for a decision. Resolved by P1-M007 Amendment 1.
+6. **The agent can bypass gate isolation by running `cargo` directly.** In `T0002` Claude Code
+   ran `cargo test` in its worktree, which wrote to the shared target directory and broke the main
+   checkout's next gate again. `T0003` used an operator-side profile override
+   (`env.CARGO_TARGET_DIR`); the bridge will set it itself (P2-M029).
+7. **Integration authority must be declared when the task is created.** `forge task integrate`
+   correctly refused `T0003` because its contract lacked the `merge_protected_branch` capability
+   and approval. The operator also retired the worktree by chaining commands with `;`, so the
+   reviewed commit was landed with an operator fast-forward. Tasks meant to integrate through
+   AgentForge should be created with `--capability merge_protected_branch --approval
+   merge_protected_branch`, and the approval recorded after review.
+
+## P1-M007 run log (2026-09-24)
+
+| Attempt | Duration | Outcome |
+| --- | --- | --- |
+| `P1-M007-T0001` | 230 s | Work done; the hook leak damaged `.git/config` and the task branch → P2-M028 |
+| `P1-M007-T0002` | 34 s via `forge` (output lost), then 203 s rerun by hand | Work done; agent stopped on 8 CLI failures caused by the default `full` gate → Amendment 1 |
+| `P1-M007-T0003` | 321 s | Committed by the bridge, pre-commit gate and project gate passed, reviewed, accepted, landed as `6131508` |
+
+Attempts `T0001` and `T0002` are cancelled. Their branches and worktrees are kept as evidence.

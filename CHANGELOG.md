@@ -25,6 +25,9 @@ All notable AgentForge changes are documented here. The format follows
 
 ### Changed
 
+- Tasks that declare `required_gates` run exactly those gates, and a missing gate profile fails
+  preflight before any side effect. Blueprint default gates are copied into new tasks only when a
+  matching profile exists (P1-M007). This milestone was implemented by Claude Code through AgentForge.
 - The canonical repository is now `https://github.com/cybercore-tech/agentforge`, with the project
   site at `https://cybercore-tech.github.io/agentforge/` (P2-M025).
 - Daemon executions stream keepalive frames and hold a single execution slot, so `daemon run` and

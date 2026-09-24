@@ -2,10 +2,11 @@
 
 ## Repository state
 
-- Active milestone: P1-M007 (required gates), being implemented by Claude Code through AgentForge
-  as the P2-M027 dogfooding proof; retry task `P1-M007-T0002`. The first attempt, `P1-M007-T0001`,
-  and its branch and worktree are kept as evidence of the incident fixed by P2-M028. P2-M027 closes
-  after P1-M007.
+- Active milestone: none. P1-M007 is complete; it was implemented by Claude Code through AgentForge
+  (task `P1-M007-T0003`, commit `6131508`, CI `35970854736`/`35970861705` green). P2-M027 closes next,
+  then P2-M029 (agent run visibility and agent build isolation) starts from its draft plan.
+- Tasks meant to integrate through AgentForge need `--capability merge_protected_branch --approval
+  merge_protected_branch` at creation. Never chain `worktree retire` after `integrate` with `;`.
 - P2-M028 implementation commit: `2ffd59d`; CI `35969105365` (push) and `35969113717` are green.
   The gate now clears `GIT_*` before cargo and isolates linked-worktree target dirs.
 - Push-triggered workflows now work on `cybercore-tech/agentforge` (first seen on `f5c7a14`).

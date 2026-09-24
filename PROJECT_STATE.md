@@ -11,9 +11,17 @@ Integration pass, daemon fixes, and repository move complete; next is Phase 4 re
 
 ## Active milestone
 
-P1-M007 — Enforce task-declared required gates — is active again. It is being implemented by
-Claude Code through AgentForge as the P2-M027 dogfooding proof. P2-M028 — Hermetic repository gate
-under hooks and in worktrees — is complete; it fixed the two leaks the first attempt exposed.
+No active milestone. P1-M007 — Task-declared required gates — is complete. It is the first
+AgentForge milestone implemented by a real agent (Claude Code) through AgentForge itself.
+
+## P1-M007 completion evidence
+
+- Approved plan: `.plans/P1-M007-task-required-gates.plan.md` (Amendment 1).
+- Implementation commit: `6131508`, authored through task `P1-M007-T0003` (Claude Code via
+  `scripts/agents/claude-code-bridge`, 321 s; pre-commit gate and project gate passed).
+- CI `35970854736` (push) and `35970861705` (dispatched) are green on all seven jobs.
+- Landed by an operator fast-forward after review, because the task lacked merge authority. The
+  full run log and findings are in `docs/DOGFOODING.md`.
 
 ## P2-M028 completion evidence
 
@@ -25,7 +33,6 @@ under hooks and in worktrees — is complete; it fixed the two leaks the first a
 
 ## Known issues
 
-- `AgentTask.required_gates` is not enforced; P1-M004 runs every project gate instead.
 
 ## P2-M025 completion evidence
 

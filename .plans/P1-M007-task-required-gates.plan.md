@@ -1,6 +1,6 @@
 # Plan: P1-M007 — Enforce task-declared required gates
 
-Status: Approved
+Status: Complete
 Milestone: P1-M007
 Created: 2026-09-24
 Owner: AgentForge project
@@ -148,15 +148,27 @@ The agent's task boundary is the three orchestrator files plus `docs/GATES.md` a
 
 ## Acceptance criteria
 
-- [ ] Required gates select exactly the declared gates; empty keeps the P1-M004 behavior.
-- [ ] Missing required gates fail preflight before any side effect, in both run paths.
-- [ ] Implemented by a real agent through AgentForge and integrated through `forge task integrate`.
-- [ ] CI evidence recorded before closure.
+- [x] Required gates select exactly the declared gates; empty keeps the P1-M004 behavior.
+- [x] Missing required gates fail preflight before any side effect, in both run paths.
+- [x] Implemented by a real agent through AgentForge. Landed by operator fast-forward, not `forge task integrate`; see notes.
+- [x] CI evidence recorded before closure.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
+Implementation commit: `6131508df41533c81906e79d60d9f2fcc230733e`, authored by Claude Code through AgentForge (task `P1-M007-T0003`)
+CI run: `35970854736` (push-triggered) and `35970861705` (dispatched)
+CI result: green across all seven jobs in both runs.
+Completed: 2026-09-24
 Notes:
+There were three attempts:
+- `T0001` exposed the hook-environment leak that P2-M028 fixed.
+- `T0002` completed the work, but the agent correctly stopped on 8 failing CLI tests. It traced
+  them to the blueprint default gate `full`, which led to Amendment 1.
+- `T0003` ran for 321 s. The bridge committed after the in-worktree pre-commit gate passed, and the
+  project gate `workspace` passed (`gates=1/1`).
+
+The operator reviewed the diff: nine files, all within the boundary, and it matches the plan and
+the amendment. The task was accepted. `forge task integrate` was correctly refused, because the
+task contract lacked the `merge_protected_branch` capability and approval. The operator had also
+retired the worktree by chaining the commands with `;`. So the reviewed commit was landed on `main`
+by an operator `git merge --ff-only`; the full gate passed on `main` before the push.

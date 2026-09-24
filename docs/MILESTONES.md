@@ -89,3 +89,4 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 | P1-M004 | complete | Orchestrated gate evidence | Configured project gates run automatically after a successful agent in every run/launch path, record durable `GateFinished` evidence, and fail the task when any gate fails. |
 | P1-M005 | complete | CI observation wiring | Operators record exact-SHA CI evidence and classified failed jobs in the audit log through a reviewed provider command, without CI gaining task authority. |
 | P1-M006 | complete | Concurrent batch launch | Disjoint ready tasks launch concurrently from one command with a single state coordinator; overlapping and over-limit tasks are deferred deterministically. |
+| P1-M007 | complete | Task-declared required gates | Tasks run exactly their declared gates, missing gate profiles fail preflight before any side effect, and blueprint defaults need a configured profile; implemented by a real agent through AgentForge. |
