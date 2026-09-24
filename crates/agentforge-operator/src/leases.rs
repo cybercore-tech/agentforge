@@ -503,8 +503,15 @@ impl LeaseLock {
                     let _ = writeln!(file, "pid={}", std::process::id());
                     return Ok(Self { path });
                 }
-                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+                // On Windows a lock being deleted reports PermissionDenied (delete pending).
+                Err(error)
+                    if error.kind() == io::ErrorKind::AlreadyExists
+                        || (cfg!(windows) && error.kind() == io::ErrorKind::PermissionDenied) =>
+                {
                     if Instant::now() >= deadline {
+                        if error.kind() != io::ErrorKind::AlreadyExists {
+                            return Err(OperatorError::new(error.to_string()));
+                        }
                         return Err(OperatorError::new(format!(
                             "{LOCK_HELD_PREFIX} by another operation ({}); if no forge or forged \
                              process is running for this project, remove that file",

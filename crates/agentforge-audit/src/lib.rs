@@ -310,8 +310,11 @@ impl AppendLock {
                     let _ = writeln!(file, "pid={}", std::process::id());
                     return Ok(Self { path });
                 }
-                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+                Err(error) if lock_is_busy(&error) => {
                     if Instant::now() >= deadline {
+                        if error.kind() != io::ErrorKind::AlreadyExists {
+                            return Err(AuditError::Io(error));
+                        }
                         return Err(AuditError::Io(io::Error::new(
                             io::ErrorKind::WouldBlock,
                             format!(
@@ -327,6 +330,15 @@ impl AppendLock {
             }
         }
     }
+}
+
+/// Whether a failed create-new means another writer holds (or is just releasing) the lock.
+///
+/// On Windows, creating a file whose previous holder is still being deleted fails with
+/// `PermissionDenied` (delete pending) instead of `AlreadyExists`; that is contention too.
+fn lock_is_busy(error: &io::Error) -> bool {
+    error.kind() == io::ErrorKind::AlreadyExists
+        || (cfg!(windows) && error.kind() == io::ErrorKind::PermissionDenied)
 }
 
 impl Drop for AppendLock {
