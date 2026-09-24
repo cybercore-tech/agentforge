@@ -6,6 +6,12 @@ All notable AgentForge changes are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- The release workflow's publish job failing with `not a git repository` (it has no checkout;
+  `gh release create` now gets `--repo`). `SHA256SUMS` now lists bare archive names so
+  `sha256sum -c SHA256SUMS` works in a download folder (P5-M001).
+
 ## [0.1.0] - 2026-09-24
 
 The first tagged release. AgentForge now builds and integrates its own milestones through a real

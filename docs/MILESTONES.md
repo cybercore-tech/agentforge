@@ -100,4 +100,4 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 
 | ID | Status | Milestone | Acceptance signal |
 | --- | --- | --- | --- |
-| P5-M001 | active | First release v0.1.0 | `v0.1.0` is published from green CI with four checksummed archives, and version metadata, CHANGELOG, and docs agree on `0.1.0`. |
+| P5-M001 | complete | First release v0.1.0 | `v0.1.0` is published from green CI with four checksummed archives, and version metadata, CHANGELOG, and docs agree on `0.1.0`. |

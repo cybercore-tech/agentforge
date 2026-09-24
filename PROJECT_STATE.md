@@ -13,14 +13,25 @@ agent-built milestones, Phase 4 remote-worker wiring, the P3 tool gateway, and P
 
 ## Active milestone
 
-No active milestone. P2-M033 — HUD view of agent runs — is complete, and every completed milestone
-is tagged `milestone/<ID>`.
+No active milestone. P5-M001 — first release v0.1.0 — is complete: `v0.1.0` is published. Every
+completed milestone is tagged `milestone/<ID>`.
 
 ## Known issues
 
 - Dogfooding finding 8: `forge task launch` requires the merge approval before the agent runs, so
   the approval record does not prove a review. Other findings are resolved; see
   `docs/DOGFOODING.md`.
+
+## P5-M001 completion evidence
+
+- Approved plan: `.plans/P5-M001-first-release-v0-1-0.plan.md` (three amendments).
+- Release commit `b1f1cab`, tagged `v0.1.0`: CI `36012325272` and `36012648916` green, and packaging
+  dry run `36012653332`.
+- Release: https://github.com/cybercore-tech/agentforge/releases/tag/v0.1.0. Four archives with
+  `.sha256` files and `SHA256SUMS`. A downloaded Linux binary verified and reports `0.1.0`.
+- The tag run `36013033041` built every target, but its publish job failed (no checkout, so `gh`
+  had no repository). It was published from that run's artifacts. The workflow is fixed in
+  `0eb777b` (CI `36013626245`, dry run `36013843718`).
 
 ## P2-M033 completion evidence
 

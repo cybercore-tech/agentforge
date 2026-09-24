@@ -1,6 +1,6 @@
 # Plan: P5-M001 — First release, v0.1.0
 
-Status: Approved
+Status: Complete
 Milestone: P5-M001
 Created: 2026-09-24
 Owner: AgentForge project
@@ -126,9 +126,9 @@ CHANGELOG release section, RELEASE.md, README, and site status.
 
 ## Acceptance criteria
 
-- [ ] `v0.1.0` is published with four checksummed archives.
-- [ ] Version metadata, the CHANGELOG, and the docs agree on `0.1.0`.
-- [ ] Milestone closed and tagged, and the release tag verified.
+- [x] `v0.1.0` is published with four checksummed archives.
+- [x] Version metadata, the CHANGELOG, and the docs agree on `0.1.0`.
+- [x] Milestone closed and tagged, and the release tag verified.
 
 ## Amendment 1 (2026-09-24)
 
@@ -178,8 +178,20 @@ correct, and a patch release would only work around a publish-job defect.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
-Notes:
+Implementation commit: `b1f1cab` (release preparation, tagged `v0.1.0`); `0eb777b` (release
+workflow fix, Amendment 3)
+CI run: `36012325272` (push) and `36012648916` (dispatched) on `b1f1cab`; `36013626245` on `0eb777b`.
+Packaging dry runs: `36012653332` (`b1f1cab`) and `36013843718` (`0eb777b`). Tag release run:
+`36013033041`.
+CI result: green on all seven jobs in every CI run, and all four targets built in every release run.
+The tag run's publish job failed on a workflow defect (Amendment 3).
+Completed: 2026-09-24
+Notes: `v0.1.0` is published at https://github.com/cybercore-tech/agentforge/releases/tag/v0.1.0.
+It has four `.tar.gz` archives (Linux x86_64, macOS x86_64 and aarch64, Windows x86_64), each with
+a `.sha256` file, plus a consolidated `SHA256SUMS`. The assets are the tag run's own CI-built
+artifacts, published with the workflow's command plus `--repo`. The release notes are the
+CHANGELOG `[0.1.0]` section with install steps and provenance. A fresh download passed `sha256sum -c
+--ignore-missing SHA256SUMS`, and the extracted binaries report `AgentForge 0.1.0` and `AgentForge
+daemon 0.1.0`. The workflow now passes `--repo` and writes bare checksum names, so the next tag
+publishes automatically. That path is proven by reproduction and the dry run, not yet by a tag
+run.

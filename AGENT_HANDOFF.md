@@ -2,7 +2,11 @@
 
 ## Repository state
 
-- Active milestone: none. P2-M033 (HUD view of agent runs) is complete: commit `29484bc` by Claude
+- Active milestone: none. P5-M001 is complete: **`v0.1.0` is published** from `b1f1cab`. The first
+  tag run's publish job failed on a workflow defect, fixed in `0eb777b`; see `docs/RELEASE.md` "If
+  the publish job fails". The next release tag is the first to exercise the fixed publish job, so
+  watch it. Release tags (`vX.Y.Z`) are separate from `milestone/<ID>` tags.
+- P2-M033 (HUD view of agent runs) is complete: commit `29484bc` by Claude
   Code, landed through `forge task integrate`; CI `36010816304` and `36011038882` are green. Every
   completed milestone through P2-M033 is tagged. Record every required approval, including
   `merge_protected_branch`, before `forge task launch` (finding 8).
