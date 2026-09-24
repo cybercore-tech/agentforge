@@ -1,6 +1,6 @@
 # Plan: P2-M033 — HUD view of agent runs
 
-Status: Draft
+Status: Approved
 Milestone: P2-M033
 Created: 2026-09-24
 Owner: AgentForge project
