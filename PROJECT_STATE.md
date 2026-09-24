@@ -11,9 +11,20 @@ Phase 1/2 integration pass — connect existing subsystems before further Phase 
 
 ## Active milestone
 
-No active milestone. P2-M023 — Bounded daemon lifecycle tests and CI job timeouts — is complete.
-The recurring Windows CI hang and three intermittent cross-platform test failures are repaired, and
-every CI job has an explicit timeout.
+No active milestone. P1-M004 — Orchestrated gate evidence — is complete. Configured project gates
+now run in every run and launch path and fail the task when they do not pass.
+
+## P1-M004 completion evidence
+
+- Approved plan: `.plans/P1-M004-orchestrated-gate-evidence.plan.md`.
+- Implementation commit: `aa307468b8ba354a2e24426d1a16949e179e4dd7`.
+- Exact CI on `aa30746`: push run `35961539333` and dispatched repeats `35961557663` and
+  `35961562338` are green across all seven jobs.
+- Gates are reviewed `.forge/gates/<id>.conf` profiles. They are validated before the task runs,
+  execute in the task worktree after a successful agent, and produce `GateFinished` audit
+  evidence. Any failure transitions the task to `failed` with `FailureClassified(stage=gates)`.
+- `forge gate list`, per-gate CLI output with a non-zero exit on failure, and daemon gate
+  summaries are available. ADR-0037 records the decision.
 
 ## P2-M023 completion evidence
 

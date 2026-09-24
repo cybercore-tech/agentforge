@@ -2,9 +2,14 @@
 
 ## Repository state
 
-- Active milestone: none. P2-M023 — Bounded daemon lifecycle tests and CI job timeouts — is
-  complete. Next planned: P1-M004 (orchestrated gate evidence), then P1-M005 (CI observation
-  wiring) and P1-M006 (concurrent batch launch), before more P4 transport work.
+- Active milestone: none. P1-M004 — Orchestrated gate evidence — is complete. Next planned:
+  P1-M005 (CI observation wiring), then P1-M006 (concurrent batch launch), before more P4
+  transport work.
+- P1-M004 implementation commit: `aa30746`; exact CI `35961539333`, `35961557663`, and
+  `35961562338` are green on all seven jobs. Gates in `.forge/gates/` now run automatically after
+  a successful agent in `forge run`, `forge task launch`, and the daemon paths, and a failing gate
+  fails the task.
+- P2-M023 — Bounded daemon lifecycle tests and CI job timeouts — is complete.
 - Active plan: none (`.plans/ACTIVE` is intentionally absent between milestones).
 - P2-M023 implementation commits: `1eb3b0f`, `4f5a45e`, `29bc804`; five exact CI runs on
   `29bc804` (`35961283620` push plus four dispatched repeats) are green on all seven jobs.

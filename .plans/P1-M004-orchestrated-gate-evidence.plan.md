@@ -1,6 +1,6 @@
 # Plan: P1-M004 — Orchestrated gate evidence in the task run path
 
-Status: Approved
+Status: Complete
 Milestone: P1-M004
 Created: 2026-09-23
 Owner: AgentForge project
@@ -158,16 +158,26 @@ README lists `forge gate list`. ADR-0037 records the decision.
 
 ## Acceptance criteria
 
-- [ ] Gates run automatically in the direct and daemon run/launch paths.
-- [ ] Gate evidence is durable in the audit log.
-- [ ] A failing gate fails the task; a malformed gate profile fails closed before execution.
-- [ ] Projects without gates are unaffected.
-- [ ] Full local validation and exact-SHA CI evidence are recorded before closure.
+- [x] Gates run automatically in the direct and daemon run/launch paths.
+- [x] Gate evidence is durable in the audit log.
+- [x] A failing gate fails the task; a malformed gate profile fails closed before execution.
+- [x] Projects without gates are unaffected.
+- [x] Full local validation and exact-SHA CI evidence are recorded before closure.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
+Implementation commit: `aa307468b8ba354a2e24426d1a16949e179e4dd7`
+CI run: `35961539333` (push) plus dispatched `35961557663` and `35961562338`
+CI result: green across all seven jobs in all three runs.
+Completed: 2026-09-23
 Notes:
+`agentforge-gate::GateProfileStore` loads `.forge/gates/<id>.conf` in the bounded agent-profile
+format. The persisted execution attempt validates every gate profile before the task becomes
+`running`, runs gates in lexical order in the task worktree after an agent exits with status zero,
+appends one `GateFinished` event per gate, and on any non-pass transitions the task to `failed`
+with a `FailureClassified(stage=gates)` event. `forge run` and `forge task launch` print per-gate
+lines and exit 1 on failure, daemon responses carry `gates=<passed>/<total>`, and `forge gate list`
+inspects profiles. New tests: seven gate-profile tests, four orchestrator gate tests (pass, fail,
+malformed profile, skipped after a nonzero agent exit), and two portable CLI tests using a failing
+fixture mode. ADR-0037 records the decision. This is the first use of `agentforge-gate` outside its
+own tests.
