@@ -1,6 +1,6 @@
 # Plan: P2-M028 — Hermetic repository gate under Git hooks and in worktrees
 
-Status: Approved
+Status: Complete
 Milestone: P2-M028
 Created: 2026-09-24
 Owner: AgentForge project
@@ -135,14 +135,22 @@ CHANGELOG.
 
 ## Acceptance criteria
 
-- [ ] The reproduction shows the leak before the fix and none after it.
-- [ ] Plan policy still works under the hook.
-- [ ] CI evidence recorded before closure.
+- [x] The reproduction shows the leak before the fix and none after it.
+- [x] Plan policy still works under the hook.
+- [x] CI evidence recorded before closure.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
+Implementation commit: `2ffd59d396a9fef271391e0401969aec3173c622`
+CI run: `35969105365` (push-triggered) and `35969113717` (dispatched)
+CI result: green across all seven jobs in both runs.
+Completed: 2026-09-24
 Notes:
+Reproduced in disposable clones with a linked worktree committing through the real pre-commit hook.
+With the old gate, the commit exited 1 after 29 s, the clone config gained `core.bare = true` and
+`[user] AgentForge Test`, and the branch gained an `initial` fixture commit, which matches the real
+incident. With the new gate, the commit exited 0 after 54 s using
+`.../agentforge-worktrees/wt`, the config was untouched, and the branch had exactly the intended
+commit. Plan policy still rejected unapproved work under the hook. The main checkout's gate passed
+after `cargo clean -p` for AgentForge packages only; the shared target directory was polluted
+twice, once by the incident and once by the "before" reproduction.

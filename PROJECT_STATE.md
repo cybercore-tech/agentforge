@@ -11,22 +11,20 @@ Integration pass, daemon fixes, and repository move complete; next is Phase 4 re
 
 ## Active milestone
 
-No active milestone. P2-M026 — Project site updates feed — is complete. The project site's *What's
-new* section is generated from milestone records at each Pages deployment (see `docs/SITE.md`).
+P1-M007 — Enforce task-declared required gates — is active again. It is being implemented by
+Claude Code through AgentForge as the P2-M027 dogfooding proof. P2-M028 — Hermetic repository gate
+under hooks and in worktrees — is complete; it fixed the two leaks the first attempt exposed.
 
-## P2-M026 completion evidence
+## P2-M028 completion evidence
 
-- Approved plan: `.plans/P2-M026-site-updates-feed.plan.md`.
-- Implementation commit: `adaacc6`.
-- Dispatched CI `35966436681`, `35966450804`, and `35966453213` are green across all seven jobs,
-  including the new site-feed validation step. Pages run `35966439149` deployed, and the live site
-  rendered the feed.
+- Approved plan: `.plans/P2-M028-hermetic-gate-under-hooks.plan.md`.
+- Implementation commit: `2ffd59d`.
+- CI `35969105365` (push-triggered) and `35969113717` (dispatched) are green on all seven jobs.
+- The incident was reproduced in a disposable clone before the fix and disproven after it; see the
+  plan's completion record and `docs/DOGFOODING.md`.
 
 ## Known issues
 
-- Pushes to `cybercore-tech/agentforge` are recorded by GitHub but do not trigger `push` workflows
-  (observed for every push on 2026-09-23). CI and Pages evidence is collected with
-  `workflow_dispatch` on the same head.
 - `AgentTask.required_gates` is not enforced; P1-M004 runs every project gate instead.
 
 ## P2-M025 completion evidence

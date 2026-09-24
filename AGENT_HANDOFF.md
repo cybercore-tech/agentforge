@@ -2,9 +2,16 @@
 
 ## Repository state
 
-- Active milestone: none. P2-M026 — Project site updates feed — is complete. Milestone closures now
-  appear on the site automatically at the next Pages deployment. Dispatch `AgentForge Pages` after
-  a closure while push events do not fire on the canonical repository.
+- Active milestone: P1-M007 (required gates), being implemented by Claude Code through AgentForge
+  as the P2-M027 dogfooding proof; retry task `P1-M007-T0002`. The first attempt, `P1-M007-T0001`,
+  and its branch and worktree are kept as evidence of the incident fixed by P2-M028. P2-M027 closes
+  after P1-M007.
+- P2-M028 implementation commit: `2ffd59d`; CI `35969105365` (push) and `35969113717` are green.
+  The gate now clears `GIT_*` before cargo and isolates linked-worktree target dirs.
+- Push-triggered workflows now work on `cybercore-tech/agentforge` (first seen on `f5c7a14`).
+- The operator's `.forge/` in this checkout is gitignored. It holds the `claude-code` agent profile
+  and a `workspace` gate (`./scripts/gate.sh full`).
+- P2-M026 — Project site updates feed — is complete.
 - P2-M026 implementation commit: `adaacc6`; dispatched CI `35966436681`, `35966450804`, and
   `35966453213` are green; Pages `35966439149` deployed.
 - P2-M025 — Canonical repository identity — is complete.
