@@ -2,9 +2,15 @@
 
 ## Repository state
 
-- Active milestone: none. P4-M003 — Deterministic remote dispatch planning — is complete; the
-  remote-worker boundary remains transport-neutral and does not provide remote execution authority.
+- Active milestone: none. P2-M023 — Bounded daemon lifecycle tests and CI job timeouts — is
+  complete. Next planned: P1-M004 (orchestrated gate evidence), then P1-M005 (CI observation
+  wiring) and P1-M006 (concurrent batch launch), before more P4 transport work.
 - Active plan: none (`.plans/ACTIVE` is intentionally absent between milestones).
+- P2-M023 implementation commits: `1eb3b0f`, `4f5a45e`, `29bc804`; five exact CI runs on
+  `29bc804` (`35961283620` push plus four dispatched repeats) are green on all seven jobs.
+  Repaired: the Windows six-hour hang (500 ms readiness poll then an unbounded join), a stalled
+  client wedging the daemon, a stop/restart lock race, macOS fixture-root collisions, and Windows
+  delete-pending `Access is denied` during teardown. Every CI job now has `timeout-minutes`.
 - P4-M003 implementation commit: `ba06cc0c77c187c4ca63f8735f3e507603e4d6af`; local
   `./scripts/gate.sh full` passed for implementation and closure checkpoints.
 - P4-M003 adds `agentforge-scheduler::plan_remote_dispatch` with canonical task/worker ordering,

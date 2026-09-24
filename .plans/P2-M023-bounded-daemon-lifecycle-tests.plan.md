@@ -1,6 +1,6 @@
 # Plan: P2-M023 — Bounded daemon lifecycle tests and CI job timeouts
 
-Status: Approved
+Status: Complete
 Milestone: P2-M023
 Created: 2026-09-23
 Owner: AgentForge project
@@ -171,16 +171,35 @@ lock as absent even though it still blocks re-creation. Repair: while waiting fo
 
 ## Acceptance criteria
 
-- [ ] The Windows hang's root cause is identified, reproduced, and classified.
-- [ ] Daemon lifecycle tests cannot block without bound.
-- [ ] A stalled client cannot wedge the daemon.
-- [ ] Every CI job has an explicit timeout.
-- [ ] Full local validation and exact-SHA matrix evidence are recorded before closure.
+- [x] The Windows hang's root cause is identified, reproduced, and classified.
+- [x] Daemon lifecycle tests cannot block without bound.
+- [x] A stalled client cannot wedge the daemon.
+- [x] Every CI job has an explicit timeout.
+- [x] Full local validation and exact-SHA matrix evidence are recorded before closure.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
+Implementation commit: `1eb3b0f413bec609923e380bf4ac8dd5597b355c`, `4f5a45e8f781eba2a9b67c887e1ed351f7b6b055`
+(amendment 1), `29bc8041e81e9f8994e125e4405d0c0338f004cf` (amendment 2)
+CI run: `35961283620` (push) plus dispatched `35961301835`, `35961306212`, `35961310768`,
+`35961315829`, all on `29bc804`
+CI result: green across all seven jobs in all five runs, including Windows 2022.
+Completed: 2026-09-23
 Notes:
+The six-hour Windows hang came from a fixed 500 ms readiness budget followed by an unbounded join
+on a daemon that had started successfully. It reproduced locally with a one-second `git` wrapper
+on `PATH`. The foreground tests now use 30-second readiness and exit deadlines with bounded joins,
+and passed under that reproduction. The daemon bounds each accepted request read (1 s), which a
+new `stalled_client_does_not_block_stop` test covers; the test fails without the bound. Client
+`WouldBlock` timeouts now map like Windows `TimedOut`. Every CI job has `timeout-minutes`.
+
+Repeat runs then exposed three older intermittent failures, each classified and repaired forward
+under an amendment: a stop/restart race where the endpoint was removed before the lock (MSRV,
+Linux); timestamp-only temporary roots colliding on macOS; and Windows delete-pending files
+reporting `Access is denied` during teardown. The last one also explains the recurring Windows
+`PermissionDenied` teardown failures recorded since P2-M020. The spawned restart test passed
+40/40 local stress runs after the lock-wait repair.
+
+Earlier evidence on the same milestone: `1eb3b0f` passed push run `35960567335` but failed two of
+three dispatched runs (`35960716878` macOS, `35960725620` MSRV); `4f5a45e` passed four of five
+runs (`35961023320` Windows failed). Both are superseded by the repairs above.

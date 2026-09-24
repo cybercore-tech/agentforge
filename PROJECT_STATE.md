@@ -7,12 +7,29 @@
 
 ## Current phase
 
-Phase 4 — remote workers and distributed execution.
+Phase 1/2 integration pass — connect existing subsystems before further Phase 4 transport work.
 
 ## Active milestone
 
-No active milestone. P4-M003 — Deterministic remote dispatch planning — is complete. The
-remote-worker boundary remains transport-neutral and does not provide remote execution authority.
+No active milestone. P2-M023 — Bounded daemon lifecycle tests and CI job timeouts — is complete.
+The recurring Windows CI hang and three intermittent cross-platform test failures are repaired, and
+every CI job has an explicit timeout.
+
+## P2-M023 completion evidence
+
+- Approved plan: `.plans/P2-M023-bounded-daemon-lifecycle-tests.plan.md` (two amendments).
+- Implementation commits: `1eb3b0f`, `4f5a45e`, `29bc8041e81e9f8994e125e4405d0c0338f004cf`.
+- Exact CI on `29bc804`: push run `35961283620` and dispatched repeats `35961301835`,
+  `35961306212`, `35961310768`, `35961315829` are all green across all seven jobs.
+- Root cause of the six-hour Windows cancellations (`35697199910` and three earlier runs): a fixed
+  500 ms readiness poll followed by an unbounded join on a daemon that had started successfully.
+  It reproduced locally with a slowed `git` and is fixed with deadline-based readiness and
+  bounded joins.
+- The daemon now bounds each accepted request read, so a stalled client cannot block `stop`.
+  `stop` waits for both endpoint and lock removal and tolerates Windows delete-pending
+  `Access is denied`. Multi-test fixtures use collision-free temporary roots.
+- P4-M001 to P4-M003 had no exact-SHA CI of their own. Their code is included in every green run
+  above.
 
 ## P4-M003 completion evidence
 
