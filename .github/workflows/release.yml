@@ -94,9 +94,11 @@ jobs:
 
       - name: Create consolidated checksums
         run: |
-          find dist -maxdepth 1 -name '*.tar.gz' -type f -print0 | sort -z | xargs -0 sha256sum > dist/SHA256SUMS
+          cd dist
+          find . -maxdepth 1 -name '*.tar.gz' -type f -printf '%f\0' | sort -z | xargs -0 sha256sum > SHA256SUMS
 
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${GITHUB_REF_NAME}" dist/* --verify-tag --generate-notes --title "AgentForge ${GITHUB_REF_NAME}"
+        # The publish job has no checkout, so gh needs the repository explicitly.
+        run: gh release create "${GITHUB_REF_NAME}" dist/* --repo "${GITHUB_REPOSITORY}" --verify-tag --generate-notes --title "AgentForge ${GITHUB_REF_NAME}"

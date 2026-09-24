@@ -75,7 +75,32 @@ created as an explicit release decision below, starts a release.
    git push origin v0.1.0
    ```
 
-6. Verify the four build jobs, checksums, and generated GitHub release before announcing it.
+6. Verify the four build jobs, checksums, and generated GitHub release before announcing it:
+   download `SHA256SUMS` and one archive, run `sha256sum -c --ignore-missing SHA256SUMS`, and check
+   that the extracted `forge version` prints the release version.
+
+Tag the exact commit that passed CI and the packaging dry run. Never move a published release tag;
+fixes ship as a new patch release.
+
+### If the publish job fails
+
+The build jobs and the publish job are separate. When every build succeeded but publishing
+failed, publish the release from that run's own CI-built artifacts instead of rebuilding or moving
+the tag:
+
+```bash
+for t in x86_64-unknown-linux-gnu x86_64-apple-darwin aarch64-apple-darwin x86_64-pc-windows-msvc; do
+  gh run download <run-id> -R cybercore-tech/agentforge -n "$t" -D dist
+done
+rm -rf dist/*/                                   # keep only the archives and .sha256 files
+(cd dist && for f in *.sha256; do sha256sum -c "$f"; done && sha256sum *.tar.gz > SHA256SUMS)
+gh release create vX.Y.Z dist/* --repo cybercore-tech/agentforge --verify-tag \
+  --title "AgentForge vX.Y.Z" --notes-file <notes>
+```
+
+Then fix the workflow for the next release. `v0.1.0` was published this way: its publish job had no
+checkout, so `gh` could not find the repository. Its `SHA256SUMS` step would also have written
+`dist/`-prefixed paths. Both defects were fixed in P5-M001.
 
 The workflow also supports manual dispatch for packaging validation. Manual runs build artifacts but
 do not publish a release.

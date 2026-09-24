@@ -160,4 +160,5 @@ forge task launch . <task-id> --profile claude-code --base HEAD
 | `forge task launch` exits 1 with `agent-exit=...` | Read the printed tail, or the full logs under `.forge/evidence/<task>/`. The task stays `running`; use `forge task cancel` and create a new attempt, or `forge task retry` after fixing the cause. |
 | Bridge exit 4 (path violation) or 5 (commit/gate failure) | Nothing was committed. Inspect the worktree and the evidence logs. |
 | `daemon is busy` | One daemon execution at a time; wait or check `forge daemon status` ([`DAEMON.md`](DAEMON.md)). |
+| A release run built every target but **Publish GitHub release** failed | Do not move the tag. Publish from that run's artifacts with the procedure in [`RELEASE.md`](RELEASE.md#if-the-publish-job-fails), then fix the workflow. |
 | A CI job fails intermittently | Classify it, then reproduce with repeat dispatches before repairing; see `docs/DOGFOODING.md` and the P2-M023 plan for examples. |
