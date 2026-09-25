@@ -1,6 +1,6 @@
 # Plan: P4-M012 — Two-host rehearsal in containers, with network chaos
 
-Status: Draft
+Status: Approved
 Milestone: P4-M012
 Created: 2026-09-25
 Owner: AgentForge project
