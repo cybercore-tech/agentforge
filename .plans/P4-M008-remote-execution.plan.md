@@ -1,6 +1,6 @@
 # Plan: P4-M008 — Remote execution and exact-SHA result import
 
-Status: Approved
+Status: Complete
 Milestone: P4-M008
 Created: 2026-09-24
 Owner: AgentForge project
@@ -184,16 +184,25 @@ README, CHANGELOG, and MILESTONES at closure.
 
 ## Acceptance criteria
 
-- [ ] A remote worker runs its claimed task and returns a bundle, and the coordinator imports it
+- [x] A remote worker runs its claimed task and returns a bundle, and the coordinator imports it
       only at the verified exact SHA with in-bounds paths.
-- [ ] Gates run on the coordinator, and the result follows normal review through to `integrate`.
-- [ ] Rejections leave no state, audit, or refs behind.
-- [ ] Verified through GhostPort; ADR-0051 and docs; CI evidence; closed and tagged.
+- [x] Gates run on the coordinator, and the result follows normal review through to `integrate`.
+- [x] Rejections leave no state, audit, or refs behind.
+- [x] Verified through GhostPort; ADR-0051 and docs; CI evidence; closed and tagged.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
-Notes:
+Implementation commit: `42eb636`
+CI run: `36095220162` (push), plus `36095589777` and `36095597117` (dispatched)
+CI result: green on all seven jobs in all three runs
+Completed: 2026-09-24
+Notes: Operator-authored as planned, with no amendments. The dogfood ran through real GhostPort
+v0.1.1 processes, with a live `forged` serving the worker API and a separate clone as the worker
+host:
+- the operator granted the lease;
+- `forge worker remote run` claimed over the tunnel, ran the fixture agent, and auto-committed;
+- the coordinator verified and imported head `211563f` and ran its own gate (1/1);
+- `task diff`, `accept`, `approve` (bound to `211563f`), and `integrate` put exactly that commit,
+  authored by the remote worker, on `main`.
+
+The import, CLI, and worker API tests passed on their first run.

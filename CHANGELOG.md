@@ -37,6 +37,13 @@ All notable AgentForge changes are documented here. The format follows
     its leases.
   - The task contract travels as the `agentforge-task-prompt-v1` document, with the new
     `parse_task_prompt` decoder.
+- Remote execution (P4-M008, ADR-0051).
+  - `forge worker remote run --repo <clone>` runs claimed tasks on another machine and returns a
+    `git bundle`.
+  - The coordinator imports it only if the bundle's commit is exactly the reported SHA, descends
+    from the base, and touches only allowed paths. It runs the task's gates locally, and the
+    result follows normal review.
+  - `CLAIM` requires recorded pre-execution approvals and returns the lease window.
 
 ### Changed
 

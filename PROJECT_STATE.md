@@ -13,12 +13,20 @@ agent-built milestones, Phase 4 remote-worker wiring, the P3 tool gateway, and P
 
 ## Active milestone
 
-No active milestone. P4-M007 — authenticated remote-worker channel over GhostPort — is complete.
+No active milestone. P4-M008 — remote execution and exact-SHA import — is complete.
 `v0.1.0` is the latest release, and every completed milestone is tagged `milestone/<ID>`.
 
 ## Known issues
 
 None open. Dogfooding findings 1–10 are resolved; see `docs/DOGFOODING.md`.
+
+## P4-M008 completion evidence
+
+- Approved plan: `.plans/P4-M008-remote-execution.plan.md`; ADR-0051.
+- Implementation commit: `42eb636`. CI `36095220162`, `36095589777`, and `36095597117` are green on
+  all seven jobs.
+- Through GhostPort v0.1.1, remote commit `211563f` was imported at its exact SHA, gated on the
+  coordinator, and integrated onto `main`.
 
 ## P4-M007 completion evidence
 

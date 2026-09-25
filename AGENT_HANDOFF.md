@@ -2,7 +2,11 @@
 
 ## Repository state
 
-- Active milestone: none. P4-M007 is complete (`ac71c1b` and `d0797da`; CI `36092464428`,
+- Active milestone: none. P4-M008 is complete (`42eb636`; CI `36095220162`, `36095589777`, and
+  `36095597117`). Remote execution: `forge worker remote run --repo`, then RESULT with a bundle,
+  then `import_remote_result` (exact SHA, ancestry, path boundary, local gates, slot-serialized).
+  Phase 4's remote-execution path is complete end to end.
+- P4-M007 is complete (`ac71c1b` and `d0797da`; CI `36092464428`,
   `36092602029`, and `36092609574`). Remote workers use `forge worker enroll`, the loopback AFW1
   API from `.forge/worker-api.conf`, and `forge worker remote` through GhostPort; the recipe is in
   REMOTE_WORKERS. Next: P4-M008, remote execution with a git-bundle result and exact-SHA import.

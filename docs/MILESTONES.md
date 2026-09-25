@@ -88,6 +88,7 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 | P4-M005 | complete | Same-host worker process | `forge worker run` claims its leases, runs each task through the standard launch path with renewals, and releases it; only the exact lease holder can run a leased task. |
 | P4-M006 | complete | Opt-in automatic dispatch | With an enabled, milestone-scoped `.forge/dispatch.conf`, `forged` and `forge lease dispatch` grant ready, approved tasks to registered workers once per task, bounded by capacity and a per-tick limit, audited as `dispatch=auto`. |
 | P4-M007 | complete | Authenticated remote-worker channel over GhostPort | Enrolled workers on other machines claim, renew, and release their own leases and receive the exact contract and base commit through `forged`'s loopback worker API, carried by a GhostPort Noise KK tunnel; verified end to end with real GhostPort processes. |
+| P4-M008 | complete | Remote execution and exact-SHA import | A worker on another machine runs its claimed task and returns a git bundle; the coordinator imports it only at the verified exact SHA with in-bounds paths, runs gates locally, and hands it to normal review through `integrate`. |
 
 ## Phase 1 — multi-agent scheduling and integration
 

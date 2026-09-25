@@ -572,14 +572,16 @@ paths and restored reliable CI:
   reviewed policy;
 - **P4-M007** workers on other machines claim their leases over an authenticated GhostPort
   tunnel;
+- **P4-M008** remote execution: remote results are imported only at their verified exact SHA,
+  gated locally, and reviewed as usual;
 - **P5-M001** the first tagged release,
   [`v0.1.0`](https://github.com/cybercore-tech/agentforge/releases/tag/v0.1.0), with checksummed
   archives for Linux, macOS, and Windows.
 
 Candidate next milestones, each still requiring its own approved plan:
 
-- remote execution: a worker on another machine runs its claimed task and returns the commit for
-  exact-SHA acceptance (P4-M008);
+- remote worker ergonomics: HUD view of remote workers and leases, and a supervised `forge worker
+  remote run` service (P4);
 - authenticated worker transport and exact-SHA result acceptance (P4);
 - an MCP/tool gateway mapped to capability policy (P3);
 - signed release artifacts with provenance attestations (P5).
