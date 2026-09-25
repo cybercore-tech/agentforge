@@ -96,6 +96,7 @@ None in the workspace. The rehearsal uses Docker and the `archlinux` image.
 - `.plans/P4-M012-two-host-rehearsal.plan.md`, `.plans/ACTIVE`
 - `scripts/rehearse-two-hosts`, `contrib/rehearsal/Dockerfile`, `contrib/rehearsal/rehearsal-agent`
 - `docs/REMOTE_WORKERS.md`, `docs/DOGFOODING.md`, `docs/OPERATIONS.md`
+- Amendment 1: `scripts/worker-host-setup`
 - closure records: `docs/MILESTONES.md`, `CHANGELOG.md`, `README.md`, `PROJECT_STATE.md`,
   `AGENT_HANDOFF.md`
 
@@ -147,3 +148,21 @@ REMOTE_WORKERS, DOGFOODING, OPERATIONS; CHANGELOG at closure.
 - [ ] The worker host is set up only by the P4-M011 scripts, using the verified `v0.3.0` release.
 - [ ] Remote work survives delay, loss, and a partition, with evidence from both sides.
 - [ ] Docs; CI evidence; closed and tagged correctly.
+
+## Amendment 1 (2026-09-25)
+
+The first full rehearsal run found a defect in `scripts/worker-host-setup` (P4-M011). On the clean
+Arch worker host, the second setup run reported `installed the secret` again instead of
+`unchanged`. The script compares the installed secret with `cmp -s`, and `cmp` (from `diffutils`)
+is not in the base image. The comparison failed as "different", so the file was rewritten on every
+run: harmless, but not idempotent. The script depends on a tool it never checks for.
+Classification: semantic, a latent worker-host-setup defect. The P4-M011 test and rehearsal ran on
+hosts that have `diffutils`.
+
+Fix: compare the files with the shell alone (no `cmp`), so the script needs only `git`,
+coreutils, `grep`, and `sed`. The container rehearsal's idempotency check covers it.
+
+The same run showed a rehearsal-design error, fixed in the rehearsal script (in scope): scenario 2's
+lease grant was refused ("path rehearsal.txt overlaps running task P4-M012-T0001"). That is correct
+product behaviour: an imported task stays `running` until reviewed. The rehearsal now accepts each
+imported task, as an operator would, before the next one.
