@@ -572,10 +572,13 @@ fn sweep_leases(root: &Path, slot: &ExecutionSlot, stop: &AtomicBool) {
 /// One sweep. It takes the execution slot only when it is free, because an execution holds its
 /// own audit handle and a concurrent append would reuse a sequence number.
 fn sweep_leases_once(root: &Path, slot: &ExecutionSlot) {
-    if !agentforge_state::FileLeaseStore::for_project_root(root)
+    let has_leases = agentforge_state::FileLeaseStore::for_project_root(root)
         .path()
-        .is_file()
-    {
+        .is_file();
+    let has_policy = root
+        .join(agentforge_operator::dispatch::DISPATCH_POLICY_RELATIVE_PATH)
+        .is_file();
+    if !has_leases && !has_policy {
         return;
     }
     {
@@ -598,6 +601,25 @@ fn sweep_leases_once(root: &Path, slot: &ExecutionSlot) {
         }
         Ok(_) => {}
         Err(error) => eprintln!("forged: lease sweep failed: {error}"),
+    }
+    // Opt-in automatic dispatch (P4-M006) runs after expiry, in the same idle-only slot.
+    if has_policy {
+        match agentforge_operator::dispatch::dispatch_ready(root, now, "forged") {
+            Ok(pass) if !pass.granted.is_empty() => {
+                let grants = pass
+                    .granted
+                    .iter()
+                    .map(|lease| format!("{}->{}", lease.task_id, lease.worker_id))
+                    .collect::<Vec<_>>()
+                    .join(",");
+                eprintln!(
+                    "forged: dispatched {} task(s): {grants}",
+                    pass.granted.len()
+                );
+            }
+            Ok(_) => {}
+            Err(error) => eprintln!("forged: dispatch failed: {error}"),
+        }
     }
 }
 

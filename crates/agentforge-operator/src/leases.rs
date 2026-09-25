@@ -174,9 +174,21 @@ pub fn grant_lease(
     now: u64,
     actor: &str,
 ) -> Result<LeaseView, OperatorError> {
+    grant_lease_as(root.as_ref(), task_id, worker, ttl_ms, now, actor, &[])
+}
+
+/// [`grant_lease`] with extra audit fields (automatic dispatch records `dispatch=auto`).
+pub(crate) fn grant_lease_as(
+    root: &Path,
+    task_id: &TaskId,
+    worker: Option<&str>,
+    ttl_ms: u64,
+    now: u64,
+    actor: &str,
+    fields: &[(&str, &str)],
+) -> Result<LeaseView, OperatorError> {
     validate_actor(actor)?;
     validate_ttl(ttl_ms)?;
-    let root = root.as_ref();
     let _lock = LeaseLock::acquire(root, LEASE_LOCK_WAIT)?;
     let graph = load_graph(root)?;
     let record = graph
@@ -234,7 +246,7 @@ pub fn grant_lease(
         .get(&lease_id)
         .cloned()
         .ok_or_else(|| OperatorError::new("granted lease is missing"))?;
-    commit(root, &book, &[(&lease, "granted")], actor)?;
+    commit_fields(root, &book, &[(&lease, "granted")], actor, fields)?;
     Ok(view(&lease, now))
 }
 
@@ -481,13 +493,23 @@ fn commit(
     changes: &[(&TaskLease, &str)],
     actor: &str,
 ) -> Result<(), OperatorError> {
+    commit_fields(root, book, changes, actor, &[])
+}
+
+fn commit_fields(
+    root: &Path,
+    book: &LeaseBook,
+    changes: &[(&TaskLease, &str)],
+    actor: &str,
+    fields: &[(&str, &str)],
+) -> Result<(), OperatorError> {
     let mut audit = crate::open_project_audit(root)?;
     FileLeaseStore::for_project_root(root)
         .save(book)
         .map_err(|error| OperatorError::new(error.to_string()))?;
     for (lease, action) in changes {
         let sequence = next_sequence(&audit);
-        let event = AuditEvent::new(
+        let mut event = AuditEvent::new(
             sequence,
             format!("lease-{action}-{sequence}"),
             AuditEventKind::LeaseRecorded,
@@ -500,6 +522,9 @@ fn commit(
         .with_field("worker_id", lease.worker_id().as_str())
         .with_field("generation", lease.generation().to_string())
         .with_field("expires_at_ms", lease.expires_at_ms().to_string());
+        for (key, value) in fields {
+            event = event.with_field(*key, *value);
+        }
         audit
             .append(event)
             .map_err(|error| OperatorError::new(error.to_string()))?;
@@ -507,7 +532,7 @@ fn commit(
     Ok(())
 }
 
-fn load_book(root: &Path) -> Result<LeaseBook, OperatorError> {
+pub(crate) fn load_book(root: &Path) -> Result<LeaseBook, OperatorError> {
     Ok(FileLeaseStore::for_project_root(root)
         .load()
         .map_err(|error| OperatorError::new(error.to_string()))?
@@ -530,7 +555,7 @@ fn view(lease: &TaskLease, now: u64) -> LeaseView {
     }
 }
 
-fn validate_ttl(ttl_ms: u64) -> Result<(), OperatorError> {
+pub(crate) fn validate_ttl(ttl_ms: u64) -> Result<(), OperatorError> {
     if ttl_ms == 0 || ttl_ms > MAX_LEASE_DURATION_MS {
         return Err(OperatorError::new(format!(
             "lease TTL must be between 1 and {MAX_LEASE_DURATION_MS} ms"

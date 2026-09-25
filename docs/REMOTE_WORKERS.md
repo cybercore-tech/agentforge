@@ -191,3 +191,27 @@ The result is an ordinary task result, reviewed the usual way: `forge task diff`
 post-review merge approval, and `integrate`. `--once` exits 0 when idle or successful, and 1 when
 the task failed. Stopping the process stops the worker: its lease expires and the task keeps its
 evidence.
+
+## Automatic dispatch
+
+P4-M006 (ADR-0049) lets a project opt in to automatic granting. Create a reviewed policy:
+
+```text
+# .forge/dispatch.conf
+enabled=true
+milestone=P4-M006        # repeatable; only these milestones are dispatched
+ttl_ms=900000            # optional, default 15 minutes
+max_per_tick=4           # optional, 1–64
+```
+
+`forge lease dispatch <root> --actor <you>` runs one pass and prints the grants, the skipped tasks
+with reasons, and why the pass stopped. A running `forged` runs a pass on its idle tick every
+5 seconds, as actor `forged`. With a polling worker (`forge worker run ... --poll-ms 2000`), a
+created task then runs without any grant command.
+
+A pass grants only `pending`, ready tasks in the listed milestones, in task-ID order, whose
+pre-execution approvals are recorded. It uses the same checks as `forge lease grant`: capacity, one
+lease per task, and path ownership. It stops when every worker is full or after `max_per_tick`
+grants. **Dispatch runs once per task:** a task that already had a lease is skipped, so a failed or
+abandoned attempt waits for you (grant it manually to retry). Automatic grants are audited with
+`dispatch=auto`.

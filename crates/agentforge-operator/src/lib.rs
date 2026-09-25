@@ -1,5 +1,6 @@
 //! Explicit, audited operator actions over durable AgentForge task state.
 
+pub mod dispatch;
 pub mod leases;
 pub mod worker;
 

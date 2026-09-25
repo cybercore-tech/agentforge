@@ -135,7 +135,8 @@ Since P4-M004 the daemon also expires due remote-worker leases every 5 seconds, 
 milliseconds it takes, and only when the slot is free. When this was added, an execution's own
 audit handle made a concurrent append unsafe. Since P0-M013 audit appends are coordinated
 (ADR-0047), and the slot rule is kept so sweeps stay out of executions' way. `stop` and new executions wait out an
-in-progress sweep instead of being refused. Daemon `run` and `launch` refuse leased tasks like the
+in-progress sweep instead of being refused. Since P4-M006 the same tick also runs one automatic dispatch pass when
+`.forge/dispatch.conf` enables it (ADR-0049). Daemon `run` and `launch` refuse leased tasks like the
 direct commands do (see [REMOTE_WORKERS.md](REMOTE_WORKERS.md#operating-leases)).
 
 ## Long-running executions

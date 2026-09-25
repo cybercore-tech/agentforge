@@ -301,3 +301,60 @@ fn running_daemon_expires_due_leases() {
     assert!(!root.join(".forge/state/remote-leases.lock").exists());
     fs::remove_dir_all(root).expect("cleanup");
 }
+
+#[test]
+fn running_daemon_dispatches_ready_tasks_under_an_enabled_policy() {
+    use agentforge_audit::AuditStore as _;
+    use agentforge_state::{FileLeaseStore, LeaseStore, TaskStore};
+    let _lifecycle_guard = daemon_lifecycle_guard();
+    let root = temporary_repo();
+    let mut task = agentforge_core::agent::AgentTask::new(
+        "P4-M006-T0001",
+        "P4-M006",
+        agentforge_core::agent::AgentRole::Implementer,
+        "dispatch fixture",
+    );
+    task.allowed_paths = vec!["a.txt".into()];
+    agentforge_state::FileTaskStore::for_project_root(&root)
+        .save(&agentforge_core::task::TaskGraph::from_tasks([task]).expect("graph"))
+        .expect("task snapshot");
+    fs::create_dir_all(root.join(".forge/workers")).expect("workers");
+    fs::write(
+        root.join(".forge/workers/w-a.conf"),
+        "platform=linux-x86_64\ncapability=rust\nmax_leases=1\n",
+    )
+    .expect("worker");
+    fs::write(
+        root.join(".forge/dispatch.conf"),
+        "enabled=true\nmilestone=P4-M006\n",
+    )
+    .expect("policy");
+
+    let Some((server, _)) = start_foreground(&root) else {
+        fs::remove_dir_all(root).expect("cleanup");
+        return;
+    };
+    let store = FileLeaseStore::for_project_root(&root);
+    let deadline = Instant::now() + Duration::from_secs(20);
+    let leased = loop {
+        let leased = store
+            .load()
+            .expect("load")
+            .is_some_and(|book| book.leases().count() == 1);
+        if leased || Instant::now() >= deadline {
+            break leased;
+        }
+        thread::sleep(Duration::from_millis(100));
+    };
+    stop(&root).expect("cooperative stop");
+    assert!(wait_for_exit(&server).is_ok());
+    assert!(leased, "the daemon dispatched within the tick");
+    let audit =
+        agentforge_audit::FileAuditStore::open(root.join(".forge/audit.log")).expect("audit");
+    let event = audit.records()[0].event();
+    assert_eq!(event.actor(), "forged");
+    assert_eq!(event.fields()["action"], "granted");
+    assert_eq!(event.fields()["dispatch"], "auto");
+    assert_eq!(event.fields()["worker_id"], "w-a");
+    fs::remove_dir_all(root).expect("cleanup");
+}

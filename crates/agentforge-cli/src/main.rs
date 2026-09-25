@@ -346,21 +346,21 @@ fn lease_command(arguments: Vec<String>) -> ExitCode {
         DEFAULT_LEASE_TTL_MS, expire_leases, grant_lease, list_leases, now_ms, release_lease,
         renew_lease,
     };
-    let usage = "lease requires: list <root> | grant <root> <task-id> [--worker <id>] [--ttl-ms <ms>] --actor <actor> | renew <root> <lease-id> [--ttl-ms <ms>] --actor <actor> | release <root> <lease-id> --actor <actor> | expire <root> --actor <actor>";
+    let usage = "lease requires: list <root> | grant <root> <task-id> [--worker <id>] [--ttl-ms <ms>] --actor <actor> | renew <root> <lease-id> [--ttl-ms <ms>] --actor <actor> | release <root> <lease-id> --actor <actor> | expire <root> --actor <actor> | dispatch <root> --actor <actor>";
     let now = now_ms();
-    let (action, positional, rest): (&str, usize, &[String]) = match arguments
-        .first()
-        .map(String::as_str)
-    {
-        Some(action @ ("list" | "expire")) if arguments.len() >= 2 => (action, 1, &arguments[2..]),
-        Some(action @ ("grant" | "renew" | "release")) if arguments.len() >= 3 => {
-            (action, 2, &arguments[3..])
-        }
-        _ => {
-            eprintln!("{usage}");
-            return ExitCode::from(2);
-        }
-    };
+    let (action, positional, rest): (&str, usize, &[String]) =
+        match arguments.first().map(String::as_str) {
+            Some(action @ ("list" | "expire" | "dispatch")) if arguments.len() >= 2 => {
+                (action, 1, &arguments[2..])
+            }
+            Some(action @ ("grant" | "renew" | "release")) if arguments.len() >= 3 => {
+                (action, 2, &arguments[3..])
+            }
+            _ => {
+                eprintln!("{usage}");
+                return ExitCode::from(2);
+            }
+        };
     let allowed: &[&str] = match action {
         "list" => &[],
         "grant" => &["--worker", "--ttl-ms", "--actor"],
@@ -379,6 +379,22 @@ fn lease_command(arguments: Vec<String>) -> ExitCode {
     let actor = options.actor.as_deref().unwrap_or_default();
     let ttl_ms = options.ttl_ms.unwrap_or(DEFAULT_LEASE_TTL_MS);
     let result = match action {
+        "dispatch" => agentforge_operator::dispatch::dispatch_ready(root, now, actor).map(|pass| {
+            if !pass.enabled {
+                println!("dispatch is disabled (no enabled .forge/dispatch.conf)");
+                return;
+            }
+            for lease in &pass.granted {
+                print_lease("dispatched", lease);
+            }
+            for (task, reason) in &pass.skipped {
+                println!("skipped task={task} reason={reason}");
+            }
+            if let Some(reason) = &pass.stopped {
+                println!("stopped: {reason}");
+            }
+            println!("dispatched {} task(s)", pass.granted.len());
+        }),
         "list" => list_leases(root, now).map(|leases| {
             if leases.is_empty() {
                 println!("no leases");

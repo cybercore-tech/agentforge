@@ -160,7 +160,9 @@ lease grant|list|renew|release|expire` (P4-M004; details in `docs/REMOTE_WORKERS
 task, or one overlapping a lease, cannot run locally. `forged` expires due leases every 5 s.
 `forge worker run <root> <worker-id> (--profile <p> | <exe>) [--once]` runs a worker on the same
 host: it claims its leases, runs each task through the standard launch path, renews while the agent
-runs, and releases the lease (P4-M005).
+runs, and releases the lease (P4-M005). An enabled `.forge/dispatch.conf` lets `forged` (or `forge
+lease dispatch`) grant ready tasks in listed milestones to workers automatically, once per task
+(P4-M006).
 
 ## Recovery procedures
 
@@ -174,6 +176,7 @@ runs, and releases the lease (P4-M005).
 | A release run built every target but **Publish GitHub release** failed | Do not move the tag. Publish from that run's artifacts with the procedure in [`RELEASE.md`](RELEASE.md#if-the-publish-job-fails), then fix the workflow. |
 | `task integrate` says the merge was approved for another commit, or is not bound to a reviewed commit | The task branch moved after approval, or the approval predates P1-M008. Review `forge task diff` again, then `forge task approve ... merge_protected_branch` binds the current head. |
 | A launch says a task "is leased to worker ..." or "overlaps task ... leased to worker ..." | Release the lease (`forge lease release`) or wait for it to expire, then launch. `forge lease list` shows who holds what. |
+| A task is never dispatched automatically | Check `forge lease dispatch . --actor <you>`: it lists each skipped task with its reason (milestone not listed, approval missing, overlap, or "already had a lease"). Tasks that had a lease are dispatched only once; grant them manually. |
 | A worker was stopped mid-run | Its lease expires on its own (or run `forge lease expire`). The task stays `running` with its evidence: review it, or `forge task cancel` and create a new attempt. |
 | `lease state is locked by another operation` | Another lease command or the daemon sweep is running; retry. If the lock outlived a crash and no `forge` or `forged` process runs for the project, remove `.forge/state/remote-leases.lock`. |
 | `audit append lock ... is held by another writer` | Another append is in progress (milliseconds); retry. If it persists and no `forge` or `forged` process is running for the project, a crash left `.forge/audit.log.lock` behind. Remove it. |

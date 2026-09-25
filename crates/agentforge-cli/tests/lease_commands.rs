@@ -349,3 +349,86 @@ fn a_worker_process_runs_its_leased_task() {
     );
     fs::remove_dir_all(root).expect("cleanup");
 }
+
+#[test]
+fn dispatch_then_a_worker_runs_the_task_without_a_manual_grant() {
+    let root = temporary_repo();
+    let root_text = root.to_str().expect("root");
+    assert!(forge(&root, &["init", root_text]).status.success());
+    let created = forge(
+        &root,
+        &[
+            "task",
+            "create",
+            root_text,
+            "P4-M006-T0001",
+            "P4-M006",
+            "implementer",
+            "dispatch fixture",
+            "--allowed",
+            "agentforge-fixture-output.txt",
+            "--capability",
+            "run_local_commands",
+        ],
+    );
+    assert!(created.status.success(), "{created:?}");
+    fs::create_dir_all(root.join(".forge/workers")).expect("workers");
+    fs::write(
+        root.join(".forge/workers/builder-1.conf"),
+        "platform=linux-x86_64\ncapability=rust\nmax_leases=1\n",
+    )
+    .expect("profile");
+
+    let disabled = forge(&root, &["lease", "dispatch", root_text, "--actor", "op"]);
+    assert!(disabled.status.success(), "{disabled:?}");
+    assert!(
+        text(&disabled).contains("dispatch is disabled"),
+        "{disabled:?}"
+    );
+
+    fs::write(
+        root.join(".forge/dispatch.conf"),
+        "enabled=true\nmilestone=P4-M006\n",
+    )
+    .expect("policy");
+    let dispatched = forge(&root, &["lease", "dispatch", root_text, "--actor", "op"]);
+    let output = text(&dispatched);
+    assert!(dispatched.status.success(), "{output}");
+    assert!(
+        output.contains("dispatched lease=P4-M006-T0001.L1 task=P4-M006-T0001 worker=builder-1"),
+        "{output}"
+    );
+    assert!(output.contains("dispatched 1 task(s)"), "{output}");
+
+    let executable = env!("CARGO_BIN_EXE_agentforge-cli-fixture");
+    let ran = forge(
+        &root,
+        &[
+            "worker",
+            "run",
+            root_text,
+            "builder-1",
+            executable,
+            "--once",
+        ],
+    );
+    assert!(ran.status.success(), "{}", text(&ran));
+    assert!(
+        text(&ran).contains("tasks_run=1 failures=0"),
+        "{}",
+        text(&ran)
+    );
+
+    // Dispatch-once: nothing further to do.
+    let again = forge(&root, &["lease", "dispatch", root_text, "--actor", "op"]);
+    assert!(text(&again).contains("dispatched 0 task(s)"), "{again:?}");
+
+    fs::remove_file(root.join(".forge/worktrees/P4-M006-T0001/agentforge-fixture-output.txt"))
+        .expect("fixture output");
+    assert!(
+        forge(&root, &["worktree", "retire", root_text, "P4-M006-T0001"])
+            .status
+            .success()
+    );
+    fs::remove_dir_all(root).expect("cleanup");
+}
