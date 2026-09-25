@@ -1,6 +1,6 @@
 # Plan: P0-M015 — Wall-clock audit timestamps
 
-Status: Draft
+Status: Approved
 Milestone: P0-M015
 Created: 2026-09-24
 Owner: AgentForge project
