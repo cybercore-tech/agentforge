@@ -27,6 +27,9 @@ agent_runs:
 
 - `agent-exit` is the recorded exit code (`none` when the platform reported none). Runs recorded
   before P2-M029, which carry no exit fields, show `agent-exit=unknown`.
+- `duration=<seconds>s` is the time from the run's `AgentStarted` to its `AgentFinished`, shown when
+  both are timestamped (P0-M015). Older runs have no duration. The recent events in
+  `audit_recent` show `at=YYYY-MM-DDTHH:MM:SSZ` (UTC) for the same reason.
 - `termination` is `exited`, `timed_out`, or `output_limit_exceeded`; `output-truncated=true`
   appears when the captured output was cut short.
 - `gates=<passed>/<total>` counts the `GateFinished` events for the same task that follow the run,

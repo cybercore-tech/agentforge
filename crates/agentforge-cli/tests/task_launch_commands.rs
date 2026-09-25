@@ -55,6 +55,9 @@ fn task_launch_prepares_and_runs_one_real_foreground_task() {
     let hud = forge(&root, &["hud", root_text]);
     assert!(hud.status.success(), "{hud:?}");
     let hud_text = String::from_utf8_lossy(&hud.stdout);
+    // P0-M015: events carry wall-clock times, and the run has a duration.
+    assert!(hud_text.contains(" at=20"), "{hud_text}");
+    assert!(hud_text.contains(" duration="), "{hud_text}");
     assert!(
         hud_text.contains("#1 WorktreeObserved task=P2-M015-T0001"),
         "{hud_text}"

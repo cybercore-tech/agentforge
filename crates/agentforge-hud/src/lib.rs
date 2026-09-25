@@ -238,6 +238,10 @@ pub struct AgentRunSummary {
     pub evidence_error: Option<String>,
     /// Gates recorded for this task after the run and before its next agent start.
     pub gates: GateSummary,
+    /// When the run's `AgentStarted` was recorded (wall-clock ms), if timestamped (P0-M015).
+    pub started_at_ms: Option<u64>,
+    /// When its `AgentFinished` was recorded (wall-clock ms), if timestamped.
+    pub finished_at_ms: Option<u64>,
 }
 
 impl AgentRunSummary {
@@ -256,7 +260,15 @@ impl AgentRunSummary {
             stderr_log: field("stderr_log"),
             evidence_error: field("evidence_error"),
             gates: GateSummary::default(),
+            started_at_ms: None,
+            finished_at_ms: event.has_timestamp().then(|| event.timestamp()),
         }
+    }
+
+    /// Run duration in whole seconds, when both ends are timestamped.
+    #[must_use]
+    pub fn duration_seconds(&self) -> Option<u64> {
+        Some(self.finished_at_ms?.checked_sub(self.started_at_ms?)? / 1_000)
     }
 
     fn record_gate(&mut self, event: &AuditEvent) {
@@ -282,18 +294,26 @@ impl AgentRunSummary {
 pub fn agent_runs<'a>(events: impl IntoIterator<Item = &'a AuditEvent>) -> Vec<AgentRunSummary> {
     let mut runs = Vec::new();
     let mut open = BTreeMap::<String, usize>::new();
+    let mut started = BTreeMap::<String, u64>::new();
     for event in events {
         match event.kind() {
             AuditEventKind::AgentStarted => {
                 if let Some(task) = event.task_id() {
                     open.remove(task);
+                    if event.has_timestamp() {
+                        started.insert(task.to_owned(), event.timestamp());
+                    } else {
+                        started.remove(task);
+                    }
                 }
             }
             AuditEventKind::AgentFinished => {
+                let mut run = AgentRunSummary::from_event(event);
                 if let Some(task) = event.task_id() {
                     open.insert(task.to_owned(), runs.len());
+                    run.started_at_ms = started.remove(task);
                 }
-                runs.push(AgentRunSummary::from_event(event));
+                runs.push(run);
             }
             AuditEventKind::GateFinished => {
                 if let Some(&index) = event.task_id().and_then(|task| open.get(task)) {
@@ -365,12 +385,17 @@ pub fn collect(root: impl AsRef<Path>) -> Result<HudSnapshot, HudError> {
         .map(|record| {
             let event = record.event();
             format!(
-                "#{} {:?}{}",
+                "#{} {:?}{}{}",
                 event.sequence(),
                 event.kind(),
                 event
                     .task_id()
-                    .map_or(String::new(), |task| format!(" task={task}"))
+                    .map_or(String::new(), |task| format!(" task={task}")),
+                if event.has_timestamp() {
+                    format!(" at={}", utc_timestamp(event.timestamp()))
+                } else {
+                    String::new()
+                }
             )
         })
         .collect();
@@ -479,6 +504,9 @@ fn agent_run_line(run: &AgentRunSummary) -> String {
     if run.output_truncated {
         line.push_str(" output-truncated=true");
     }
+    if let Some(seconds) = run.duration_seconds() {
+        let _ = write!(line, " duration={seconds}s");
+    }
     let _ = write!(line, " gates={}/{}", run.gates.passed, run.gates.total);
     if let Some((gate, outcome)) = &run.gates.first_failure {
         let _ = write!(line, " failed-gate={gate}:{outcome}");
@@ -493,6 +521,30 @@ fn agent_run_line(run: &AgentRunSummary) -> String {
         let _ = write!(line, " evidence-error={error}");
     }
     line
+}
+
+/// Formats wall-clock milliseconds as `YYYY-MM-DDTHH:MM:SSZ` (UTC), std only (P0-M015).
+#[must_use]
+pub fn utc_timestamp(milliseconds: u64) -> String {
+    let seconds = milliseconds / 1_000;
+    let (days, rest) = (seconds / 86_400, seconds % 86_400);
+    let (hour, minute, second) = (rest / 3_600, rest % 3_600 / 60, rest % 60);
+    // Civil date from days since 1970-01-01 (Howard Hinnant's algorithm).
+    let z = i64::try_from(days).unwrap_or(i64::MAX / 2) + 719_468;
+    let era = z.div_euclid(146_097);
+    let day_of_era = z - era * 146_097;
+    let year_of_era =
+        (day_of_era - day_of_era / 1_460 + day_of_era / 36_524 - day_of_era / 146_096) / 365;
+    let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
+    let month_index = (5 * day_of_year + 2) / 153;
+    let day = day_of_year - (153 * month_index + 2) / 5 + 1;
+    let month = if month_index < 10 {
+        month_index + 3
+    } else {
+        month_index - 9
+    };
+    let year = year_of_era + era * 400 + i64::from(month <= 2);
+    format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}Z")
 }
 
 /// Bounds one audit value to a single line of at most [`MAX_FIELD_CHARS`] characters.
@@ -669,6 +721,53 @@ mod tests {
         let agent_runs_start = rendered.find("agent_runs:").expect("agent_runs");
         let worktrees = rendered.find("worktrees:").expect("worktrees");
         assert!(audit_recent < agent_runs_start && agent_runs_start < worktrees);
+    }
+
+    #[test]
+    fn utc_timestamps_are_formatted_exactly() {
+        use super::utc_timestamp;
+        assert_eq!(utc_timestamp(0), "1970-01-01T00:00:00Z");
+        assert_eq!(utc_timestamp(951_782_400_000), "2000-02-29T00:00:00Z");
+        assert_eq!(utc_timestamp(1_790_315_054_525), "2026-09-25T05:44:14Z");
+        assert_eq!(utc_timestamp(4_102_444_799_000), "2099-12-31T23:59:59Z");
+    }
+
+    #[test]
+    fn agent_runs_show_durations_only_when_timestamped() {
+        let start = 1_790_315_054_000;
+        let events = [
+            AuditEvent::new(1, "s-1", AuditEventKind::AgentStarted, "test", start)
+                .with_task_id("task-1"),
+            AuditEvent::new(
+                2,
+                "f-2",
+                AuditEventKind::AgentFinished,
+                "test",
+                start + 434_000,
+            )
+            .with_task_id("task-1")
+            .with_field("exit_code", "0"),
+            event(3, AuditEventKind::AgentStarted, "task-2"),
+            event(4, AuditEventKind::AgentFinished, "task-2").with_field("exit_code", "0"),
+        ];
+        let runs = agent_runs(&events);
+        assert_eq!(runs[0].duration_seconds(), Some(434));
+        assert_eq!(
+            runs[1].duration_seconds(),
+            None,
+            "legacy placeholder timestamps"
+        );
+        let mut value = snapshot();
+        value.agent_runs = runs;
+        let rendered = render(&value);
+        assert!(
+            rendered.contains("#2 task=task-1 agent-exit=0 duration=434s gates=0/0"),
+            "{rendered}"
+        );
+        assert!(
+            rendered.contains("#4 task=task-2 agent-exit=0 gates=0/0"),
+            "{rendered}"
+        );
     }
 
     #[test]

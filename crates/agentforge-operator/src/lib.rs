@@ -198,12 +198,11 @@ pub fn observe_ci(
     };
     let sequence = next_sequence(&audit);
     let observed = with_task(
-        AuditEvent::new(
+        AuditEvent::now(
             sequence,
             format!("ci-observed-{sequence}"),
             AuditEventKind::CiObserved,
             "operator",
-            1,
         )
         .with_field("repository", audit_text(request.repository()))
         .with_field("workflow", audit_text(request.workflow()))
@@ -221,12 +220,11 @@ pub fn observe_ci(
     for (job, classification) in &classifications {
         let sequence = next_sequence(&audit);
         let event = with_task(
-            AuditEvent::new(
+            AuditEvent::now(
                 sequence,
                 format!("ci-failure-classified-{sequence}"),
                 AuditEventKind::FailureClassified,
                 "operator",
-                1,
             )
             .with_field("stage", "ci")
             .with_field("sha", run.head_sha())
@@ -313,12 +311,11 @@ pub fn approve_task(
     }
     let mut audit = open_project_audit(root)?;
     let sequence = next_sequence(&audit);
-    let mut event = AuditEvent::new(
+    let mut event = AuditEvent::now(
         sequence,
         format!("operator-approval-{sequence}"),
         AuditEventKind::ApprovalRecorded,
         actor,
-        1,
     )
     .with_task_id(task_id.as_str())
     .with_field("boundary", boundary.as_str());
@@ -358,12 +355,11 @@ pub fn transition_task(
         .revision();
     let mut audit = open_project_audit(root)?;
     let sequence = next_sequence(&audit);
-    let event = AuditEvent::new(
+    let event = AuditEvent::now(
         sequence,
         format!("operator-transition-{sequence}"),
         AuditEventKind::TaskTransition,
         actor,
-        1,
     )
     .with_task_id(task_id.as_str())
     .with_field("from", previous.as_str())
@@ -538,12 +534,11 @@ pub fn integrate_task(
     });
     if !already_recorded {
         let sequence = next_sequence(&audit);
-        let event = AuditEvent::new(
+        let event = AuditEvent::now(
             sequence,
             format!("operator-integration-{sequence}"),
             AuditEventKind::IntegrationRecorded,
             actor,
-            1,
         )
         .with_task_id(task_id.as_str())
         .with_field("source_branch", report.source_branch())

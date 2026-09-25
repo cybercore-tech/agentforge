@@ -144,6 +144,20 @@ fn real_process_adapter_updates_state_and_audit_in_isolated_repo() {
     assert_eq!(audit_store.records().len(), 5);
     assert_eq!(audit_store.records()[2].event().sequence(), 3);
     assert_eq!(execution.report.task_id().as_str(), task.task_id);
+    // P0-M015: every event from the run records a real, ordered wall-clock time.
+    let times = execution
+        .audit
+        .records()
+        .iter()
+        .map(|record| record.event().timestamp())
+        .collect::<Vec<_>>();
+    assert!(
+        times
+            .iter()
+            .all(|time| *time >= agentforge_audit::UNSET_TIMESTAMP_BELOW),
+        "{times:?}"
+    );
+    assert!(times.windows(2).all(|pair| pair[0] <= pair[1]), "{times:?}");
     let _ = manager.retire(&task_id);
     std::fs::remove_dir_all(root).unwrap();
 }

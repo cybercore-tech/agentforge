@@ -561,12 +561,11 @@ fn commit_fields(
         .map_err(|error| OperatorError::new(error.to_string()))?;
     for (lease, action) in changes {
         let sequence = next_sequence(&audit);
-        let mut event = AuditEvent::new(
+        let mut event = AuditEvent::now(
             sequence,
             format!("lease-{action}-{sequence}"),
             AuditEventKind::LeaseRecorded,
             actor,
-            1,
         )
         .with_task_id(lease.task_id().as_str())
         .with_field("action", *action)

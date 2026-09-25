@@ -92,7 +92,39 @@ pub struct AuditEvent {
     fields: BTreeMap<String, String>,
 }
 
+/// Timestamps below this (2000-01-01T00:00:00Z in milliseconds) mean "unset". Records written
+/// before P0-M015 carry the placeholder `1`.
+pub const UNSET_TIMESTAMP_BELOW: u64 = 946_684_800_000;
+
+/// The current wall-clock time in milliseconds since the Unix epoch.
+#[must_use]
+pub fn wall_clock_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |elapsed| {
+            u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX)
+        })
+}
+
 impl AuditEvent {
+    /// Creates an event stamped with the current wall-clock time (P0-M015). Production code uses
+    /// this, so each event records when it happened even if it is persisted later in a batch.
+    #[must_use]
+    pub fn now(
+        sequence: u64,
+        event_id: impl Into<String>,
+        kind: AuditEventKind,
+        actor: impl Into<String>,
+    ) -> Self {
+        Self::new(sequence, event_id, kind, actor, wall_clock_ms())
+    }
+
+    /// Whether the event carries a real timestamp (not a pre-P0-M015 placeholder).
+    #[must_use]
+    pub const fn has_timestamp(&self) -> bool {
+        self.timestamp >= UNSET_TIMESTAMP_BELOW
+    }
+
     /// Creates an event. Sequence and timestamp are explicit caller metadata.
     #[must_use]
     pub fn new(
@@ -347,6 +379,15 @@ impl Drop for AppendLock {
     }
 }
 
+/// Backstop (P0-M015): an event still carrying an unset timestamp is stamped with the append time.
+/// Real timestamps are kept, so events stamped at creation keep their own time.
+fn stamp_unset(mut event: AuditEvent) -> AuditEvent {
+    if !event.has_timestamp() {
+        event.timestamp = wall_clock_ms();
+    }
+    event
+}
+
 /// Moves a trailing `-<old>` in an event ID to `-<new>`, keeping ID conventions after renumbering.
 fn renumber(mut event: AuditEvent, sequence: u64) -> AuditEvent {
     let suffix = format!("-{}", event.sequence);
@@ -402,7 +443,7 @@ impl FileAuditStore {
         let placed = events
             .into_iter()
             .enumerate()
-            .map(|(offset, event)| renumber(event, fresh + offset as u64))
+            .map(|(offset, event)| renumber(stamp_unset(event), fresh + offset as u64))
             .collect();
         self.write_records(placed)
     }
@@ -518,7 +559,7 @@ impl AuditStore for FileAuditStore {
                 actual: event.sequence,
             });
         }
-        self.write_records(vec![renumber(event, fresh)])?;
+        self.write_records(vec![renumber(stamp_unset(event), fresh)])?;
         Ok(self.log.records.last().expect("record was just pushed"))
     }
     fn records(&self) -> &[AuditRecord] {

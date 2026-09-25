@@ -14,3 +14,21 @@ and trailing bytes fail closed without truncating or repairing the source.
 Successful appends use an append-only file handle and `sync_all` before returning. The digest is a
 tamper-evident integrity signal, not cryptographic authenticity without external key custody.
 Queries return sequence order and are bounded by the decoded record limits.
+
+## Timestamps (P0-M015)
+
+Every event records **when it happened**, in wall-clock milliseconds since the Unix epoch.
+
+- **Stamped at creation.** Production code builds events with `AuditEvent::now`. An agent run's
+  events are persisted in one batch when the run finishes, and each keeps its own creation time.
+  A guard test fails if production code uses the explicit-time constructor.
+- **Store backstop.** Any event appended with a timestamp below `UNSET_TIMESTAMP_BELOW`
+  (2000-01-01) is stamped with the append time before hashing. Real timestamps are never changed.
+- **Integrity and order are unchanged.** The sequence and the digest chain stay authoritative;
+  timestamps are evidence, not ordering. Clock jumps can give odd durations but never reorder
+  records.
+- **Legacy records** (written before P0-M015) carry the placeholder `1`. They verify and render as
+  before, with no time.
+
+The HUD shows `at=YYYY-MM-DDTHH:MM:SSZ` (UTC) on recent events and `duration=<seconds>s` on agent
+runs (see HUD.md).

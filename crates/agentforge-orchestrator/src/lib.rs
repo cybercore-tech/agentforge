@@ -646,12 +646,11 @@ fn append_fields(
     fields: &[(&str, &str)],
 ) -> Result<(), SliceError> {
     let sequence = log.next_sequence();
-    let mut event = AuditEvent::new(
+    let mut event = AuditEvent::now(
         sequence,
         format!("{prefix}-{sequence}"),
         kind,
         "orchestrator",
-        1,
     )
     .with_task_id(task.task_id.clone());
     for (key, value) in fields {
@@ -865,12 +864,11 @@ fn append_worktree_observation(
         .records()
         .last()
         .map_or(1, |record| record.event().sequence().saturating_add(1));
-    let event = AuditEvent::new(
+    let event = AuditEvent::now(
         sequence,
         format!("worktree-observed-{sequence}"),
         AuditEventKind::WorktreeObserved,
         "orchestrator",
-        1,
     )
     .with_task_id(task.task_id.clone())
     .with_field("base_commit", base_commit)
@@ -1205,12 +1203,11 @@ fn record_gate_evidence(
 ) -> Result<(), SliceError> {
     for gate in gates {
         let sequence = audit.next_sequence();
-        let mut event = AuditEvent::new(
+        let mut event = AuditEvent::now(
             sequence,
             format!("gate-finished-{sequence}"),
             AuditEventKind::GateFinished,
             "orchestrator",
-            1,
         )
         .with_task_id(task.task_id.clone())
         .with_field("gate", gate.name())
@@ -1240,12 +1237,11 @@ fn record_gate_evidence(
             .transition(task_id, TaskState::Failed)
             .map_err(|error| SliceError::Preflight(error.to_string()))?;
         let sequence = audit.next_sequence();
-        let event = AuditEvent::new(
+        let event = AuditEvent::now(
             sequence,
             format!("gate-failed-{sequence}"),
             AuditEventKind::FailureClassified,
             "orchestrator",
-            1,
         )
         .with_task_id(task.task_id.clone())
         .with_field("stage", SliceStage::Gates.as_str())
@@ -1280,7 +1276,7 @@ fn append_event(
     key: &str,
     value: &str,
 ) -> Result<(), SliceError> {
-    let event = AuditEvent::new(log.next_sequence(), id, kind, "orchestrator", 1)
+    let event = AuditEvent::now(log.next_sequence(), id, kind, "orchestrator")
         .with_task_id(task.task_id.clone())
         .with_field(key, value);
     log.append(event)

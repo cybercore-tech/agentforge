@@ -94,7 +94,10 @@ gates, review, accept, integrate. This file is the run log and the list of frict
     the twelve production `AuditEvent::new` calls pass the placeholder timestamp `1`. The chain
     proves order and integrity, but nothing in the evidence says *when* a claim, renewal, agent run,
     gate, or import happened. The run's timing (7 min 14 s end to end) had to be measured outside
-    AgentForge. Needed for remote work (lease timelines, slow gates, incident review). **Open.**
+    AgentForge. Needed for remote work (lease timelines, slow gates, incident review). **Resolved in
+    P0-M015:** events are stamped at creation (`AuditEvent::now`), the store stamps any stragglers,
+    a guard test keeps placeholders out of production code, and the HUD shows `at=` and
+    `duration=`.
 13. **The remote worker does not report lease renewals.** `forge worker run` (same host) prints
     `lease renewed N time(s)`, but `forge worker remote run` has no renewal report. The one renewal
     (#27) was visible only in the coordinator's audit. The worker host cannot tell whether its lease
