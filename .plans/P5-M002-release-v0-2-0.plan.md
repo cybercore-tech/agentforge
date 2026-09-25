@@ -86,6 +86,8 @@ None; `Cargo.lock` changes only for workspace members.
 - `Cargo.toml`, `Cargo.lock`, `crates/agentforge-cli/Cargo.toml`
 - `CHANGELOG.md`, `README.md`, `site/index.html`, `docs/RELEASE.md`, `docs/REGISTRY.md`
 - closure records: `docs/MILESTONES.md`, `PROJECT_STATE.md`, `AGENT_HANDOFF.md`
+- Amendment 1: `crates/agentforge-daemon/src/lib.rs`, `crates/agentforge-daemon/src/worker_api.rs`,
+  `docs/DOGFOODING.md`
 
 ## Test-first matrix
 
@@ -123,6 +125,22 @@ CHANGELOG release section, README, site, RELEASE, and REGISTRY; closure records.
       directly verifiable `SHA256SUMS`.
 - [ ] Version metadata, the CHANGELOG, and the docs agree on `0.2.0`.
 - [ ] A downloaded binary reports `0.2.0`; closed and tagged.
+
+## Amendment 1 (2026-09-24)
+
+The release gate (`./scripts/gate.sh full`) failed
+`claim_refuses_unapproved_tasks_and_reports_the_lease_window` with `response failed: Interrupted
+system call (os error 4)`. Classification: a latent intermittent defect in code this release ships,
+not related to the version bump. The worker API's `read_line` and the daemon's `read_frame` loop on
+`TcpStream::read` and return on `ErrorKind::Interrupted` instead of retrying, which is the standard
+handling. Both socket readers now retry on `Interrupted`. The fix is required before tagging,
+because `v0.2.0` ships this code.
+
+A sweep found eight more `read()` loops on process pipes (adapter capture, gates, CI provider, CLI
+input) with the same pattern. They are recorded as dogfooding finding 11 for a dedicated follow-up,
+and kept out of the release scope.
+
+Verification: the full gate passes, and the worker API tests pass on repeated local runs.
 
 ## Completion record
 
