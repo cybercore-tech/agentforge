@@ -88,6 +88,7 @@ None; `Cargo.lock` changes only for workspace members.
 - closure records: `docs/MILESTONES.md`, `PROJECT_STATE.md`, `AGENT_HANDOFF.md`
 - Amendment 1: `crates/agentforge-daemon/src/lib.rs`, `crates/agentforge-daemon/src/worker_api.rs`,
   `docs/DOGFOODING.md`
+- Amendment 2: `.github/workflows/release.yml`, `docs/RELEASE.md`, `docs/OPERATIONS.md`, `CHANGELOG.md`
 
 ## Test-first matrix
 
@@ -141,6 +142,31 @@ input) with the same pattern. They are recorded as dogfooding finding 11 for a d
 and kept out of the release scope.
 
 Verification: the full gate passes, and the worker API tests pass on repeated local runs.
+
+## Amendment 2 (2026-09-24)
+
+`v0.2.0` was tagged on `991eb60` (CI `36097122882` and `36097287895`, dry run `36097289496`). Tag
+run `36097480845` built all four targets, but **Publish GitHub release** failed again:
+
+```text
+read dist/agentforge-0.2.0-aarch64-apple-darwin: is a directory
+```
+
+Classification: a third latent defect in the publish job. Each build job uploads its staging
+directory together with the archive, so `dist/*` contains directories, and `gh release create`
+cannot upload a directory. This is the same reason the P5-M001 manual recovery ran
+`rm -rf dist/*/`. The P5-M001 workflow fix covered `--repo` and the checksum names, but missed this
+case, although the recovery procedure already showed it. The run left no draft release.
+
+Recovery, per `docs/RELEASE.md`, without moving the tag:
+
+1. Publish `v0.2.0` from run `36097480845`'s own artifacts: archives, `.sha256` files, and a bare
+   `SHA256SUMS`, with the directories removed.
+2. Fix `release.yml` so publish uploads only the files: `dist/*.tar.gz`, `dist/*.tar.gz.sha256`,
+   and `dist/SHA256SUMS`, with a guard that fails if any archive is missing. Update RELEASE.md and
+   the operations notes, and add a CHANGELOG `[Unreleased]` Fixed entry.
+3. The fixed publish path is proven only by the next real tag run. The closure records that
+   honestly, as a carried-forward check.
 
 ## Completion record
 
