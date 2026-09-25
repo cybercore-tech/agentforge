@@ -97,6 +97,8 @@ None in the workspace. The rehearsal uses Docker and the `archlinux` image.
 - `scripts/rehearse-two-hosts`, `contrib/rehearsal/Dockerfile`, `contrib/rehearsal/rehearsal-agent`
 - `docs/REMOTE_WORKERS.md`, `docs/DOGFOODING.md`, `docs/OPERATIONS.md`
 - Amendment 1: `scripts/worker-host-setup`
+- Amendment 2: `crates/agentforge-daemon/src/worker_api.rs`, `crates/agentforge-cli/src/main.rs`,
+  `crates/agentforge-cli/tests/*.rs`, `docs/DAEMON.md`
 - closure records: `docs/MILESTONES.md`, `CHANGELOG.md`, `README.md`, `PROJECT_STATE.md`,
   `AGENT_HANDOFF.md`
 
@@ -166,3 +168,39 @@ The same run showed a rehearsal-design error, fixed in the rehearsal script (in 
 lease grant was refused ("path rehearsal.txt overlaps running task P4-M012-T0001"). That is correct
 product behaviour: an imported task stays `running` until reviewed. The rehearsal now accepts each
 imported task, as an operator would, before the next one.
+
+## Amendment 2 (2026-09-25)
+
+The next rehearsal run failed scenario 2 (delay and loss). The agent finished and the worker
+committed `9ea3862`, but its `RESULT` upload and the lease release both failed with `Connection
+reset by peer`, so **the worker abandoned finished work**. Two causes, found from both GhostPort
+logs and then isolated:
+
+1. **GhostPort (dogfooding finding 18).** The coordinator's GhostPort server logged `data: rejected
+   ... (too many recent handshake attempts)`. Its per-IP limiter (10 per 60 s) counted *successful*
+   handshakes too, and every tunnelled stream is a new handshake. An AgentForge worker opens one
+   stream per request (idle polls every 2 s, renewals, results), so any worker over GhostPort is
+   cut off within about 20 seconds, with or without chaos. Reproduced on a clean link: 10
+   authenticated `PING`s passed and the 11th and 12th were rejected. The P0-M014 run was too short
+   to hit it, and the P4-M010 live run bypassed GhostPort. REMOTE_WORKERS.md wrongly said the
+   limiter counts *failed* handshakes. With the operator's approval this was fixed **in GhostPort**
+   (`ebd7639`, released as `v0.1.2`): a handshake that authenticates a pinned peer is forgiven, and
+   failed attempts still count in full. It has a real-daemon regression test (25 streams), and
+   GhostPort CI and its release run are green.
+2. **AgentForge (dogfooding finding 19).** A transport failure while sending `RESULT` abandons the
+   run. Only `BUSY` is retried, so a single lost connection throws away finished, committed work,
+   and the task has to be run again. Classification: semantic, the P4-M008 worker loop.
+
+Fix (AgentForge): `WorkerClient::result` returns `ClientError`. The runner retries an
+`Unreachable` result upload with the same capped backoff as claims (up to 10 attempts), with the
+lease renewal still running, and reports each retry. When a retry after a lost response is refused,
+the report says the first attempt may already have been imported and to check the coordinator.
+Refusals stay fatal.
+
+Tests (CLI, the real worker loop through a fault-injecting TCP proxy): a dropped `RESULT` request is
+retried and imported; a dropped `RESULT` *response* leads to a refused retry, reported as possibly
+imported, and the coordinator does hold the import.
+
+The rehearsal now uses GhostPort `v0.1.2` from its published release (checksum-verified) instead of
+the host's older build. Docs: REMOTE_WORKERS (GhostPort ≥ 0.1.2 is required for sustained workers,
+and the corrected limiter note), DAEMON, and DOGFOODING (findings 18 and 19).
