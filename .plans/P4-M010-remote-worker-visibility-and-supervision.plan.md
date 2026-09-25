@@ -194,3 +194,34 @@ The tests missed it because they start `forged` in-process or keep its stderr op
    request to be refused with `unauthorized`.
 
 Docs: DAEMON (the log file) and DOGFOODING (finding 16).
+
+## Amendment 2 (2026-09-25)
+
+The re-run of the live check (with Amendment 1's fixes) found dogfooding finding 17.
+Classification: semantic, worker-side worktree lifecycle (P4-M008); latent, not caused by this
+milestone.
+
+After every claim, the remote worker retires its worktree but keeps the task branch
+`agentforge/task/<task>` in its clone. When the same task is leased to the same host again, worktree
+creation fails with `managed task branch already exists`, so the claim is abandoned, on every
+attempt. Reproduced live: lease `P4-M010-T0002.L3` was abandoned for a missing capability, and the
+next lease for the same task, `L4`, was abandoned with `cannot create the worktree: managed task
+branch already exists`. A task is leased again whenever an attempt is abandoned or the operator
+retries it, so an unattended worker cannot make progress on retried work. If the abandoned
+worktree was dirty (an out-of-bounds change), `retire` also refuses, and the worktree path itself
+blocks the next attempt.
+
+Fix, in `worker_api.rs` (no boundary change): after each claim, the worker archives its attempt
+instead of leaving it on the task's names:
+
+1. A worktree that could not be retired (dirty) is moved with `git worktree move` to
+   `.forge/remote-abandoned/<lease-id>`, kept for inspection.
+2. The task branch is renamed to `agentforge/remote/<lease-id>`. Lease IDs are unique, so every
+   attempt keeps its exact history and the task's names are free for the next claim.
+
+The coordinator is unaffected: it imports from the bundle before `RESULT` returns.
+
+Tests (CLI, the real worker loop): the same task, leased twice to one host with an out-of-bounds
+agent, is abandoned both times for the boundary violation (not a branch conflict), with both
+attempts archived. The successful remote run leaves `agentforge/remote/<lease>` and no task branch.
+Docs: REMOTE_WORKERS (the worker's archive names) and DOGFOODING (finding 17).
