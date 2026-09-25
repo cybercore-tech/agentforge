@@ -1,6 +1,6 @@
 # Plan: P4-M010 — Remote-worker visibility and supervision
 
-Status: Draft
+Status: Approved
 Milestone: P4-M010
 Created: 2026-09-25
 Owner: AgentForge project
