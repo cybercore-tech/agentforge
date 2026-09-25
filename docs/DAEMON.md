@@ -143,8 +143,10 @@ direct commands do (see [REMOTE_WORKERS.md](REMOTE_WORKERS.md#operating-leases))
 
 Since P4-M007 `forged serve` also serves the authenticated remote-worker API (protocol `AFW1`)
 when `.forge/worker-api.conf` contains `bind=127.0.0.1:<port>`. It is off without the file, and a
-non-loopback bind stops the daemon from starting. The listener runs on its own thread and is
-stopped with the daemon. Remote workers reach it through GhostPort; see
+non-loopback bind stops the daemon from starting. The listener runs on its own thread (one thread
+per request) and is stopped with the daemon. Since P4-M008 a `RESULT` import holds the daemon's
+execution slot, because it writes task state and runs gates. While an execution runs, the worker
+gets `BUSY` and retries; `stop` during an import is refused like during an execution. Remote workers reach it through GhostPort; see
 [REMOTE_WORKERS.md](REMOTE_WORKERS.md#workers-on-other-machines-ghostport).
 
 ## Long-running executions

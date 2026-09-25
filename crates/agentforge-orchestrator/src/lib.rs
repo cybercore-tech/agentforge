@@ -1468,3 +1468,363 @@ mod tests {
         assert!(preflight_repository(root, &task()).is_ok());
     }
 }
+
+/// Maximum size of each remote agent log accepted for import (P4-M008).
+pub const MAX_REMOTE_LOG_BYTES: usize = 1024 * 1024;
+
+/// A result returned by a remote worker for the task it claimed (P4-M008).
+#[derive(Clone, Debug)]
+pub struct RemoteResult {
+    /// The lease the worker claimed; it must still be the task's active lease.
+    pub claim: LeaseClaim,
+    /// The exact base commit the worker was given.
+    pub base_commit: String,
+    /// The exact commit the worker produced (`== base_commit` when it produced nothing).
+    pub head_commit: String,
+    /// The received `git bundle`, holding `refs/heads/agentforge/task/<task>`; `None` without
+    /// commits.
+    pub bundle: Option<PathBuf>,
+    /// The agent's exit code, when it exited.
+    pub exit_code: Option<i32>,
+    /// `exited`, `timed_out`, or `output_limit_exceeded`.
+    pub termination: String,
+    /// Captured agent stdout (bounded by the worker).
+    pub stdout: Vec<u8>,
+    /// Captured agent stderr (bounded by the worker).
+    pub stderr: Vec<u8>,
+}
+
+/// The outcome of importing a remote result.
+#[derive(Debug)]
+pub struct RemoteImport {
+    /// The task's state after import: `running` (awaiting review) or `failed`.
+    pub state: TaskState,
+    /// The coordinator worktree holding the imported commit, when there was one.
+    pub worktree: Option<PathBuf>,
+    /// Gates the coordinator ran on the imported commit.
+    pub gates: Vec<GateRun>,
+}
+
+/// Imports a remote worker's result at its exact commit (P4-M008, ADR-0051).
+///
+/// Every check happens before any side effect: the task is pending and ready, the claim matches
+/// its active lease, required gates are configured, no worktree exists, the bundle verifies, the
+/// fetched commit is exactly `head_commit`, it descends from `base_commit`, and every changed path
+/// is allowed and not forbidden. The commit is fetched into a quarantine ref that is always
+/// removed. Only then is the task worktree created at that commit, the agent evidence recorded
+/// (`channel=remote`), and the task's gates run **locally**, never trusted from the worker.
+pub fn import_remote_result(
+    root: impl AsRef<Path>,
+    task_store: &FileTaskStore,
+    audit_store: &mut FileAuditStore,
+    task_id: &TaskId,
+    result: &RemoteResult,
+) -> Result<RemoteImport, SliceError> {
+    let root = root.as_ref();
+    let preflight = |reason: String| SliceError::Preflight(reason);
+    let mut graph = task_store
+        .load()
+        .map_err(|error| preflight(error.to_string()))?
+        .ok_or_else(|| preflight("task state snapshot is missing".into()))?;
+    let task = graph
+        .get(task_id)
+        .ok_or_else(|| preflight("task not found".into()))?
+        .task()
+        .clone();
+    task.validate()
+        .map_err(|error| preflight(error.to_string()))?;
+    if !graph
+        .ready_task_ids()
+        .map_err(|error| preflight(error.to_string()))?
+        .contains(task_id)
+    {
+        return Err(preflight(
+            "task is not ready; a remote result is imported only for a pending task".into(),
+        ));
+    }
+    check_remote_leases(root, &graph, task_id, Some(&result.claim))?;
+    let gates = GateProfileStore::new(root)
+        .list()
+        .map_err(|error| preflight(format!("gate configuration: {error}")))?;
+    let gates = select_gates(&gates, &task)?;
+    for commit in [&result.base_commit, &result.head_commit] {
+        if commit.len() != 40 || !commit.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+            return Err(preflight(format!("not an exact commit SHA: {commit}")));
+        }
+    }
+    if !matches!(
+        result.termination.as_str(),
+        "exited" | "timed_out" | "output_limit_exceeded"
+    ) {
+        return Err(preflight(format!(
+            "unknown termination: {}",
+            result.termination
+        )));
+    }
+    if result.stdout.len() > MAX_REMOTE_LOG_BYTES || result.stderr.len() > MAX_REMOTE_LOG_BYTES {
+        return Err(preflight("remote agent logs exceed their limit".into()));
+    }
+    let manager = WorktreeManager::new(root).map_err(|error| preflight(error.to_string()))?;
+    if manager
+        .inspect(task_id)
+        .map_err(|error| preflight(error.to_string()))?
+        .is_some()
+    {
+        return Err(preflight(format!(
+            "task {task_id} already has a managed worktree"
+        )));
+    }
+    git_output(
+        root,
+        &[
+            "cat-file",
+            "-e",
+            &format!("{}^{{commit}}", result.base_commit),
+        ],
+    )
+    .map_err(|_| {
+        preflight(format!(
+            "base commit {} is unknown here",
+            result.base_commit
+        ))
+    })?;
+
+    let changed = result.head_commit != result.base_commit;
+    let quarantine = format!("refs/agentforge/remote/{}", result.claim.lease_id.as_str());
+    if changed {
+        let verified = verify_remote_commit(root, &task, result, &quarantine);
+        if let Err(reason) = verified {
+            let _ = git_output(root, &["update-ref", "-d", &quarantine]);
+            return Err(preflight(format!("remote result rejected: {reason}")));
+        }
+    } else if result.bundle.is_some() {
+        return Err(preflight(
+            "remote result rejected: a bundle was sent but head equals base".into(),
+        ));
+    }
+    let worktree = if changed {
+        let created = manager.create(&WorktreeSpec::new(
+            task_id.clone(),
+            result.head_commit.clone(),
+        ));
+        let _ = git_output(root, &["update-ref", "-d", &quarantine]);
+        Some(
+            created
+                .map_err(|error| preflight(format!("cannot create the task worktree: {error}")))?,
+        )
+    } else {
+        None
+    };
+
+    // Side effects from here on, persisted in one batch.
+    let worker = result.claim.worker_id.as_str();
+    let mut log = audit_store.new_attempt_log();
+    if let Some(worktree) = &worktree {
+        append_fields(
+            &mut log,
+            "worktree-observed",
+            AuditEventKind::WorktreeObserved,
+            &task,
+            &[
+                ("base_commit", result.base_commit.as_str()),
+                ("head", worktree.head()),
+                ("path", &worktree.path().to_string_lossy()),
+                ("mode", "remote"),
+            ],
+        )?;
+    }
+    graph
+        .transition(task_id, TaskState::Running)
+        .map_err(|error| preflight(error.to_string()))?;
+    append_event(
+        &mut log,
+        "task-running",
+        AuditEventKind::TaskTransition,
+        &task,
+        "state",
+        "running",
+    )?;
+    append_event(
+        &mut log,
+        "agent-started",
+        AuditEventKind::AgentStarted,
+        &task,
+        "adapter",
+        &format!("remote:{worker}"),
+    )?;
+    record_remote_agent_finished(root, &task, result, &mut log)?;
+    let clean = result.termination == "exited" && result.exit_code == Some(0);
+    let gate_runs = match &worktree {
+        None => {
+            graph
+                .transition(task_id, TaskState::Failed)
+                .map_err(|error| preflight(error.to_string()))?;
+            append_fields(
+                &mut log,
+                "remote-no-changes",
+                AuditEventKind::FailureClassified,
+                &task,
+                &[
+                    ("stage", "agent"),
+                    ("reason", "no changes"),
+                    ("channel", "remote"),
+                ],
+            )?;
+            Vec::new()
+        }
+        Some(worktree) if clean => run_gates(&gates, worktree.path()),
+        Some(_) => Vec::new(),
+    };
+    if worktree.is_some() {
+        record_gate_evidence(&mut graph, task_id, &task, &gate_runs, &mut log)?;
+    }
+    persist_execution(task_store, audit_store, &graph, &log)?;
+    let state = graph
+        .get(task_id)
+        .map_or(TaskState::Failed, |record| record.state());
+    Ok(RemoteImport {
+        state,
+        worktree: worktree.map(|worktree| worktree.path().to_path_buf()),
+        gates: gate_runs,
+    })
+}
+
+/// Verifies a remote bundle into `quarantine`: valid bundle, exact head, ancestry, path boundary.
+fn verify_remote_commit(
+    root: &Path,
+    task: &AgentTask,
+    result: &RemoteResult,
+    quarantine: &str,
+) -> Result<(), String> {
+    let bundle = result
+        .bundle
+        .as_ref()
+        .ok_or("head differs from base but no bundle was sent")?;
+    let bundle = bundle.to_string_lossy().into_owned();
+    git_output(root, &["bundle", "verify", "--quiet", &bundle])
+        .map_err(|error| format!("bundle does not verify: {error}"))?;
+    let branch = format!("refs/heads/agentforge/task/{}:{quarantine}", task.task_id);
+    git_output(
+        root,
+        &[
+            "fetch",
+            "--no-tags",
+            "--quiet",
+            &bundle,
+            &format!("+{branch}"),
+        ],
+    )
+    .map_err(|error| format!("bundle has no task branch: {error}"))?;
+    let fetched = git_output(root, &["rev-parse", &format!("{quarantine}^{{commit}}")])?;
+    if fetched != result.head_commit {
+        return Err(format!(
+            "bundle holds {fetched}, but the worker reported {}",
+            result.head_commit
+        ));
+    }
+    git_output(
+        root,
+        &[
+            "merge-base",
+            "--is-ancestor",
+            &result.base_commit,
+            &result.head_commit,
+        ],
+    )
+    .map_err(|_| {
+        format!(
+            "{} does not descend from {}",
+            result.head_commit, result.base_commit
+        )
+    })?;
+    let changed = git_output(
+        root,
+        &[
+            "diff",
+            "--name-only",
+            "--no-renames",
+            &result.base_commit,
+            &result.head_commit,
+        ],
+    )?;
+    for path in changed.lines().filter(|line| !line.is_empty()) {
+        let inside = |scope: &String| {
+            let scope = scope.trim_matches('/');
+            path == scope
+                || path
+                    .strip_prefix(scope)
+                    .is_some_and(|rest| rest.starts_with('/'))
+        };
+        if task.forbidden_paths.iter().any(inside) {
+            return Err(format!("{path} is a forbidden path"));
+        }
+        if !task.allowed_paths.is_empty() && !task.allowed_paths.iter().any(inside) {
+            return Err(format!("{path} is outside the task's allowed paths"));
+        }
+    }
+    Ok(())
+}
+
+/// Saves the remote agent's logs as evidence and appends `AgentFinished` (`channel=remote`).
+fn record_remote_agent_finished(
+    root: &Path,
+    task: &AgentTask,
+    result: &RemoteResult,
+    log: &mut AuditLog,
+) -> Result<(), SliceError> {
+    let sequence = log.next_sequence();
+    let directory = format!("{EVIDENCE_RELATIVE_PATH}/{}", task.task_id);
+    let stdout_log = format!("{directory}/{sequence}-stdout.log");
+    let stderr_log = format!("{directory}/{sequence}-stderr.log");
+    let written = std::fs::create_dir_all(root.join(&directory))
+        .and_then(|()| std::fs::write(root.join(&stdout_log), &result.stdout))
+        .and_then(|()| std::fs::write(root.join(&stderr_log), &result.stderr));
+    let exit_code = result
+        .exit_code
+        .map_or_else(|| "none".to_owned(), |code| code.to_string());
+    let mut fields = vec![
+        ("termination", result.termination.clone()),
+        ("exit_code", exit_code),
+        ("output_truncated", "false".to_owned()),
+        ("channel", "remote".to_owned()),
+        ("worker", result.claim.worker_id.as_str().to_owned()),
+        ("base_commit", result.base_commit.clone()),
+        ("head_commit", result.head_commit.clone()),
+    ];
+    match written {
+        Ok(()) => {
+            fields.push(("stdout_log", stdout_log));
+            fields.push(("stderr_log", stderr_log));
+        }
+        Err(error) => fields.push(("evidence_error", audit_text(&error.to_string()))),
+    }
+    let borrowed = fields
+        .iter()
+        .map(|(key, value)| (*key, value.as_str()))
+        .collect::<Vec<_>>();
+    append_fields(
+        log,
+        "agent-finished",
+        AuditEventKind::AgentFinished,
+        task,
+        &borrowed,
+    )
+}
+
+/// Runs one Git command in `root` and returns its trimmed stdout.
+fn git_output(root: &Path, arguments: &[&str]) -> Result<String, String> {
+    let output = std::process::Command::new("git")
+        .current_dir(root)
+        .args(arguments)
+        .output()
+        .map_err(|error| format!("git {}: {error}", arguments[0]))?;
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
+    } else {
+        Err(format!(
+            "git {} failed: {}",
+            arguments[0],
+            String::from_utf8_lossy(&output.stderr).trim()
+        ))
+    }
+}

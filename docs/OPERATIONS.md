@@ -164,7 +164,9 @@ runs, and releases the lease (P4-M005). An enabled `.forge/dispatch.conf` lets `
 lease dispatch`) grant ready tasks in listed milestones to workers automatically, once per task
 (P4-M006). Workers on other machines connect through GhostPort to `forged`'s loopback worker API
 (`.forge/worker-api.conf`), authenticated with `forge worker enroll` secrets. `forge worker remote
-claim|renew|release` is the client (P4-M007; recipe in `docs/REMOTE_WORKERS.md`).
+claim|renew|release` is the client (P4-M007; recipe in `docs/REMOTE_WORKERS.md`). `forge worker remote run --repo <clone>`
+runs claimed tasks on the worker host and returns a git bundle. The coordinator imports it only at
+the verified exact SHA with in-bounds paths, and runs gates locally (P4-M008).
 
 ## Recovery procedures
 
@@ -181,6 +183,8 @@ claim|renew|release` is the client (P4-M007; recipe in `docs/REMOTE_WORKERS.md`)
 | A task is never dispatched automatically | Check `forge lease dispatch . --actor <you>`: it lists each skipped task with its reason (milestone not listed, approval missing, overlap, or "already had a lease"). Tasks that had a lease are dispatched only once; grant them manually. |
 | `worker remote` says `unauthorized` | The secret file does not match `.forge/workers/<id>.secret` on the coordinator, or the worker is not registered. Re-enroll: delete the coordinator's `.secret`, run `forge worker enroll`, and copy the new secret (mode 600). |
 | `worker remote` cannot reach the endpoint, or the connection resets | Check that the GhostPort client is running and connected (`ghostport status`), the link ID matches a link that peer is allowed, and `forged` shows `worker API listening`. Repeated bad handshakes from one address are rate-limited by GhostPort for a while. |
+| `worker remote run` reports `abandoned: remote result rejected: ...` | The coordinator refused the import (SHA mismatch, ancestry, out-of-bounds path, bad bundle, or a stale claim). Nothing was written; the lease is released and the task stays `pending`. Fix the cause, then grant again. |
+| `worker remote run` says the base commit is not in the clone | Fetch the coordinator's commits into the worker's clone (shared origin), then grant again. |
 | A worker was stopped mid-run | Its lease expires on its own (or run `forge lease expire`). The task stays `running` with its evidence: review it, or `forge task cancel` and create a new attempt. |
 | `lease state is locked by another operation` | Another lease command or the daemon sweep is running; retry. If the lock outlived a crash and no `forge` or `forged` process runs for the project, remove `.forge/state/remote-leases.lock`. |
 | `audit append lock ... is held by another writer` | Another append is in progress (milliseconds); retry. If it persists and no `forge` or `forged` process is running for the project, a crash left `.forge/audit.log.lock` behind. Remove it. |

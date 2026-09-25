@@ -221,8 +221,9 @@ abandoned attempt waits for you (grant it manually to retry). Automatic grants a
 P4-M007 (ADR-0050) adds an authenticated, encrypted channel for workers on other hosts. AgentForge
 still listens only on loopback. [GhostPort](https://github.com/cybercore-tech/ghostport) carries
 the traffic (Noise KK, pinned keys), and every request is also authenticated with the worker's own
-AgentForge secret. In this milestone a remote worker can claim, renew, and release its leases and
-receive the exact contract and base commit. Remote execution and result import are P4-M008.
+AgentForge secret. A remote worker claims, renews, and releases its leases and receives the exact
+contract and base commit (P4-M007). It then runs the task and returns the result for exact-SHA
+import ([Running tasks remotely](#running-tasks-remotely), P4-M008).
 
 ### 1. On the coordinator
 
@@ -295,3 +296,46 @@ current expiry. Expiry is judged on the coordinator's clock.
 
 **Rotating a secret:** delete `.forge/workers/<id>.secret`, run `forge worker enroll` again, and
 update the worker host.
+
+**Rate limiting (GhostPort v0.1.1):** GhostPort limits repeated failed handshakes *per source
+address*, not per pinned peer. Failed attempts from one address (for example a shared NAT) can
+briefly block a legitimate worker behind the same address. Retry after a short wait.
+
+## Running tasks remotely
+
+P4-M008 (ADR-0051) completes remote execution. On the worker host, with a clone of the project that
+has (or can fetch) the coordinator's commits:
+
+```bash
+forge worker remote run --endpoint 127.0.0.1:47500 --worker remote-1 \
+  --secret-file ~/.config/agentforge/remote-1.secret --repo ~/src/project \
+  --profile claude-code            # or --executable /abs/agent; add --once for a single task
+```
+
+For each claim, the worker:
+
+1. decodes the contract and makes sure the exact base commit is in the clone (one `git fetch` if
+   it is missing);
+2. runs the agent in a managed worktree at the base, renewing the lease every third of its window
+   (the window comes from the coordinator's clock);
+3. commits in-bounds changes (`agentforge: remote result for <task>`), or refuses to send anything
+   that touches a path outside the contract, and releases the lease;
+4. sends `RESULT`: the exit status, logs (at most 1 MiB each), and a `git bundle` (at most 32 MiB).
+   It retries while the coordinator answers `BUSY`.
+
+The coordinator imports the result **only** if the bundle verifies, the fetched commit is exactly
+the reported SHA, it descends from the base, and every changed path is allowed. It then creates the
+task worktree at that commit, records the remote agent evidence (`channel=remote`), runs the task's
+gates **locally**, and releases the lease. A rejected result changes nothing. Review as usual:
+
+```bash
+forge task diff . <task-id>
+forge task accept . <task-id> --actor <you>
+forge task approve . <task-id> merge_protected_branch --actor <you>   # bound to the imported SHA
+forge task integrate . <task-id> --target main --actor <you>
+```
+
+`CLAIM` only hands out tasks whose pre-execution approvals are recorded on the coordinator.
+Verified end to end through GhostPort v0.1.1: grant, remote claim and run, import with the
+coordinator gate 1/1, then accept, approve, and integrate. The exact remote commit landed on
+`main`.

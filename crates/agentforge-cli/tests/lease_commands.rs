@@ -559,3 +559,237 @@ fn a_remote_worker_enrolls_and_claims_through_the_worker_api() {
     drop(server);
     fs::remove_dir_all(root).expect("cleanup");
 }
+
+/// Runs `git` in `directory` and returns trimmed stdout.
+#[cfg(unix)]
+fn git_out(directory: &Path, arguments: &[&str]) -> String {
+    let output = Command::new("git")
+        .args(arguments)
+        .current_dir(directory)
+        .output()
+        .expect("git");
+    assert!(output.status.success(), "git {arguments:?}: {output:?}");
+    String::from_utf8(output.stdout)
+        .expect("utf8")
+        .trim()
+        .to_owned()
+}
+
+/// A coordinator with one task and an enrolled worker, a running worker API, and a clone for the
+/// "remote" host. Returns (coordinator, clone, endpoint, secret file, server).
+#[cfg(unix)]
+fn remote_setup(
+    allowed: &str,
+) -> (
+    PathBuf,
+    PathBuf,
+    String,
+    PathBuf,
+    agentforge_daemon::worker_api::WorkerApiServer,
+) {
+    use std::os::unix::fs::PermissionsExt;
+    let root = temporary_repo();
+    let root_text = root.to_str().expect("root");
+    assert!(forge(&root, &["init", root_text]).status.success());
+    let created = forge(
+        &root,
+        &[
+            "task",
+            "create",
+            root_text,
+            "P4-M008-T0001",
+            "P4-M008",
+            "implementer",
+            "remote execution fixture",
+            "--allowed",
+            allowed,
+            "--capability",
+            "run_local_commands",
+            "--capability",
+            "merge_protected_branch",
+            "--approval",
+            "merge_protected_branch",
+        ],
+    );
+    assert!(created.status.success(), "{created:?}");
+    fs::create_dir_all(root.join(".forge/workers")).expect("workers");
+    fs::write(
+        root.join(".forge/workers/remote-1.conf"),
+        "platform=linux-x86_64\ncapability=rust\nmax_leases=1\n",
+    )
+    .expect("profile");
+    let enrolled = forge(&root, &["worker", "enroll", root_text, "remote-1"]);
+    let secret = text(&enrolled)
+        .lines()
+        .find_map(|line| line.strip_prefix("secret=").map(str::to_owned))
+        .expect("secret");
+    let host = root.with_extension("remote-host");
+    let _ = fs::remove_dir_all(&host);
+    fs::create_dir_all(&host).expect("host");
+    let secret_file = host.join("remote-1.secret");
+    fs::write(&secret_file, format!("{secret}\n")).expect("secret");
+    fs::set_permissions(&secret_file, fs::Permissions::from_mode(0o600)).expect("chmod");
+    git_out(&host, &["clone", "-q", root_text, "clone"]);
+    let clone = host.join("clone");
+    git_out(&clone, &["config", "user.name", "Remote Worker"]);
+    git_out(&clone, &["config", "user.email", "remote@example.invalid"]);
+    let server = agentforge_daemon::worker_api::WorkerApiServer::start(
+        &root,
+        "127.0.0.1:0".parse().expect("addr"),
+    )
+    .expect("worker api");
+    let endpoint = server.address.to_string();
+    assert!(
+        forge(
+            &root,
+            &[
+                "lease",
+                "grant",
+                root_text,
+                "P4-M008-T0001",
+                "--actor",
+                "op"
+            ]
+        )
+        .status
+        .success()
+    );
+    (root, clone, endpoint, secret_file, server)
+}
+
+#[cfg(unix)]
+fn remote_run(root: &Path, clone: &Path, endpoint: &str, secret: &Path) -> Output {
+    forge(
+        root,
+        &[
+            "worker",
+            "remote",
+            "run",
+            "--endpoint",
+            endpoint,
+            "--worker",
+            "remote-1",
+            "--secret-file",
+            secret.to_str().expect("secret"),
+            "--repo",
+            clone.to_str().expect("clone"),
+            "--executable",
+            env!("CARGO_BIN_EXE_agentforge-cli-fixture"),
+            "--once",
+        ],
+    )
+}
+
+#[cfg(unix)]
+#[test]
+fn a_remote_worker_runs_its_task_and_the_result_lands_through_review() {
+    let (root, clone, endpoint, secret, server) = remote_setup("agentforge-fixture-output.txt");
+    let root_text = root.to_str().expect("root");
+    let ran = remote_run(&root, &clone, &endpoint, &secret);
+    let output = text(&ran);
+    assert!(ran.status.success(), "{output}");
+    assert!(
+        output.contains("worker remote-1 claimed lease=P4-M008-T0001.L1"),
+        "{output}"
+    );
+    assert!(output.contains("agent-exit=0"), "{output}");
+    assert!(
+        output.contains("imported state=running gates=0/0"),
+        "{output}"
+    );
+    assert!(
+        output.contains("claimed=1 imported=1 abandoned=0"),
+        "{output}"
+    );
+    let head = output
+        .lines()
+        .find_map(|line| line.strip_prefix("result head="))
+        .expect("head")
+        .to_owned();
+
+    // The coordinator holds exactly the reported commit, and the lease is released.
+    assert_eq!(
+        git_out(&root, &["rev-parse", "agentforge/task/P4-M008-T0001"]),
+        head
+    );
+    assert!(text(&forge(&root, &["lease", "list", root_text])).contains("state=released"));
+    let inspected = text(&forge(
+        &root,
+        &["task", "inspect", root_text, "P4-M008-T0001"],
+    ));
+    assert!(inspected.contains("state=running"), "{inspected}");
+
+    // Normal review: diff, accept, approve (bound to the imported SHA), integrate.
+    let diff = text(&forge(&root, &["task", "diff", root_text, "P4-M008-T0001"]));
+    assert!(diff.contains("agentforge-fixture-output.txt"), "{diff}");
+    for command in [
+        vec![
+            "task",
+            "accept",
+            root_text,
+            "P4-M008-T0001",
+            "--actor",
+            "op",
+        ],
+        vec![
+            "task",
+            "approve",
+            root_text,
+            "P4-M008-T0001",
+            "merge_protected_branch",
+            "--actor",
+            "op",
+        ],
+    ] {
+        let output = forge(&root, &command);
+        assert!(output.status.success(), "{output:?}");
+    }
+    let branch = git_out(&root, &["rev-parse", "--abbrev-ref", "HEAD"]);
+    let integrated = forge(
+        &root,
+        &[
+            "task",
+            "integrate",
+            root_text,
+            "P4-M008-T0001",
+            "--target",
+            &branch,
+            "--actor",
+            "op",
+        ],
+    );
+    assert!(integrated.status.success(), "{integrated:?}");
+    assert_eq!(git_out(&root, &["rev-parse", "HEAD"]), head);
+    drop(server);
+    let _ = fs::remove_dir_all(clone.parent().expect("host"));
+    fs::remove_dir_all(root).expect("cleanup");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_remote_worker_that_writes_out_of_bounds_sends_nothing() {
+    let (root, clone, endpoint, secret, server) = remote_setup("src");
+    let root_text = root.to_str().expect("root");
+    let ran = remote_run(&root, &clone, &endpoint, &secret);
+    let output = text(&ran);
+    assert!(!ran.status.success(), "{output}");
+    assert!(
+        output.contains("agentforge-fixture-output.txt is outside the task's allowed paths"),
+        "{output}"
+    );
+    assert!(output.contains("lease released"), "{output}");
+    assert!(text(&forge(&root, &["lease", "list", root_text])).contains("state=released"));
+    let inspected = text(&forge(
+        &root,
+        &["task", "inspect", root_text, "P4-M008-T0001"],
+    ));
+    assert!(inspected.contains("state=pending"), "{inspected}");
+    let refs = git_out(
+        &root,
+        &["for-each-ref", "refs/heads/agentforge", "refs/agentforge"],
+    );
+    assert_eq!(refs, "", "nothing reached the coordinator");
+    drop(server);
+    let _ = fs::remove_dir_all(clone.parent().expect("host"));
+    fs::remove_dir_all(root).expect("cleanup");
+}

@@ -274,3 +274,98 @@ fn secrets_are_private_and_enrolled_once() {
     );
     fs::remove_dir_all(root).expect("cleanup");
 }
+
+#[test]
+fn claim_refuses_unapproved_tasks_and_reports_the_lease_window() {
+    let (root, secret_a, _) = project();
+    // Require a pre-execution approval that is not recorded.
+    let mut gated = task();
+    gated.required_approvals =
+        vec![agentforge_core::agent::ApprovalBoundary::ActivateImplementationPlan];
+    FileTaskStore::for_project_root(&root)
+        .save(&TaskGraph::from_tasks([gated]).expect("graph"))
+        .expect("snapshot");
+    grant_lease(
+        &root,
+        &TaskId::parse("P4-M007-T0001").expect("id"),
+        Some("remote-a"),
+        60_000,
+        now_ms(),
+        "op",
+    )
+    .expect("grant");
+    let server = start(&root);
+    let client =
+        WorkerClient::new(&server.address.to_string(), "remote-a", &secret_a).expect("client");
+    let error = client.claim().expect_err("unapproved");
+    assert!(
+        error.contains("needs approval activate_implementation_plan"),
+        "{error}"
+    );
+
+    agentforge_operator::approve_task(
+        &root,
+        &TaskId::parse("P4-M007-T0001").expect("id"),
+        agentforge_core::agent::ApprovalBoundary::ActivateImplementationPlan,
+        "op",
+    )
+    .expect("approve");
+    let claim = client.claim().expect("claim").expect("claimed");
+    assert_eq!(claim.window_ms, 60_000);
+    drop(server);
+    fs::remove_dir_all(root).expect("cleanup");
+}
+
+#[test]
+fn result_is_owner_only_and_bounded() {
+    let (root, secret_a, secret_b) = project();
+    grant_lease(
+        &root,
+        &TaskId::parse("P4-M007-T0001").expect("id"),
+        Some("remote-a"),
+        60_000,
+        now_ms(),
+        "op",
+    )
+    .expect("grant");
+    let server = start(&root);
+    let endpoint = server.address.to_string();
+    let base = git(&root, &["rev-parse", "HEAD"]);
+    let other = WorkerClient::new(&endpoint, "remote-b", &secret_b).expect("client");
+    let error = other
+        .result(
+            "P4-M007-T0001.L1",
+            &base,
+            &base,
+            Some(0),
+            "exited",
+            b"",
+            b"",
+            b"",
+        )
+        .expect_err("not owner");
+    assert!(error.contains("belongs to worker remote-a"), "{error}");
+
+    // An oversize declared body is refused before it is read.
+    let mut raw = std::net::TcpStream::connect(server.address).expect("connect");
+    let line = format!(
+        "AFW1\tRESULT\tremote-a\t{secret_a}\tP4-M007-T0001.L1\t{base}\t{base}\t0\texited\t0\t0\t{}\n",
+        64 * 1024 * 1024
+    );
+    std::io::Write::write_all(&mut raw, line.as_bytes()).expect("write");
+    let mut reply = String::new();
+    std::io::Read::read_to_string(&mut raw, &mut reply).expect("read");
+    assert!(reply.starts_with("AFW1\tERR\tbody length"), "{reply}");
+    assert!(
+        FileTaskStore::for_project_root(&root)
+            .load()
+            .expect("load")
+            .expect("graph")
+            .get(&TaskId::parse("P4-M007-T0001").expect("id"))
+            .expect("task")
+            .state()
+            == agentforge_core::task::TaskState::Pending
+    );
+    drop(server);
+    fs::remove_dir_all(root).expect("cleanup");
+}

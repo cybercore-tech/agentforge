@@ -529,10 +529,10 @@ fn map_transport_error(root: &Path, error: io::Error) -> DaemonError {
 }
 
 /// The single execution slot: the task ID of the execution in progress, if any.
-type ExecutionSlot = Arc<Mutex<Option<String>>>;
+pub(crate) type ExecutionSlot = Arc<Mutex<Option<String>>>;
 
 /// Clears the execution slot when the worker finishes, including on panic.
-struct SlotGuard(ExecutionSlot);
+pub(crate) struct SlotGuard(pub(crate) ExecutionSlot);
 
 impl Drop for SlotGuard {
     fn drop(&mut self) {
@@ -687,19 +687,23 @@ impl Server {
                 return Err(DaemonError::Io(error));
             }
         };
+        let active: ExecutionSlot = Arc::new(Mutex::new(None));
         let worker_api = match worker_api::load_worker_api_bind(&root) {
             Ok(None) => None,
-            Ok(Some(bind)) => match worker_api::WorkerApiServer::start(&root, bind) {
-                Ok(server) => {
-                    eprintln!("forged: worker API listening on {}", server.address);
-                    Some(server)
+            Ok(Some(bind)) => {
+                match worker_api::WorkerApiServer::start_with_slot(&root, bind, Arc::clone(&active))
+                {
+                    Ok(server) => {
+                        eprintln!("forged: worker API listening on {}", server.address);
+                        Some(server)
+                    }
+                    Err(error) => {
+                        drop(lock);
+                        let _ = fs::remove_file(&lock_path);
+                        return Err(DaemonError::Io(error));
+                    }
                 }
-                Err(error) => {
-                    drop(lock);
-                    let _ = fs::remove_file(&lock_path);
-                    return Err(DaemonError::Io(error));
-                }
-            },
+            }
             Err(reason) => {
                 drop(lock);
                 let _ = fs::remove_file(&lock_path);
@@ -714,7 +718,7 @@ impl Server {
         Ok(Self {
             root,
             _worker_api: worker_api,
-            active: Arc::new(Mutex::new(None)),
+            active,
             sweeper_stop: Arc::new(AtomicBool::new(false)),
             sweeper: None,
             listener,

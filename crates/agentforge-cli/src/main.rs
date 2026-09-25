@@ -176,9 +176,147 @@ fn worker_command(arguments: Vec<String>) -> ExitCode {
         Some("remote") => worker_remote_command(&arguments[1..]),
         _ => {
             eprintln!(
-                "worker requires: list <root> | enroll <root> <worker-id> | {WORKER_RUN_USAGE} | {WORKER_REMOTE_USAGE}"
+                "worker requires: list <root> | enroll <root> <worker-id> | {WORKER_RUN_USAGE} | {WORKER_REMOTE_USAGE} | {WORKER_REMOTE_RUN_USAGE}"
             );
             ExitCode::from(2)
+        }
+    }
+}
+
+const WORKER_REMOTE_RUN_USAGE: &str = "remote run --endpoint <host:port> --worker <id> --secret-file <path> --repo <clone> (--executable <absolute-path> | --profile <profile>) [--once] [--poll-ms <ms>]";
+
+fn worker_remote_run_command(arguments: &[String]) -> ExitCode {
+    use agentforge_daemon::worker_api::{
+        RemoteReport, RemoteWorkerOptions, WorkerClient, run_remote_worker,
+    };
+    let usage = |reason: &str| {
+        eprintln!("worker {WORKER_REMOTE_RUN_USAGE}: {reason}");
+        ExitCode::from(2)
+    };
+    let mut options = std::collections::BTreeMap::new();
+    let mut once = false;
+    let mut index = 0;
+    while index < arguments.len() {
+        let flag = arguments[index].as_str();
+        if flag == "--once" {
+            once = true;
+            index += 1;
+            continue;
+        }
+        if !matches!(
+            flag,
+            "--endpoint"
+                | "--worker"
+                | "--secret-file"
+                | "--repo"
+                | "--executable"
+                | "--profile"
+                | "--poll-ms"
+        ) {
+            return usage(&format!("unexpected argument {flag}"));
+        }
+        let Some(value) = arguments.get(index + 1) else {
+            return usage(&format!("{flag} needs a value"));
+        };
+        if options.insert(flag, value.clone()).is_some() {
+            return usage(&format!("repeated {flag}"));
+        }
+        index += 2;
+    }
+    let (Some(endpoint), Some(worker), Some(secret_file), Some(repo)) = (
+        options.get("--endpoint"),
+        options.get("--worker"),
+        options.get("--secret-file"),
+        options.get("--repo"),
+    ) else {
+        return usage("--endpoint, --worker, --secret-file, and --repo are required");
+    };
+    let poll = match options.get("--poll-ms").map(|value| value.parse::<u64>()) {
+        None => Duration::from_millis(2_000),
+        Some(Ok(ms)) if ms > 0 => Duration::from_millis(ms),
+        Some(_) => return usage("--poll-ms must be a positive number"),
+    };
+    let config = match (options.get("--executable"), options.get("--profile")) {
+        (Some(executable), None) => ProcessAdapterConfig::new("remote-worker", executable),
+        (None, Some(profile)) => match AgentProfileStore::new(repo).load(profile) {
+            Ok(profile) => profile.adapter_config(),
+            Err(error) => {
+                eprintln!("cannot load agent profile from {repo}: {error}");
+                return ExitCode::from(2);
+            }
+        },
+        _ => return usage("exactly one of --executable or --profile is required"),
+    };
+    let adapter = match ProcessAdapter::new(config) {
+        Ok(adapter) => adapter,
+        Err(error) => {
+            eprintln!("invalid adapter configuration: {error}");
+            return ExitCode::from(2);
+        }
+    };
+    let secret = match agentforge_operator::secrets::read_secret_file(secret_file) {
+        Ok(secret) => secret,
+        Err(error) => {
+            eprintln!("worker remote run: {error}");
+            return ExitCode::from(1);
+        }
+    };
+    let client = match WorkerClient::new(endpoint, worker, &secret) {
+        Ok(client) => client,
+        Err(error) => {
+            eprintln!("worker remote run: {error}");
+            return ExitCode::from(2);
+        }
+    };
+    let run_options = RemoteWorkerOptions {
+        repo: std::path::PathBuf::from(repo),
+        once,
+        poll,
+    };
+    let mut announced_idle = false;
+    let result = run_remote_worker(&client, &adapter, &run_options, |report| match report {
+        RemoteReport::Idle => {
+            if !announced_idle {
+                println!("worker {worker}: no claimable leases");
+                announced_idle = true;
+            }
+        }
+        RemoteReport::Claimed(claim) => {
+            announced_idle = false;
+            println!(
+                "worker {worker} claimed lease={} task={} base={}",
+                claim.lease_id, claim.task_id, claim.base_commit
+            );
+        }
+        RemoteReport::AgentFinished {
+            exit_code,
+            termination,
+        } => println!(
+            "agent-exit={} termination={termination}",
+            exit_code.map_or_else(|| "none".to_owned(), |code| code.to_string())
+        ),
+        RemoteReport::Committed(head) => println!("result head={head}"),
+        RemoteReport::Busy(holder) => println!("coordinator busy ({holder}); retrying"),
+        RemoteReport::Imported(imported) => {
+            println!("imported state={} gates={}", imported.state, imported.gates)
+        }
+        RemoteReport::Abandoned(reason) => eprintln!("abandoned: {reason}"),
+    });
+    match result {
+        Ok(summary) => {
+            println!(
+                "worker {worker} done: claimed={} imported={} abandoned={}",
+                summary.claimed, summary.imported, summary.abandoned
+            );
+            if summary.abandoned == 0 {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::from(1)
+            }
+        }
+        Err(error) => {
+            eprintln!("worker remote run failed: {error}");
+            ExitCode::from(1)
         }
     }
 }
@@ -194,6 +332,9 @@ fn worker_remote_command(arguments: &[String]) -> ExitCode {
     let Some(action) = arguments.first().map(String::as_str) else {
         return usage("missing action");
     };
+    if action == "run" {
+        return worker_remote_run_command(&arguments[1..]);
+    }
     let mut options = std::collections::BTreeMap::new();
     let mut index = 1;
     while index < arguments.len() {
