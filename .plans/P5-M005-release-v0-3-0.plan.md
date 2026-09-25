@@ -90,6 +90,7 @@ None; `Cargo.lock` changes only for workspace members.
 - `Cargo.toml`, `Cargo.lock`, `crates/agentforge-cli/Cargo.toml`
 - `CHANGELOG.md`, `README.md`, `site/index.html`, `docs/RELEASE.md`, `docs/REGISTRY.md`
 - closure records: `docs/MILESTONES.md`, `PROJECT_STATE.md`, `AGENT_HANDOFF.md`
+- Amendment 1: `.cargo/registry-preflight.toml`, `tools/xtask/src/main.rs`, `docs/RELEASE.md`
 
 ## Test-first matrix
 
@@ -127,3 +128,23 @@ CHANGELOG, README, site, RELEASE, and REGISTRY; closure records.
       every archive attested and verified.
 - [ ] Version metadata, the CHANGELOG, and the docs agree on `0.3.0`.
 - [ ] A downloaded binary reports `0.3.0`; closed and tagged.
+
+## Amendment 1 (2026-09-25)
+
+`./scripts/package-preflight` failed on the release preparation: `no matching package named
+agentforge-mcp found`. Classification: workflow/governance (a latent release-tooling gap from
+P3-M005). The preflight packages `agentforge-platform` offline, resolving its internal crates
+through `[patch.crates-io]` in `.cargo/registry-preflight.toml`. P3-M005 added `agentforge-mcp` as
+a CLI dependency but not to that list. Neither the gate nor CI runs the preflight, so nothing
+noticed. This is the same class as P2-M034: correctness that depends on a remembered step.
+
+Fix:
+
+1. Add `agentforge-mcp` to `.cargo/registry-preflight.toml`.
+2. `xtask validate` (run by the gate and CI) checks that every `path` dependency in
+   `crates/agentforge-cli/Cargo.toml` has a matching `[patch.crates-io]` entry with the same path,
+   with unit tests. A new internal crate can then no longer break the release preflight
+   unnoticed.
+3. RELEASE.md notes the check.
+
+The release preparation (stashed) resumes after this fix.
