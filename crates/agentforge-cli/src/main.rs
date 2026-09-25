@@ -183,11 +183,14 @@ fn worker_command(arguments: Vec<String>) -> ExitCode {
     }
 }
 
-const WORKER_REMOTE_RUN_USAGE: &str = "remote run --endpoint <host:port> --worker <id> --secret-file <path> --repo <clone> (--executable <absolute-path> | --profile <profile>) [--once] [--poll-ms <ms>]";
+const WORKER_REMOTE_RUN_USAGE: &str = "remote run|doctor --endpoint <host:port> --worker <id> --secret-file <path> --repo <clone> (--executable <absolute-path> | --profile <profile>) [--once] [--poll-ms <ms>]";
 
-fn worker_remote_run_command(arguments: &[String]) -> ExitCode {
+/// `worker remote run`, or with `doctor_only` the `worker remote doctor` checks alone. `run` always
+/// runs the doctor first and refuses on any failing check (P4-M009).
+fn worker_remote_run_command(arguments: &[String], doctor_only: bool) -> ExitCode {
     use agentforge_daemon::worker_api::{
-        RemoteReport, RemoteWorkerOptions, WorkerClient, run_remote_worker,
+        DoctorLevel, DoctorOptions, RemoteReport, RemoteWorkerOptions, WorkerClient, remote_doctor,
+        run_remote_worker,
     };
     let usage = |reason: &str| {
         eprintln!("worker {WORKER_REMOTE_RUN_USAGE}: {reason}");
@@ -236,17 +239,63 @@ fn worker_remote_run_command(arguments: &[String]) -> ExitCode {
         Some(Ok(ms)) if ms > 0 => Duration::from_millis(ms),
         Some(_) => return usage("--poll-ms must be a positive number"),
     };
-    let config = match (options.get("--executable"), options.get("--profile")) {
-        (Some(executable), None) => ProcessAdapterConfig::new("remote-worker", executable),
-        (None, Some(profile)) => match AgentProfileStore::new(repo).load(profile) {
-            Ok(profile) => profile.adapter_config(),
-            Err(error) => {
-                eprintln!("cannot load agent profile from {repo}: {error}");
-                return ExitCode::from(2);
-            }
-        },
-        _ => return usage("exactly one of --executable or --profile is required"),
-    };
+    let (config, agent_executable, agent_arguments) =
+        match (options.get("--executable"), options.get("--profile")) {
+            (Some(executable), None) => (
+                ProcessAdapterConfig::new("remote-worker", executable),
+                std::path::PathBuf::from(executable),
+                Vec::new(),
+            ),
+            (None, Some(profile)) => match AgentProfileStore::new(repo).load(profile) {
+                Ok(profile) => (
+                    profile.adapter_config(),
+                    profile.executable().to_path_buf(),
+                    profile.arguments().to_vec(),
+                ),
+                Err(error) => {
+                    eprintln!("cannot load agent profile from {repo}: {error}");
+                    return ExitCode::from(2);
+                }
+            },
+            _ => return usage("exactly one of --executable or --profile is required"),
+        };
+    let checks = remote_doctor(&DoctorOptions {
+        endpoint: endpoint.clone(),
+        worker_id: worker.clone(),
+        secret_file: std::path::PathBuf::from(secret_file),
+        repo: std::path::PathBuf::from(repo),
+        agent_executable,
+        agent_arguments,
+    });
+    for check in &checks {
+        println!(
+            "doctor {} {}: {}",
+            check.level.as_str(),
+            check.name,
+            check.detail
+        );
+        if !check.fix.is_empty() {
+            println!("  fix: {}", check.fix);
+        }
+    }
+    let failed = checks
+        .iter()
+        .filter(|check| check.level == DoctorLevel::Fail)
+        .count();
+    if doctor_only {
+        println!("worker {worker} doctor: {} failing check(s)", failed);
+        return if failed == 0 {
+            ExitCode::SUCCESS
+        } else {
+            ExitCode::from(1)
+        };
+    }
+    if failed > 0 {
+        eprintln!(
+            "worker remote run refused: {failed} worker-host check(s) failed; fix them first"
+        );
+        return ExitCode::from(1);
+    }
     let adapter = match ProcessAdapter::new(config) {
         Ok(adapter) => adapter,
         Err(error) => {
@@ -296,6 +345,12 @@ fn worker_remote_run_command(arguments: &[String]) -> ExitCode {
             exit_code.map_or_else(|| "none".to_owned(), |code| code.to_string())
         ),
         RemoteReport::Committed(head) => println!("result head={head}"),
+        RemoteReport::Renewals { renewed, failures } => {
+            println!("lease renewed {renewed} time(s) during the run");
+            for failure in failures {
+                eprintln!("lease renewal failed: {failure}");
+            }
+        }
         RemoteReport::Busy(holder) => println!("coordinator busy ({holder}); retrying"),
         RemoteReport::Imported(imported) => {
             println!("imported state={} gates={}", imported.state, imported.gates)
@@ -333,7 +388,10 @@ fn worker_remote_command(arguments: &[String]) -> ExitCode {
         return usage("missing action");
     };
     if action == "run" {
-        return worker_remote_run_command(&arguments[1..]);
+        return worker_remote_run_command(&arguments[1..], false);
+    }
+    if action == "doctor" {
+        return worker_remote_run_command(&arguments[1..], true);
     }
     let mut options = std::collections::BTreeMap::new();
     let mut index = 1;

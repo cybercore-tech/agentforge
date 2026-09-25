@@ -339,3 +339,31 @@ forge task integrate . <task-id> --target main --actor <you>
 Verified end to end through GhostPort v0.1.1: grant, remote claim and run, import with the
 coordinator gate 1/1, then accept, approve, and integrate. The exact remote commit landed on
 `main`.
+
+## Setting up and checking a worker host
+
+A worker host needs (P4-M009, from the P0-M014 real-agent run):
+
+1. **A clone** of the project with commits and a remote, so it can fetch a base commit it lacks.
+2. **A Git identity** in that clone (`user.name` and `user.email`). Remote results are committed
+   there.
+3. **The project's hooks**. For AgentForge that means `./scripts/install-hooks`
+   (`core.hooksPath=.githooks`), so the agent's own pre-commit gate runs.
+4. **An agent profile for this host.** Profiles hold absolute paths: point project scripts such as
+   the Claude Code bridge at *this clone's* copy, not another checkout's.
+5. **The worker secret** from `forge worker enroll`, in a file with mode 600.
+6. **A working channel**: the GhostPort client is up, and the worker is registered and enrolled on
+   the coordinator.
+
+Check all of it:
+
+```bash
+forge worker remote doctor --endpoint 127.0.0.1:47500 --worker remote-1 \
+  --secret-file ~/.config/agentforge/remote-1.secret --repo ~/src/project --profile claude-code
+```
+
+Each check prints `ok`, `warn`, or `fail`, with a fix: `repo`, `git-identity`, `hooks`, `agent`,
+`secret`, `endpoint`, and `origin`. The `endpoint` check uses the authenticated, side-effect-free
+`PING`, so it proves the credentials without claiming anything. **`forge worker remote run` runs the
+same checks first and refuses to start on any `fail`,** so a missing hook can no longer silently skip
+the agent's gate. After each task, the runner also reports how many times it renewed the lease.

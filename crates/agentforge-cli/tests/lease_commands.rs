@@ -793,3 +793,82 @@ fn a_remote_worker_that_writes_out_of_bounds_sends_nothing() {
     let _ = fs::remove_dir_all(clone.parent().expect("host"));
     fs::remove_dir_all(root).expect("cleanup");
 }
+
+#[cfg(unix)]
+#[test]
+fn the_doctor_reports_the_host_and_run_refuses_a_failing_one() {
+    let (root, clone, endpoint, secret, server) = remote_setup("agentforge-fixture-output.txt");
+    let root_text = root.to_str().expect("root");
+    let secret_text = secret.to_str().expect("secret");
+    let clone_text = clone.to_str().expect("clone");
+    let doctor = forge(
+        &root,
+        &[
+            "worker",
+            "remote",
+            "doctor",
+            "--endpoint",
+            &endpoint,
+            "--worker",
+            "remote-1",
+            "--secret-file",
+            secret_text,
+            "--repo",
+            clone_text,
+            "--executable",
+            env!("CARGO_BIN_EXE_agentforge-cli-fixture"),
+        ],
+    );
+    let output = text(&doctor);
+    assert!(doctor.status.success(), "{output}");
+    for expected in [
+        "doctor ok repo:",
+        "doctor ok git-identity: Remote Worker <remote@example.invalid>",
+        // This fixture project tracks no hooks, so the doctor only warns.
+        "doctor warn hooks:",
+        "doctor ok agent:",
+        "doctor ok secret:",
+        "doctor ok endpoint:",
+        "0 failing check(s)",
+    ] {
+        assert!(
+            output.contains(expected),
+            "missing {expected:?} in {output}"
+        );
+    }
+
+    let refused = forge(
+        &root,
+        &[
+            "worker",
+            "remote",
+            "run",
+            "--endpoint",
+            &endpoint,
+            "--worker",
+            "remote-1",
+            "--secret-file",
+            secret_text,
+            "--repo",
+            clone_text,
+            "--executable",
+            "/nonexistent/agent",
+            "--once",
+        ],
+    );
+    let output = text(&refused);
+    assert!(!refused.status.success(), "{output}");
+    assert!(output.contains("doctor fail agent:"), "{output}");
+    assert!(output.contains("worker remote run refused"), "{output}");
+    // Nothing was claimed: the lease is still active and the task pending.
+    let leases = text(&forge(&root, &["lease", "list", root_text]));
+    assert!(leases.contains("state=active"), "{leases}");
+    let inspected = text(&forge(
+        &root,
+        &["task", "inspect", root_text, "P4-M008-T0001"],
+    ));
+    assert!(inspected.contains("state=pending"), "{inspected}");
+    drop(server);
+    let _ = fs::remove_dir_all(clone.parent().expect("host"));
+    fs::remove_dir_all(root).expect("cleanup");
+}

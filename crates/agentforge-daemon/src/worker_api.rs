@@ -190,6 +190,8 @@ fn respond(root: &Path, slot: &ExecutionSlot, line: &str, stream: &mut TcpStream
     let actor = format!("worker:{worker}");
     let result = match (verb, arguments) {
         ("CLAIM", []) => return claim(root, worker),
+        // Authenticated and side-effect free: proves the credentials and channel (P4-M009).
+        ("PING", []) => return Response::line(format!("OK\tPONG\t{worker}")),
         ("RESULT", arguments) if arguments.len() == 8 => {
             return result(root, slot, worker, arguments, stream);
         }
@@ -571,6 +573,15 @@ impl WorkerClient {
         }
     }
 
+    /// Proves the channel and credentials without changing anything (`PING`).
+    pub fn ping(&self) -> Result<(), String> {
+        let (fields, _) = self.request("PING", &[])?;
+        match fields.as_slice() {
+            [ok, pong, _] if ok == "OK" && pong == "PONG" => Ok(()),
+            _ => Err(error_of(&fields)),
+        }
+    }
+
     /// Renews one of the worker's leases for `ttl_ms`, returning the new expiry.
     pub fn renew(&self, lease_id: &str, ttl_ms: u64) -> Result<u64, String> {
         let (fields, _) = self.request("RENEW", &[lease_id, &ttl_ms.to_string()])?;
@@ -732,6 +743,13 @@ pub enum RemoteReport<'a> {
     },
     /// The worker's changes were committed (or already were) at this head.
     Committed(&'a str),
+    /// Lease renewals made while the agent ran (P4-M009, finding 13).
+    Renewals {
+        /// Successful renewals.
+        renewed: usize,
+        /// Renewal failures (the run continued).
+        failures: &'a [String],
+    },
     /// The coordinator was busy; the worker retries.
     Busy(&'a str),
     /// The coordinator imported the result.
@@ -915,7 +933,11 @@ fn run_claim<A: agentforge_adapter::AgentAdapter>(
             }
         }
     })();
-    renewal.stop();
+    let (renewed, failures) = renewal.stop();
+    report(RemoteReport::Renewals {
+        renewed,
+        failures: &failures,
+    });
     // A committed or untouched worktree is clean and can be retired; the branch is kept.
     let _ = manager.retire(&task_id);
     outcome
@@ -984,7 +1006,7 @@ fn run_git(directory: &Path, arguments: &[&str]) -> Result<String, String> {
 /// Renews a claimed lease over the channel every third of its window until stopped.
 struct RemoteRenewal {
     stop: Arc<AtomicBool>,
-    handle: JoinHandle<()>,
+    handle: JoinHandle<(usize, Vec<String>)>,
 }
 
 impl RemoteRenewal {
@@ -995,24 +1017,29 @@ impl RemoteRenewal {
         let handle = thread::spawn(move || {
             let interval = Duration::from_millis((window_ms / 3).max(20));
             let mut next = std::time::Instant::now() + interval;
+            let mut renewed = 0;
             while !flag.load(Ordering::SeqCst) {
                 thread::sleep(Duration::from_millis(10));
                 if std::time::Instant::now() < next {
                     continue;
                 }
                 next = std::time::Instant::now() + interval;
-                if let Err(error) = client.renew(&lease_id, window_ms) {
-                    eprintln!("lease renewal failed: {error}");
-                    return;
+                match client.renew(&lease_id, window_ms) {
+                    Ok(_) => renewed += 1,
+                    // Keep running: the claim and task already authorize the run.
+                    Err(error) => return (renewed, vec![error]),
                 }
             }
+            (renewed, Vec::new())
         });
         Self { stop, handle }
     }
 
-    fn stop(self) {
+    fn stop(self) -> (usize, Vec<String>) {
         self.stop.store(true, Ordering::SeqCst);
-        let _ = self.handle.join();
+        self.handle
+            .join()
+            .unwrap_or_else(|_| (0, vec!["renewal thread panicked".to_owned()]))
     }
 }
 
@@ -1129,5 +1156,284 @@ mod tests {
         );
         drop(server);
         let _ = std::fs::remove_dir_all(root);
+    }
+}
+
+/// Severity of one worker-host check.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DoctorLevel {
+    /// The requirement is met.
+    Ok,
+    /// The host works, but something is likely wrong.
+    Warn,
+    /// The host must not run tasks until fixed.
+    Fail,
+}
+
+impl DoctorLevel {
+    /// Stable label (`ok`, `warn`, `fail`).
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Ok => "ok",
+            Self::Warn => "warn",
+            Self::Fail => "fail",
+        }
+    }
+}
+
+/// One worker-host check with its outcome and, when not ok, how to fix it.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DoctorCheck {
+    /// Check name (`repo`, `git-identity`, `hooks`, `agent`, `secret`, `endpoint`, `origin`).
+    pub name: &'static str,
+    /// Outcome.
+    pub level: DoctorLevel,
+    /// What was found.
+    pub detail: String,
+    /// How to fix it (empty when ok).
+    pub fix: String,
+}
+
+impl DoctorCheck {
+    fn ok(name: &'static str, detail: impl Into<String>) -> Self {
+        Self {
+            name,
+            level: DoctorLevel::Ok,
+            detail: detail.into(),
+            fix: String::new(),
+        }
+    }
+
+    fn not_ok(
+        name: &'static str,
+        level: DoctorLevel,
+        detail: impl Into<String>,
+        fix: impl Into<String>,
+    ) -> Self {
+        Self {
+            name,
+            level,
+            detail: detail.into(),
+            fix: fix.into(),
+        }
+    }
+}
+
+/// What the doctor checks on a worker host.
+#[derive(Clone, Debug)]
+pub struct DoctorOptions {
+    /// Coordinator endpoint (the local end of the GhostPort tunnel).
+    pub endpoint: String,
+    /// Registered worker ID.
+    pub worker_id: String,
+    /// The worker's secret file.
+    pub secret_file: PathBuf,
+    /// The worker host's clone.
+    pub repo: PathBuf,
+    /// The agent executable.
+    pub agent_executable: PathBuf,
+    /// The agent's arguments (from its profile).
+    pub agent_arguments: Vec<String>,
+}
+
+/// Checks everything a worker host needs before it runs tasks (P4-M009, finding 14).
+#[must_use]
+pub fn remote_doctor(options: &DoctorOptions) -> Vec<DoctorCheck> {
+    let repo = &options.repo;
+    let mut checks = Vec::new();
+    let repo_ok = run_git(repo, &["rev-parse", "--verify", "HEAD^{commit}"]).is_ok();
+    checks.push(if repo_ok {
+        DoctorCheck::ok(
+            "repo",
+            format!("{} is a Git clone with commits", repo.display()),
+        )
+    } else {
+        DoctorCheck::not_ok(
+            "repo",
+            DoctorLevel::Fail,
+            format!(
+                "{} is not a Git repository with at least one commit",
+                repo.display()
+            ),
+            "clone the project here (git clone <origin> <repo>)",
+        )
+    });
+    if repo_ok {
+        let name = run_git(repo, &["config", "user.name"]).unwrap_or_default();
+        let email = run_git(repo, &["config", "user.email"]).unwrap_or_default();
+        checks.push(if name.is_empty() || email.is_empty() {
+            DoctorCheck::not_ok(
+                "git-identity",
+                DoctorLevel::Fail,
+                "user.name or user.email is not set; remote results are committed in this clone",
+                "git -C <repo> config user.name '<name>' && git -C <repo> config user.email '<email>'",
+            )
+        } else {
+            DoctorCheck::ok("git-identity", format!("{name} <{email}>"))
+        });
+        checks.push(hooks_check(repo));
+        let remotes = run_git(repo, &["remote"]).unwrap_or_default();
+        checks.push(if remotes.is_empty() {
+            DoctorCheck::not_ok(
+                "origin",
+                DoctorLevel::Warn,
+                "the clone has no remote; a missing base commit cannot be fetched",
+                "git -C <repo> remote add origin <url>",
+            )
+        } else {
+            DoctorCheck::ok(
+                "origin",
+                format!("remotes: {}", remotes.replace('\n', ", ")),
+            )
+        });
+    }
+    checks.push(agent_check(options));
+    let secret = agentforge_operator::secrets::read_secret_file(&options.secret_file);
+    checks.push(match &secret {
+        Ok(_) => DoctorCheck::ok(
+            "secret",
+            format!("{} is valid", options.secret_file.display()),
+        ),
+        Err(error) => DoctorCheck::not_ok(
+            "secret",
+            DoctorLevel::Fail,
+            error.to_string(),
+            "copy the secret from `forge worker enroll` into the file and chmod 600 it",
+        ),
+    });
+    checks.push(match secret {
+        Err(_) => DoctorCheck::not_ok(
+            "endpoint",
+            DoctorLevel::Fail,
+            "not checked: the secret is unusable",
+            "fix the secret first",
+        ),
+        Ok(secret) => match WorkerClient::new(&options.endpoint, &options.worker_id, &secret)
+            .and_then(|client| client.ping())
+        {
+            Ok(()) => DoctorCheck::ok(
+                "endpoint",
+                format!(
+                    "{} authenticates as {}",
+                    options.endpoint, options.worker_id
+                ),
+            ),
+            Err(error) => DoctorCheck::not_ok(
+                "endpoint",
+                DoctorLevel::Fail,
+                error,
+                "check the GhostPort client (ghostport status), the coordinator's forged worker \
+                 API, and that this worker is registered and enrolled with this secret",
+            ),
+        },
+    });
+    checks
+}
+
+fn hooks_check(repo: &Path) -> DoctorCheck {
+    let tracked = run_git(
+        repo,
+        &["ls-files", "--error-unmatch", ".githooks/pre-commit"],
+    )
+    .is_ok();
+    if tracked {
+        let hooks_path = run_git(repo, &["config", "core.hooksPath"]).unwrap_or_default();
+        return if hooks_path == ".githooks" {
+            DoctorCheck::ok(
+                "hooks",
+                "core.hooksPath=.githooks (the project pre-commit gate runs)",
+            )
+        } else {
+            DoctorCheck::not_ok(
+                "hooks",
+                DoctorLevel::Fail,
+                "the project tracks .githooks/pre-commit but core.hooksPath is not .githooks, so \
+                 the agent's pre-commit gate would silently not run",
+                "run ./scripts/install-hooks in the clone (or git config core.hooksPath .githooks)",
+            )
+        };
+    }
+    let git_dir =
+        run_git(repo, &["rev-parse", "--git-path", "hooks/pre-commit"]).unwrap_or_default();
+    if !git_dir.is_empty() && repo.join(&git_dir).is_file() {
+        DoctorCheck::ok("hooks", format!("{git_dir} is installed"))
+    } else {
+        DoctorCheck::not_ok(
+            "hooks",
+            DoctorLevel::Warn,
+            "no pre-commit hook; only the coordinator's gates will check results",
+            "install the project's pre-commit hook in the clone",
+        )
+    }
+}
+
+fn agent_check(options: &DoctorOptions) -> DoctorCheck {
+    let executable = &options.agent_executable;
+    if !executable.is_file() {
+        return DoctorCheck::not_ok(
+            "agent",
+            DoctorLevel::Fail,
+            format!("agent executable {} does not exist", executable.display()),
+            "fix the agent profile's executable= path on this host",
+        );
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if fs::metadata(executable).map_or(true, |meta| meta.permissions().mode() & 0o111 == 0) {
+            return DoctorCheck::not_ok(
+                "agent",
+                DoctorLevel::Fail,
+                format!(
+                    "agent executable {} is not executable",
+                    executable.display()
+                ),
+                "chmod +x it, or point the profile at the right binary",
+            );
+        }
+    }
+    let repo = fs::canonicalize(&options.repo).unwrap_or_else(|_| options.repo.clone());
+    let mut outside = Vec::new();
+    for argument in &options.agent_arguments {
+        let path = Path::new(argument);
+        if !path.is_absolute() {
+            continue;
+        }
+        if !path.exists() {
+            return DoctorCheck::not_ok(
+                "agent",
+                DoctorLevel::Fail,
+                format!("agent argument {argument} does not exist on this host"),
+                "profiles hold absolute paths; rewrite them for this host (for example the bridge \
+                 script inside this clone)",
+            );
+        }
+        // An argument inside a *different* Git checkout (for example the coordinator's bridge
+        // script) means the profile was copied from another host or clone.
+        let directory = if path.is_dir() {
+            path
+        } else {
+            path.parent().unwrap_or(path)
+        };
+        if let Ok(toplevel) = run_git(directory, &["rev-parse", "--show-toplevel"]) {
+            let toplevel = fs::canonicalize(&toplevel).unwrap_or_else(|_| PathBuf::from(&toplevel));
+            if toplevel != repo {
+                outside.push(format!("{argument} (in {})", toplevel.display()));
+            }
+        }
+    }
+    if outside.is_empty() {
+        DoctorCheck::ok("agent", format!("{} is ready", executable.display()))
+    } else {
+        DoctorCheck::not_ok(
+            "agent",
+            DoctorLevel::Warn,
+            format!(
+                "profile points into another checkout: {}; copied from another host or clone?",
+                outside.join(", ")
+            ),
+            "point project scripts (such as the bridge) at this clone's copy",
+        )
     }
 }

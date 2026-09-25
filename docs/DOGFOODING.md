@@ -98,13 +98,15 @@ gates, review, accept, integrate. This file is the run log and the list of frict
 13. **The remote worker does not report lease renewals.** `forge worker run` (same host) prints
     `lease renewed N time(s)`, but `forge worker remote run` has no renewal report. The one renewal
     (#27) was visible only in the coordinator's audit. The worker host cannot tell whether its lease
-    is healthy. **Open.**
+    is healthy. **Resolved in P4-M009:** the remote runner reports renewals after each task.
 14. **Worker-host setup is manual and unchecked.** The worker host needed its own clone and Git
     identity, `./scripts/install-hooks`, a `claude-code` profile rewritten to point at the clone's
     own bridge (profiles hold absolute paths), and the secret file with mode 600. `forge worker
     remote run` checks none of this. With hooks missing, the agent's pre-commit gate would silently
     not run. The coordinator gate still protects `main`, but the agent loses its own feedback. A
-    worker-host preflight (a "doctor") would catch it. **Open.**
+    worker-host preflight (a "doctor") would catch it. **Resolved in P4-M009:** `forge worker remote
+    doctor` checks each requirement with a fix, and `worker remote run` refuses to start on any
+    failing check.
 15. **The milestone tagger can tag an unclosed plan.** During the P0-M014 closure, the closure
     commit was rejected by the text policy (an extra trailing newline), and the rejection was hidden
     because the operator piped `git commit` through `tail`. `scripts/tag-milestone` still passed,

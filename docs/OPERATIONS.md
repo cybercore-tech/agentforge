@@ -175,7 +175,9 @@ lease dispatch`) grant ready tasks in listed milestones to workers automatically
 (P4-M006). Workers on other machines connect through GhostPort to `forged`'s loopback worker API
 (`.forge/worker-api.conf`), authenticated with `forge worker enroll` secrets. `forge worker remote
 claim|renew|release` is the client (P4-M007; recipe in `docs/REMOTE_WORKERS.md`). `forge worker remote run --repo <clone>`
-runs claimed tasks on the worker host and returns a git bundle. The coordinator imports it only at
+runs claimed tasks on the worker host and returns a git bundle. `forge worker remote doctor` checks a
+worker host (clone, identity, hooks, profile paths, secret, and an authenticated `PING`), and `run`
+refuses to start while any check fails (P4-M009). The coordinator imports it only at
 the verified exact SHA with in-bounds paths, and runs gates locally (P4-M008).
 
 ## Recovery procedures
@@ -193,6 +195,7 @@ the verified exact SHA with in-bounds paths, and runs gates locally (P4-M008).
 | A task is never dispatched automatically | Check `forge lease dispatch . --actor <you>`: it lists each skipped task with its reason (milestone not listed, approval missing, overlap, or "already had a lease"). Tasks that had a lease are dispatched only once; grant them manually. |
 | `worker remote` says `unauthorized` | The secret file does not match `.forge/workers/<id>.secret` on the coordinator, or the worker is not registered. Re-enroll: delete the coordinator's `.secret`, run `forge worker enroll`, and copy the new secret (mode 600). |
 | `worker remote` cannot reach the endpoint, or the connection resets | Check that the GhostPort client is running and connected (`ghostport status`), the link ID matches a link that peer is allowed, and `forged` shows `worker API listening`. Repeated bad handshakes from one address are rate-limited by GhostPort for a while. |
+| `worker remote run refused: N worker-host check(s) failed` | Run `forge worker remote doctor` with the same options. Each `fail` line has a `fix:`: install hooks, set the clone's Git identity, rewrite profile paths for this host, fix the secret file, or bring up the GhostPort client. |
 | `worker remote run` reports `abandoned: remote result rejected: ...` | The coordinator refused the import (SHA mismatch, ancestry, out-of-bounds path, bad bundle, or a stale claim). Nothing was written; the lease is released and the task stays `pending`. Fix the cause, then grant again. |
 | `worker remote run` says the base commit is not in the clone | Fetch the coordinator's commits into the worker's clone (shared origin), then grant again. |
 | A worker was stopped mid-run | Its lease expires on its own (or run `forge lease expire`). The task stays `running` with its evidence: review it, or `forge task cancel` and create a new attempt. |

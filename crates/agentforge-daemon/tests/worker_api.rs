@@ -369,3 +369,133 @@ fn result_is_owner_only_and_bounded() {
     drop(server);
     fs::remove_dir_all(root).expect("cleanup");
 }
+
+#[test]
+fn ping_authenticates_without_side_effects() {
+    let (root, secret_a, _) = project();
+    let server = start(&root);
+    let endpoint = server.address.to_string();
+    let before = lease_events(&root);
+    WorkerClient::new(&endpoint, "remote-a", &secret_a)
+        .expect("client")
+        .ping()
+        .expect("pong");
+    let refused = WorkerClient::new(&endpoint, "remote-a", &"f".repeat(64))
+        .expect("client")
+        .ping()
+        .expect_err("wrong secret");
+    assert_eq!(refused, "unauthorized");
+    assert_eq!(lease_events(&root), before, "PING changes nothing");
+    assert!(
+        !root.join(".forge/audit.log").exists(),
+        "no audit log created"
+    );
+    drop(server);
+    fs::remove_dir_all(root).expect("cleanup");
+}
+
+#[cfg(unix)]
+#[test]
+fn the_worker_host_doctor_finds_each_setup_problem() {
+    use agentforge_daemon::worker_api::{DoctorLevel, DoctorOptions, remote_doctor};
+    use std::os::unix::fs::PermissionsExt;
+    let (root, secret_a, _) = project();
+    // The coordinator's project tracks a pre-commit hook, like AgentForge itself.
+    fs::create_dir_all(root.join(".githooks")).expect("hooks dir");
+    fs::write(root.join(".githooks/pre-commit"), "#!/bin/sh\nexit 0\n").expect("hook");
+    git(&root, &["add", ".githooks/pre-commit"]);
+    git(&root, &["commit", "-qm", "track hooks"]);
+    let server = start(&root);
+    let host = root.with_extension("host");
+    let _ = fs::remove_dir_all(&host);
+    fs::create_dir_all(&host).expect("host");
+    git(
+        &host,
+        &["clone", "-q", root.to_str().expect("root"), "clone"],
+    );
+    let clone = host.join("clone");
+    git(&clone, &["config", "user.name", "Worker Host"]);
+    git(&clone, &["config", "user.email", "host@example.invalid"]);
+    git(&clone, &["config", "core.hooksPath", ".githooks"]);
+    fs::create_dir_all(clone.join("scripts")).expect("scripts");
+    let bridge = clone.join("scripts/bridge");
+    fs::write(&bridge, "#!/bin/sh\n").expect("bridge");
+    let secret_file = host.join("remote-a.secret");
+    fs::write(&secret_file, format!("{secret_a}\n")).expect("secret");
+    fs::set_permissions(&secret_file, fs::Permissions::from_mode(0o600)).expect("chmod");
+    let options = DoctorOptions {
+        endpoint: server.address.to_string(),
+        worker_id: "remote-a".into(),
+        secret_file: secret_file.clone(),
+        repo: clone.clone(),
+        agent_executable: "/bin/sh".into(),
+        agent_arguments: vec![bridge.to_string_lossy().into_owned(), "--flag".into()],
+    };
+    let level = |options: &DoctorOptions, name: &str| {
+        remote_doctor(options)
+            .into_iter()
+            .find(|check| check.name == name)
+            .map(|check| (check.level, check.detail))
+            .expect("check")
+    };
+    let all = remote_doctor(&options);
+    assert!(
+        all.iter().all(|check| check.level == DoctorLevel::Ok),
+        "{all:#?}"
+    );
+    assert_eq!(all.len(), 7);
+
+    // Each problem on its own.
+    git(&clone, &["config", "--unset", "core.hooksPath"]);
+    let (hooks, detail) = level(&options, "hooks");
+    assert_eq!(hooks, DoctorLevel::Fail, "{detail}");
+    assert!(detail.contains("silently not run"), "{detail}");
+    git(&clone, &["config", "core.hooksPath", ".githooks"]);
+
+    git(&clone, &["config", "user.name", ""]);
+    assert_eq!(level(&options, "git-identity").0, DoctorLevel::Fail);
+    git(&clone, &["config", "user.name", "Worker Host"]);
+
+    let mut copied = options.clone();
+    copied.agent_arguments = vec![
+        root.join(".githooks/pre-commit")
+            .to_string_lossy()
+            .into_owned(),
+    ];
+    let (agent, detail) = level(&copied, "agent");
+    assert_eq!(agent, DoctorLevel::Warn, "{detail}");
+    assert!(detail.contains("another checkout"), "{detail}");
+
+    let mut missing = options.clone();
+    missing.agent_arguments = vec![clone.join("scripts/nope").to_string_lossy().into_owned()];
+    assert_eq!(level(&missing, "agent").0, DoctorLevel::Fail);
+    missing.agent_executable = "/nonexistent/agent".into();
+    assert_eq!(level(&missing, "agent").0, DoctorLevel::Fail);
+
+    fs::set_permissions(&secret_file, fs::Permissions::from_mode(0o644)).expect("chmod");
+    assert_eq!(level(&options, "secret").0, DoctorLevel::Fail);
+    assert_eq!(level(&options, "endpoint").0, DoctorLevel::Fail);
+    fs::set_permissions(&secret_file, fs::Permissions::from_mode(0o600)).expect("chmod");
+
+    let wrong = host.join("wrong.secret");
+    fs::write(&wrong, format!("{}\n", "f".repeat(64))).expect("wrong");
+    fs::set_permissions(&wrong, fs::Permissions::from_mode(0o600)).expect("chmod");
+    let mut unauthorized = options.clone();
+    unauthorized.secret_file = wrong;
+    let (endpoint, detail) = level(&unauthorized, "endpoint");
+    assert_eq!(endpoint, DoctorLevel::Fail);
+    assert_eq!(detail, "unauthorized");
+
+    let closed = std::net::TcpListener::bind("127.0.0.1:0").expect("probe");
+    let mut unreachable = options.clone();
+    unreachable.endpoint = closed.local_addr().expect("addr").to_string();
+    drop(closed);
+    assert_eq!(level(&unreachable, "endpoint").0, DoctorLevel::Fail);
+
+    git(&clone, &["remote", "remove", "origin"]);
+    assert_eq!(level(&options, "origin").0, DoctorLevel::Warn);
+
+    drop(server);
+    let _ = fs::remove_dir_all(&host);
+    fs::remove_dir_all(root).expect("cleanup");
+}
