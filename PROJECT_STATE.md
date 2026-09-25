@@ -14,13 +14,22 @@ agent-built milestones, Phase 4 remote-worker wiring, the P3 tool gateway, and P
 
 ## Active milestone
 
-No active milestone. P5-M004 — keyless release provenance — is complete.
+No active milestone. P5-M005 — release v0.3.0 — is complete.
 `v0.3.0` (P5-M005) is the latest release, and every completed milestone is tagged `milestone/<ID>`.
 
 ## Known issues
 
 - None open. Dogfooding findings 16 (spawned `forged` lost its sweep) and 17 (workers could not
   retry a task) were found and resolved in P4-M010.
+
+## P5-M005 completion evidence
+
+- Approved plan: `.plans/P5-M005-release-v0-3-0.plan.md` (one amendment).
+- `v0.3.0` was tagged on `c50ed73` (CI `36150323445` and `36150697705`, rehearsal `36150342540`).
+  Tag run `36151042612` published it and verified its own assets and 4 attestations.
+- https://github.com/cybercore-tech/agentforge/releases/tag/v0.3.0 verified from this machine:
+  `sha256sum -c` OK, `gh attestation verify --source-ref refs/tags/v0.3.0` OK for all four
+  archives, and the binaries report `0.3.0`.
 
 ## P5-M004 completion evidence
 

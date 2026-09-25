@@ -2,7 +2,11 @@
 
 ## Repository state
 
-- Active milestone: none. P5-M004 is complete (`623be58`): release archives are attested
+- Active milestone: none. P5-M005 is complete: **`v0.3.0` is published** (tag on `c50ed73`). It is
+  the first attested release, and the first real tag the workflow published by itself.
+  `xtask validate` now requires a `.cargo/registry-preflight.toml` patch entry for every internal
+  crate the CLI depends on: add one with any new crate.
+- P5-M004 is complete (`623be58`): release archives are attested
   keylessly (`actions/attest@v4`, ADR-0053), and `publish-release` verifies the uploaded assets'
   attestations. There are no signing keys to manage. The next `vX.Y.Z` tag is the first attested
   release.

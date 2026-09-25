@@ -1,6 +1,6 @@
 # Plan: P5-M005 — Release v0.3.0
 
-Status: Approved
+Status: Complete
 Milestone: P5-M005
 Created: 2026-09-25
 Owner: AgentForge project
@@ -124,10 +124,10 @@ CHANGELOG, README, site, RELEASE, and REGISTRY; closure records.
 
 ## Acceptance criteria
 
-- [ ] `v0.3.0` is published by the workflow with four archives, `.sha256` files, and `SHA256SUMS`,
+- [x] `v0.3.0` is published by the workflow with four archives, `.sha256` files, and `SHA256SUMS`,
       every archive attested and verified.
-- [ ] Version metadata, the CHANGELOG, and the docs agree on `0.3.0`.
-- [ ] A downloaded binary reports `0.3.0`; closed and tagged.
+- [x] Version metadata, the CHANGELOG, and the docs agree on `0.3.0`.
+- [x] A downloaded binary reports `0.3.0`; closed and tagged.
 
 ## Amendment 1 (2026-09-25)
 
@@ -148,3 +148,27 @@ Fix:
 3. RELEASE.md notes the check.
 
 The release preparation (stashed) resumes after this fix.
+
+## Completion record
+
+Implementation commit: `c50ed73` (release preparation, tagged `v0.3.0`); `a2b688f` (Amendment 1,
+preflight patch-list check)
+CI run: `36150323445` (push) and `36150697705` (dispatched repeat) on `c50ed73`; rehearsal
+`36150342540`; tag run `36151042612`
+CI result: green on all seven jobs in both CI runs; the rehearsal and the tag run are green on all
+five jobs
+Completed: 2026-09-25
+Notes:
+- **Published by the workflow**, a first for a real tag (P5-M001 and P5-M002 both needed the
+  recovery procedure). The tag run logged "Attestation created for 4 subjects" and "verified 9
+  assets of v0.3.0 (names, bytes, SHA256SUMS, 4 attestations)".
+  https://github.com/cybercore-tech/agentforge/releases/tag/v0.3.0 is marked Latest.
+- **Checked independently from this machine:** a fresh full download passes plain
+  `sha256sum -c SHA256SUMS`. All four archives pass `gh attestation verify --signer-workflow
+  .../release.yml --source-ref refs/tags/v0.3.0` (source `c50ed73`, trigger `push`). The Linux
+  binaries print `AgentForge 0.3.0` and `AgentForge daemon 0.3.0`.
+- **Amendment 1:** the package preflight had silently broken in P3-M005, because
+  `agentforge-mcp` was missing from the preflight patch list and nothing but a release runs the
+  preflight. It was fixed, and `xtask validate` now enforces the list in the gate and CI.
+- The release notes are the CHANGELOG `[0.3.0]` section plus install and verification steps
+  (`gh attestation verify`) and provenance.
