@@ -6,6 +6,13 @@ All notable AgentForge changes are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- The release workflow's publish job failed on the build staging directories in the artifacts. It
+  now uploads only the four archives, their `.sha256` files, and `SHA256SUMS`, and requires exactly
+  four archives. A manual (dry-run) release now exercises the whole publish job except the upload
+  (P5-M002). `v0.2.0` was published from its tag run's own artifacts with the documented recovery.
+
 ## [0.2.0] - 2026-09-24
 
 Workers on other machines can now run AgentForge tasks. They claim leases over an authenticated

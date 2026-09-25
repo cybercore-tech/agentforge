@@ -79,8 +79,9 @@ jobs:
           if-no-files-found: error
 
   publish:
+    # Runs on tags (publishes) and on manual dispatch (dry run), so every packaging dry run also
+    # exercises the full publish preparation; only the final upload is tag-only (P5-M002).
     name: Publish GitHub release
-    if: startsWith(github.ref, 'refs/tags/v')
     needs: build
     runs-on: ubuntu-24.04
     permissions:
@@ -92,13 +93,31 @@ jobs:
           path: dist
           merge-multiple: true
 
-      - name: Create consolidated checksums
+      - name: Select release files and create consolidated checksums
+        # Artifacts also contain each target's staging directory; only regular files are
+        # released. Exactly four archives, each with its .sha256, are required.
         run: |
-          cd dist
+          set -euo pipefail
+          mkdir release
+          find dist -maxdepth 1 -type f \( -name '*.tar.gz' -o -name '*.tar.gz.sha256' \) -exec cp {} release/ \;
+          cd release
+          archives=$(find . -maxdepth 1 -name '*.tar.gz' -type f | wc -l)
+          if [ "$archives" -ne 4 ]; then
+            echo "expected 4 archives, found $archives" >&2
+            exit 1
+          fi
+          for archive in *.tar.gz; do
+            test -f "$archive.sha256" || { echo "missing $archive.sha256" >&2; exit 1; }
+            sha256sum -c "$archive.sha256"
+          done
           find . -maxdepth 1 -name '*.tar.gz' -type f -printf '%f\0' | sort -z | xargs -0 sha256sum > SHA256SUMS
+          sha256sum -c SHA256SUMS
+          echo "release files:"
+          ls -l
 
       - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
         # The publish job has no checkout, so gh needs the repository explicitly.
-        run: gh release create "${GITHUB_REF_NAME}" dist/* --repo "${GITHUB_REPOSITORY}" --verify-tag --generate-notes --title "AgentForge ${GITHUB_REF_NAME}"
+        run: gh release create "${GITHUB_REF_NAME}" release/* --repo "${GITHUB_REPOSITORY}" --verify-tag --generate-notes --title "AgentForge ${GITHUB_REF_NAME}"

@@ -27,7 +27,7 @@ git push "https://x-access-token:$(gh auth token -u cybercore-tech)@github.com/c
 | --- | --- | --- | --- |
 | AgentForge CI | `.github/workflows/ci.yml` | push to `main`, pull requests, manual dispatch | Seven jobs (below); every job has `timeout-minutes` |
 | AgentForge Pages | `.github/workflows/pages.yml` | push to `main`, manual dispatch | Generates `site/updates.json`, validates the static site, deploys `site/` to Pages |
-| AgentForge Release | `.github/workflows/release.yml` | tags `v*.*.*`, manual dispatch | Verifies the tag matches the workspace version, builds `forge`/`forged` for four targets, and publishes checksummed archives |
+| AgentForge Release | `.github/workflows/release.yml` | tags `v*.*.*`, manual dispatch | Verifies the tag matches the workspace version, builds `forge`/`forged` for four targets, and publishes checksummed archives. A manual run is a dry run of everything except the upload (P5-M002) |
 
 CI jobs:
 

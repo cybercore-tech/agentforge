@@ -98,12 +98,19 @@ gh release create vX.Y.Z dist/* --repo cybercore-tech/agentforge --verify-tag \
   --title "AgentForge vX.Y.Z" --notes-file <notes>
 ```
 
-Then fix the workflow for the next release. `v0.1.0` was published this way: its publish job had no
-checkout, so `gh` could not find the repository. Its `SHA256SUMS` step would also have written
-`dist/`-prefixed paths. Both defects were fixed in P5-M001.
+Then fix the workflow for the next release. Two releases were published this way:
 
-The workflow also supports manual dispatch for packaging validation. Manual runs build artifacts but
-do not publish a release.
+- `v0.1.0` (P5-M001): the publish job had no checkout, so `gh` could not find the repository, and
+  `SHA256SUMS` would have had `dist/`-prefixed paths.
+- `v0.2.0` (P5-M002): the artifacts also contain each target's staging directory, and `gh release
+  create dist/*` failed on a directory. The recovery above already removed those directories, but
+  the P5-M001 workflow fix did not.
+
+The workflow also supports manual dispatch for packaging validation. Since P5-M002 a manual run
+executes the **whole publish job except the upload**. It downloads the artifacts, selects only the
+release files (four archives and their `.sha256` files), checks each checksum, requires exactly
+four archives, writes `SHA256SUMS`, and verifies it. A packaging dry run therefore catches publish
+defects before a tag does. Only `gh release create` is tag-only.
 
 ## Support expectations
 
