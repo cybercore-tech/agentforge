@@ -1,6 +1,6 @@
 # Plan: P4-M009 — Worker-host doctor
 
-Status: Draft
+Status: Approved
 Milestone: P4-M009
 Created: 2026-09-24
 Owner: AgentForge project
