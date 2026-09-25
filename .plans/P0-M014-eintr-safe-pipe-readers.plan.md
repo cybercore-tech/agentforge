@@ -1,6 +1,6 @@
 # Plan: P0-M014 — EINTR-safe pipe readers (remote real-agent dogfood)
 
-Status: Draft
+Status: Approved
 Milestone: P0-M014
 Created: 2026-09-24
 Owner: AgentForge project
