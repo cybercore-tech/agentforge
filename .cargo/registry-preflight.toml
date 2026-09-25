@@ -7,6 +7,7 @@ agentforge-daemon = { path = "crates/agentforge-daemon" }
 agentforge-gate = { path = "crates/agentforge-gate" }
 agentforge-hud = { path = "crates/agentforge-hud" }
 agentforge-intake = { path = "crates/agentforge-intake" }
+agentforge-mcp = { path = "crates/agentforge-mcp" }
 agentforge-operator = { path = "crates/agentforge-operator" }
 agentforge-orchestrator = { path = "crates/agentforge-orchestrator" }
 agentforge-state = { path = "crates/agentforge-state" }

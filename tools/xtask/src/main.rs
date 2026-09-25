@@ -54,6 +54,7 @@ fn validate_repository() -> Result<(), Vec<String>> {
     validate_required_paths(&mut errors);
     validate_active_plan(&mut errors);
     validate_docs_indexes(&mut errors);
+    validate_release_preflight(&mut errors);
 
     if errors.is_empty() {
         Ok(())
@@ -91,6 +92,63 @@ fn validate_docs_indexes(errors: &mut Vec<String>) {
         Ok(readme) => errors.extend(unlinked_docs(&docs, &readme)),
         Err(error) => errors.push(format!("unable to read README.md: {error}")),
     }
+}
+
+/// Every internal (`path`) dependency of the CLI package has a matching `[patch.crates-io]` entry
+/// in `.cargo/registry-preflight.toml`, so `scripts/package-preflight` can package it offline
+/// (P5-M005; P3-M005 added a crate without one and only the release found it).
+fn validate_release_preflight(errors: &mut Vec<String>) {
+    match (
+        fs::read_to_string("crates/agentforge-cli/Cargo.toml"),
+        fs::read_to_string(".cargo/registry-preflight.toml"),
+    ) {
+        (Ok(manifest), Ok(preflight)) => {
+            errors.extend(preflight_patch_errors(&manifest, &preflight));
+        }
+        (Err(error), _) => errors.push(format!(
+            "unable to read crates/agentforge-cli/Cargo.toml: {error}"
+        )),
+        (_, Err(error)) => errors.push(format!(
+            "unable to read .cargo/registry-preflight.toml: {error}"
+        )),
+    }
+}
+
+/// `name = { path = "<path>" ... }` lines of a TOML document, as (name, path).
+fn path_entries(document: &str) -> Vec<(String, String)> {
+    document
+        .lines()
+        .filter_map(|line| {
+            let (name, rest) = line.split_once('=')?;
+            let path = rest.split("path = \"").nth(1)?.split('"').next()?;
+            Some((name.trim().to_owned(), path.to_owned()))
+        })
+        .collect()
+}
+
+/// Compares the CLI manifest's path dependencies (relative to `crates/agentforge-cli`) with the
+/// preflight patch list (relative to the repository root).
+fn preflight_patch_errors(cli_manifest: &str, preflight: &str) -> Vec<String> {
+    let patches = path_entries(preflight);
+    let mut errors = Vec::new();
+    for (name, path) in path_entries(cli_manifest) {
+        let expected = match path.strip_prefix("../") {
+            Some(sibling) => format!("crates/{sibling}"),
+            None => format!("crates/agentforge-cli/{path}"),
+        };
+        match patches.iter().find(|(patched, _)| *patched == name) {
+            None => errors.push(format!(
+                ".cargo/registry-preflight.toml: {name} (a path dependency of agentforge-cli) has \
+                 no [patch.crates-io] entry; add `{name} = {{ path = \"{expected}\" }}`"
+            )),
+            Some((_, patched)) if *patched != expected => errors.push(format!(
+                ".cargo/registry-preflight.toml: {name} is patched to {patched}, but \
+                 agentforge-cli uses {expected}"
+            )),
+            Some(_) => {}
+        }
+    }
+    errors
 }
 
 /// File names ending in `.md` directly inside `directory`, sorted.
@@ -378,7 +436,39 @@ fn git_output(args: &[&str]) -> Result<String, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{adr_registry_errors, is_implementation_path, plan_status, unlinked_docs};
+    use super::{
+        adr_registry_errors, is_implementation_path, plan_status, preflight_patch_errors,
+        unlinked_docs,
+    };
+
+    #[test]
+    fn every_cli_path_dependency_needs_a_preflight_patch() {
+        let manifest = "[dependencies]\n\
+                        agentforge-core = { path = \"../agentforge-core\", version = \"0.3.0\" }\n\
+                        agentforge-mcp = { path = \"../agentforge-mcp\", version = \"0.3.0\" }\n\
+                        serde = \"1\"\n";
+        let complete = "[patch.crates-io]\n\
+                        agentforge-core = { path = \"crates/agentforge-core\" }\n\
+                        agentforge-mcp = { path = \"crates/agentforge-mcp\" }\n";
+        assert!(preflight_patch_errors(manifest, complete).is_empty());
+        let missing =
+            "[patch.crates-io]\nagentforge-core = { path = \"crates/agentforge-core\" }\n";
+        assert_eq!(
+            preflight_patch_errors(manifest, missing),
+            [
+                ".cargo/registry-preflight.toml: agentforge-mcp (a path dependency of agentforge-cli) \
+              has no [patch.crates-io] entry; add `agentforge-mcp = { path = \"crates/agentforge-mcp\" }`"
+            ]
+        );
+        let wrong = complete.replace("crates/agentforge-mcp", "crates/elsewhere");
+        assert_eq!(
+            preflight_patch_errors(manifest, &wrong),
+            [
+                ".cargo/registry-preflight.toml: agentforge-mcp is patched to crates/elsewhere, but \
+              agentforge-cli uses crates/agentforge-mcp"
+            ]
+        );
+    }
 
     fn ids(values: &[&str]) -> Vec<String> {
         values.iter().map(|value| (*value).to_owned()).collect()

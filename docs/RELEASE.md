@@ -29,6 +29,12 @@ This uses the checked-in `.cargo/registry-preflight.toml` only to resolve privat
 dependencies locally while constructing an archive. It does not contact crates.io or publish
 anything, and a passing archive check does not authorize registry publication.
 
+`scripts/package-preflight` resolves the workspace's internal crates through the
+`[patch.crates-io]` list in `.cargo/registry-preflight.toml`. Since P5-M005, `xtask validate` (in
+the gate and CI) requires an entry there for every path dependency of `crates/agentforge-cli`,
+because a new internal crate without one broke the `v0.3.0` preflight, and only the release
+itself ran it.
+
 ## Version policy
 
 The workspace version is the release version. Tags must use `vMAJOR.MINOR.PATCH` and must match the
