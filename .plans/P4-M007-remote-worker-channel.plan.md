@@ -1,6 +1,6 @@
 # Plan: P4-M007 — Authenticated remote-worker channel over GhostPort
 
-Status: Draft
+Status: Approved
 Milestone: P4-M007
 Created: 2026-09-24
 Owner: AgentForge project
