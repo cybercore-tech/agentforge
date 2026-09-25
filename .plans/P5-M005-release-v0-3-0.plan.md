@@ -1,6 +1,6 @@
 # Plan: P5-M005 — Release v0.3.0
 
-Status: Draft
+Status: Approved
 Milestone: P5-M005
 Created: 2026-09-25
 Owner: AgentForge project
