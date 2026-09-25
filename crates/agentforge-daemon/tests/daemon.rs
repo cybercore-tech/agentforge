@@ -509,8 +509,10 @@ fn a_spawned_daemon_keeps_working_after_its_starter_is_gone() {
         }
         recorded.push(expired(&root));
     }
-    let log = fs::read_to_string(root.join(".forge/daemon/forged.log")).unwrap_or_default();
+    // A sweep records an expiry, then logs it; `stop` waits out an in-progress sweep, so the log
+    // is complete only after it (a CI run once read it in between).
     stop(&root).expect("cooperative stop");
+    let log = fs::read_to_string(root.join(".forge/daemon/forged.log")).unwrap_or_default();
 
     assert_eq!(
         refused.expect_err("wrong secret"),
