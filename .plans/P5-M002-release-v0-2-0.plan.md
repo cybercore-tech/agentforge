@@ -89,6 +89,7 @@ None; `Cargo.lock` changes only for workspace members.
 - Amendment 1: `crates/agentforge-daemon/src/lib.rs`, `crates/agentforge-daemon/src/worker_api.rs`,
   `docs/DOGFOODING.md`
 - Amendment 2: `.github/workflows/release.yml`, `docs/RELEASE.md`, `docs/OPERATIONS.md`, `CHANGELOG.md`
+- Amendment 3: `crates/agentforge-operator/tests/worker.rs`
 
 ## Test-first matrix
 
@@ -167,6 +168,22 @@ Recovery, per `docs/RELEASE.md`, without moving the tag:
    the operations notes, and add a CHANGELOG `[Unreleased]` Fixed entry.
 3. The fixed publish path is proven only by the next real tag run. The closure records that
    honestly, as a carried-forward check.
+
+## Amendment 3 (2026-09-24)
+
+Push CI `36098012428` on `46d8480` (a workflow and docs change) failed the Stable code gate:
+`a_slow_agent_keeps_its_lease_renewed` got 1 renewal and expected at least 3. Classification: a
+timing flake in a P4-M005 test, not a product defect and unrelated to this change.
+- The test used a 300 ms lease window with renewals every 100 ms.
+- A renewal delayed past 300 ms (lease lock plus audit fsync on a slow runner) finds the lease
+  expired, and the renewal thread stops by design.
+- The product behaviour is acceptable: the task is already `running`, so the lease no longer guards
+  exclusivity.
+- The test asserted the count before the failure list, which hid the reason.
+
+Fix: a 1.5 s window with renewals every 500 ms and a 3 s agent, which gives each renewal about 1 s
+of slack. The failures are asserted first, so a future flake shows its cause. Verified with repeated
+local runs.
 
 ## Completion record
 
