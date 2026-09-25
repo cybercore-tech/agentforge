@@ -16,6 +16,10 @@
 # without cutting a release (P5-M002 carried that check forward to the next real tag).
 #
 # The repository is GITHUB_REPOSITORY (passed to gh as --repo) when set.
+#
+# With ATTESTATION_SIGNER_WORKFLOW set (`<owner>/<repo>/.github/workflows/<file>`), every downloaded
+# archive must also carry a build-provenance attestation signed by that workflow
+# (`gh attestation verify`), so the check covers the assets as uploaded (P5-M004).
 
 set -euo pipefail
 
@@ -61,9 +65,21 @@ verify() {
   done < <(listing "$dir")
   (cd "$check" && sha256sum --quiet -c SHA256SUMS) \
     || { rm -rf "$check"; fail "$name: SHA256SUMS does not verify on the downloaded assets"; }
+  local checks="names, bytes, SHA256SUMS"
+  if [ -n "${ATTESTATION_SIGNER_WORKFLOW:-}" ]; then
+    local archive attested=0
+    for archive in "$check"/*.tar.gz; do
+      [ -e "$archive" ] || continue
+      gh attestation verify "$archive" "${repo_args[@]}" \
+        --signer-workflow "$ATTESTATION_SIGNER_WORKFLOW" > /dev/null \
+        || { rm -rf "$check"; fail "$name: $(basename "$archive") has no valid provenance attestation"; }
+      attested=$((attested + 1))
+    done
+    checks="$checks, $attested attestations"
+  fi
   count="$(listing "$check" | wc -l)"
   rm -rf "$check"
-  echo "publish-release: verified $count assets of $name (names, bytes, SHA256SUMS)"
+  echo "publish-release: verified $count assets of $name ($checks)"
 }
 
 tag_exists() {
@@ -122,6 +138,7 @@ rehearse() {
 
 # A fake gh that keeps releases and tags in $FAKE_GH_STATE. FAKE_GH_DROP and FAKE_GH_CORRUPT name
 # an asset to lose or damage on upload; FAKE_GH_LEAK_TAG=1 makes a draft create a tag anyway.
+# Uploaded archives count as attested (by their original digest) unless named by FAKE_GH_UNATTESTED.
 write_fake_gh() {
   cat > "$1/gh" <<'FAKE'
 #!/usr/bin/env bash
@@ -136,7 +153,7 @@ while [ $# -gt 0 ]; do
     --draft) draft=1 ;;
     --verify-tag) verify_tag=1 ;;
     --generate-notes|--yes) ;;
-    --repo|--target|--title|--notes) shift ;;
+    --repo|--target|--title|--notes|--signer-workflow) shift ;;
     --dir) dir="$2"; shift ;;
     *) positional+=("$1") ;;
   esac
@@ -153,6 +170,9 @@ case "$command" in
     for file in "${positional[@]:1}"; do
       [ -f "$file" ] || { echo "read $file: is a directory" >&2; exit 1; }
       base="$(basename "$file")"
+      if [[ "$base" == *.tar.gz ]] && [ "$base" != "${FAKE_GH_UNATTESTED:-}" ]; then
+        sha256sum "$file" | cut -d' ' -f1 >> "$state/attested"
+      fi
       [ "$base" = "${FAKE_GH_DROP:-}" ] && continue
       cp "$file" "$state/releases/$name/$base"
       [ "$base" = "${FAKE_GH_CORRUPT:-}" ] && printf 'x' >> "$state/releases/$name/$base"
@@ -166,6 +186,11 @@ case "$command" in
   "release delete")
     [ -d "$state/releases/$name" ] || { echo "release not found" >&2; exit 1; }
     rm -rf "$state/releases/$name"
+    ;;
+  "attestation verify")
+    digest="$(sha256sum "$name" | cut -d' ' -f1)"
+    grep -qx "$digest" "$state/attested" 2>/dev/null \
+      || { echo "Error: no attestations found for $name" >&2; exit 1; }
     ;;
   "api "*)
     ref="${command#api }"
@@ -262,6 +287,14 @@ self_test() {
   expect "input: a stale SHA256SUMS fails verification" "SHA256SUMS does not verify" \
     -- rehearse rehearsal-1-8 "$sha" "$work/stale-sums"
   no_leftovers "rehearse: the stale-checksum draft is still deleted"
+  PRE_TAG=v9.9.9 expect "attestations: attested archives pass" pass \
+    ATTESTATION_SIGNER_WORKFLOW=test/repo/.github/workflows/release.yml -- tag v9.9.9 "$work/files"
+  expect "attestations: an unattested archive fails the rehearsal" "has no valid provenance attestation" \
+    ATTESTATION_SIGNER_WORKFLOW=test/repo/.github/workflows/release.yml \
+    FAKE_GH_UNATTESTED=agentforge-9.9.9-aarch64-apple-darwin.tar.gz -- rehearse rehearsal-1-9 "$sha" "$work/files"
+  no_leftovers "attestations: the unattested draft is still deleted"
+  expect "attestations: not checked without a signer workflow" pass \
+    FAKE_GH_UNATTESTED=agentforge-9.9.9-aarch64-apple-darwin.tar.gz -- rehearse rehearsal-1-10 "$sha" "$work/files"
   mkdir "$work/no-sums" && cp "$work/files"/*.tar.gz* "$work/no-sums/"
   expect "input: missing SHA256SUMS is refused" "has no SHA256SUMS" -- rehearse rehearsal-1-7 "$sha" "$work/no-sums"
 

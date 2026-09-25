@@ -40,8 +40,10 @@ formats, and operator workflows may change before the first stable release. 🌱
 
 AgentForge is **not published to crates.io**. Do not run `cargo add agentforge` expecting this
 project: that name is already occupied by an unrelated Rust crate. The supported public install
-path is the official GitHub release archive; local development can install `forge` and `forged`
-from this checkout with `cargo install --path`. See
+path is the official GitHub release archive. Since P5-M004 each archive carries a keyless build
+provenance attestation, so verify a download with `gh attestation verify <archive> -R
+cybercore-tech/agentforge` (or `sha256sum -c SHA256SUMS` for integrity only). Local development
+can install `forge` and `forged` from this checkout with `cargo install --path`. See
 [`docs/REGISTRY.md`](docs/REGISTRY.md) and [`docs/RELEASE.md`](docs/RELEASE.md) for the identity
 policy and the gate required before any future package publication.
 

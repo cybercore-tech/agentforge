@@ -53,8 +53,23 @@ The tagged release workflow builds `forge` and `forged` for:
 - `x86_64-pc-windows-msvc`
 
 Each target produces an `agentforge-<version>-<target>.tar.gz` archive and a sibling SHA-256 file.
-The GitHub release also contains a consolidated `SHA256SUMS` file. Artifacts are unsigned in this
-phase; signing and provenance attestations are future release-engineering work.
+The GitHub release also contains a consolidated `SHA256SUMS` file.
+
+Since P5-M004 every archive also has a **build-provenance attestation** (ADR-0053). It is a signed
+SLSA statement that the archive, by its SHA-256, was built by `.github/workflows/release.yml` in
+`cybercore-tech/agentforge` from a specific commit. It is signed keylessly with a short-lived
+Sigstore certificate issued to the workflow, so there is no key to hold, and it is stored by
+GitHub, not as a release file. Verify a download:
+
+```bash
+gh attestation verify agentforge-<version>-<target>.tar.gz -R cybercore-tech/agentforge
+# stricter: pin the workflow that must have built it
+gh attestation verify agentforge-<version>-<target>.tar.gz -R cybercore-tech/agentforge \
+  --signer-workflow cybercore-tech/agentforge/.github/workflows/release.yml
+```
+
+A modified archive, or one built anywhere else, fails. `v0.1.0` and `v0.2.0` predate attestations
+and are verifiable by checksum only.
 
 ## Milestone tags versus release tags
 
@@ -77,7 +92,8 @@ created as an explicit release decision below, starts a release.
 
 6. Check the run before announcing the release. Since P5-M003, the publish step downloads every
    uploaded asset back and fails unless the asset names equal the selected files, each asset is
-   byte-identical, and `SHA256SUMS` passes `sha256sum -c`. Still download one archive yourself and
+   byte-identical, and `SHA256SUMS` passes `sha256sum -c`. Since P5-M004 each downloaded archive
+must also pass `gh attestation verify` against `release.yml`. Still download one archive yourself and
    check that the extracted `forge version` prints the release version.
 
 Tag the exact commit that passed CI and the packaging dry run. Never move a published release tag;
@@ -107,7 +123,9 @@ Then fix the workflow for the next release. Two releases were published this way
   create dist/*` failed on a directory. The recovery above already removed those directories, but
   the P5-M001 workflow fix did not.
 
-If the upload succeeded but its verification failed, the release already exists. Do not move the
+If **Attest build provenance** fails (for example a Sigstore outage), nothing was uploaded: re-run
+the failed job, and do not move the tag. If the upload succeeded but its verification failed, the
+release already exists. Do not move the
 tag: compare the release's assets with the run's artifacts, and replace the wrong assets (`gh release
 upload vX.Y.Z <file> --clobber`) from those artifacts.
 
@@ -119,7 +137,10 @@ them through the same `gh release create` into a **draft** release named
 `rehearsal-<run id>-<attempt>` (`scripts/publish-release rehearse`). A draft creates no tag and is
 visible only to maintainers. The rehearsal verifies the uploaded assets exactly as a tag run does,
 then deletes the draft, even when verification fails, and fails if a tag with the draft's name
-exists afterwards. Run one before tagging a release after any change to the release workflow:
+exists afterwards. Since P5-M004 a rehearsal also attests its snapshot archives and verifies those
+attestations on the downloaded draft assets, so the signing path is rehearsed too. The snapshot
+attestations stay on GitHub. They are harmless: they describe snapshot archives that were never
+released. Run one before tagging a release after any change to the release workflow:
 
 ```bash
 gh workflow run release.yml -R cybercore-tech/agentforge --ref main
