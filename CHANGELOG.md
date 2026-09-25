@@ -22,6 +22,13 @@ All notable AgentForge changes are documented here. The format follows
   same-host worker process (P4-M005, ADR-0048). It claims the leases held by its worker, runs each
   task through the standard launch path, renews the lease while the agent runs, and releases it.
   Only the exact lease holder can run a leased task. Lease events gain the `claimed` action.
+- Opt-in automatic dispatch (P4-M006, ADR-0049).
+  - A reviewed `.forge/dispatch.conf` (`enabled`, `milestone=` scope, `ttl_ms`, `max_per_tick`) lets
+    the daemon's idle tick, or `forge lease dispatch`, grant ready tasks in listed milestones to
+    registered workers.
+  - Only tasks with every pre-execution approval recorded are granted, once per task, within
+    worker capacity.
+  - Automatic grants are audited with `dispatch=auto`.
 
 ### Changed
 

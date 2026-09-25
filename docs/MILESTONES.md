@@ -86,6 +86,7 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 | P4-M003 | complete | Deterministic remote dispatch planning | Ready tasks can be assigned to supplied workers in canonical order with path, capacity, lease-generation, and all-or-nothing mutation guarantees, without transport or execution authority. |
 | P4-M004 | complete | Remote-worker leases in the CLI and daemon | Operators register workers and grant, renew, release, and expire audited leases from `forge`; leased tasks and tasks overlapping them cannot run locally; `forged` expires due leases without colliding with executions. |
 | P4-M005 | complete | Same-host worker process | `forge worker run` claims its leases, runs each task through the standard launch path with renewals, and releases it; only the exact lease holder can run a leased task. |
+| P4-M006 | complete | Opt-in automatic dispatch | With an enabled, milestone-scoped `.forge/dispatch.conf`, `forged` and `forge lease dispatch` grant ready, approved tasks to registered workers once per task, bounded by capacity and a per-tick limit, audited as `dispatch=auto`. |
 
 ## Phase 1 — multi-agent scheduling and integration
 

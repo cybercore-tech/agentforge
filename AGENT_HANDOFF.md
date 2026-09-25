@@ -2,7 +2,11 @@
 
 ## Repository state
 
-- Active milestone: none. P4-M005 is complete (`07dd1b8`; CI `36029313163`, `36029663704`, and
+- Active milestone: none. P4-M006 is complete (`23db2a0`; CI `36081432343`, `36081582250`, and
+  `36081590100`). `.forge/dispatch.conf` (opt-in and milestone-scoped) lets forged or `forge lease
+  dispatch` grant ready, approved tasks to workers, once per task. Next P4 candidates: authenticated
+  transport for workers on other hosts (GhostPort) and exact-SHA acceptance of their results.
+- P4-M005 is complete (`07dd1b8`; CI `36029313163`, `36029663704`, and
   `36029677648`). `forge worker run` runs leased tasks for their exact holder: claim, launch, renew,
   release. Next P4 candidates: daemon auto-dispatch of ready tasks to idle workers, then an
   authenticated transport (GhostPort) and exact-SHA acceptance of remote results.

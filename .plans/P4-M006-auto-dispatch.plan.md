@@ -1,6 +1,6 @@
 # Plan: P4-M006 — Opt-in automatic dispatch to registered workers
 
-Status: Approved
+Status: Complete
 Milestone: P4-M006
 Created: 2026-09-24
 Owner: AgentForge project
@@ -145,16 +145,23 @@ recovery row), and ADR-0049. README, CHANGELOG, and MILESTONES at closure.
 
 ## Acceptance criteria
 
-- [ ] With an enabled policy, ready tasks are granted to registered workers by the daemon and by
+- [x] With an enabled policy, ready tasks are granted to registered workers by the daemon and by
       `forge lease dispatch`, audited as automatic.
-- [ ] Scoping, the approval precheck, dispatch-once, capacity, and per-tick limits hold.
-- [ ] A created task runs end to end through a polling worker with no manual grant (dogfood).
-- [ ] ADR-0049 and docs; CI evidence; closed and tagged.
+- [x] Scoping, the approval precheck, dispatch-once, capacity, and per-tick limits hold.
+- [x] A created task runs end to end through a polling worker with no manual grant (dogfood).
+- [x] ADR-0049 and docs; CI evidence; closed and tagged.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
-Notes:
+Implementation commit: `23db2a0`
+CI run: `36081432343` (push), plus `36081582250` and `36081590100` (dispatched)
+CI result: green on all seven jobs in all three runs
+Completed: 2026-09-24
+Notes: Operator-authored as planned, with no amendments. The dogfood ran `forged`, a polling
+`forge worker run` (300 ms), and `enabled=true, milestone=P4-M006`. The operator only created
+`P4-M006-T0009`:
+- `forged` logged `dispatched 1 task(s): P4-M006-T0009->builder-1`;
+- the worker claimed, ran, and released the lease;
+- the task was left `running` for review.
+
+The audit chain covers it in order: #1 auto grant, #2 claim, #3-#6 execution, #7 release.

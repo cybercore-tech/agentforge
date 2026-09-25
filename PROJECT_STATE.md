@@ -13,12 +13,20 @@ agent-built milestones, Phase 4 remote-worker wiring, the P3 tool gateway, and P
 
 ## Active milestone
 
-No active milestone. P4-M005 — same-host worker process — is complete.
+No active milestone. P4-M006 — opt-in automatic dispatch — is complete.
 `v0.1.0` is the latest release, and every completed milestone is tagged `milestone/<ID>`.
 
 ## Known issues
 
 None open. Dogfooding findings 1–10 are resolved; see `docs/DOGFOODING.md`.
+
+## P4-M006 completion evidence
+
+- Approved plan: `.plans/P4-M006-auto-dispatch.plan.md`; ADR-0049.
+- Implementation commit: `23db2a0`. CI `36081432343`, `36081582250`, and `36081590100` are green on
+  all seven jobs.
+- Dogfood: with `forged`, a polling worker, and a policy, a newly created task was dispatched, run,
+  and released with no grant command.
 
 ## P4-M005 completion evidence
 
