@@ -2,7 +2,11 @@
 
 ## Repository state
 
-- Active milestone: none. P3-M005 is complete (`9e4cf6f`): `forge mcp serve` is the MCP
+- Active milestone: none. P5-M004 is complete (`623be58`): release archives are attested
+  keylessly (`actions/attest@v4`, ADR-0053), and `publish-release` verifies the uploaded assets'
+  attestations. There are no signing keys to manage. The next `vX.Y.Z` tag is the first attested
+  release.
+- P3-M005 is complete (`9e4cf6f`): `forge mcp serve` is the MCP
   task-tool gateway (`docs/MCP_GATEWAY.md`, ADR-0052). Give a task `use_mcp_tools` (plus
   `read_repository` / `run_local_commands`) and the bridge profile `--forge`. `serde_json` is
   allowed **only** in `agentforge-mcp`; ask before using it elsewhere.

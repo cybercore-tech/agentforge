@@ -8,6 +8,11 @@ All notable AgentForge changes are documented here. The format follows
 
 ### Added
 
+- Release archives carry keyless SLSA build-provenance attestations from the release workflow
+  (P5-M004, ADR-0053). Verify a download with `gh attestation verify <archive> -R
+  cybercore-tech/agentforge`. The workflow verifies the attestations of the assets it uploaded,
+  and manual release runs rehearse it.
+
 - `forge mcp serve`, an MCP task-tool gateway (P3-M005, ADR-0052). An agent can call
   `task_contract`, `check_changes`, and `run_gate` for its own task. Each tool is mapped to the
   task's capabilities and checked with the policy engine, and every call is recorded as a

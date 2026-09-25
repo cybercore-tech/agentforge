@@ -14,13 +14,22 @@ agent-built milestones, Phase 4 remote-worker wiring, the P3 tool gateway, and P
 
 ## Active milestone
 
-No active milestone. P3-M005 — MCP task-tool gateway — is complete.
+No active milestone. P5-M004 — keyless release provenance — is complete.
 `v0.2.0` (P5-M002) is the latest release, and every completed milestone is tagged `milestone/<ID>`.
 
 ## Known issues
 
 - None open. Dogfooding findings 16 (spawned `forged` lost its sweep) and 17 (workers could not
   retry a task) were found and resolved in P4-M010.
+
+## P5-M004 completion evidence
+
+- Approved plan: `.plans/P5-M004-keyless-release-provenance.plan.md`.
+- Implementation commits: `623be58` and `c228f23` (a test race fixed under Amendment 1). CI
+  `36145286790`, `36145728809`, `36146684432`, and `36147102170` are green; release rehearsal
+  `36145288186` attested and verified 4 archives.
+- Independent local `gh attestation verify` passed (signer `release.yml`, commit `623be58`), and a
+  tampered archive failed.
 
 ## P3-M005 completion evidence
 

@@ -1,6 +1,6 @@
 # Plan: P5-M004 — Keyless release provenance
 
-Status: Approved
+Status: Complete
 Milestone: P5-M004
 Created: 2026-09-25
 Owner: AgentForge project
@@ -127,11 +127,11 @@ RELEASE, README, OPERATIONS, ADR-0053; CHANGELOG at closure.
 
 ## Acceptance criteria
 
-- [ ] Release archives are attested by the release workflow, keylessly.
-- [ ] The workflow verifies the attestations of the uploaded assets; the self-test covers it.
-- [ ] A rehearsal proves it end to end, and an independent local verification passes (and a
+- [x] Release archives are attested by the release workflow, keylessly.
+- [x] The workflow verifies the attestations of the uploaded assets; the self-test covers it.
+- [x] A rehearsal proves it end to end, and an independent local verification passes (and a
       tampered archive fails).
-- [ ] ADR, docs; CI evidence; closed and tagged correctly.
+- [x] ADR, docs; CI evidence; closed and tagged correctly.
 
 ## Amendment 1 (2026-09-25)
 
@@ -151,3 +151,29 @@ connecting fails at once on every platform, with no race. The outage-and-reconne
 start a server on its port, so it keeps `free_port()`. Its residual risk (another test being given
 the same port within the few hundred milliseconds before its server starts) is recorded rather
 than hidden.
+
+## Completion record
+
+Implementation commit: `623be58` (attestations); `c228f23` (Amendment 1 test fix)
+CI run: `36145286790` (push) and `36145728809` (dispatched repeat) on `623be58`; `36146684432`
+(push) and `36147102170` (dispatched repeat) on `c228f23`; release rehearsal `36145288186`
+CI result: green on all seven jobs in all four runs; the rehearsal is green on all five jobs
+Completed: 2026-09-25
+Notes:
+- **Rehearsal `36145288186`:** "Attestation created for 4 subjects"
+  (https://github.com/cybercore-tech/agentforge/attestations/50194895), then "verified 9 assets of
+  rehearsal-36145288186-1 (names, bytes, SHA256SUMS, 4 attestations)" on the downloaded draft
+  assets, then the draft was deleted. Afterwards there was no draft and no `rehearsal-*` tag, and
+  `v0.2.0` is still Latest.
+- **Independent check from this machine:** the run's Linux archive verified with `gh attestation
+  verify --signer-workflow cybercore-tech/agentforge/.github/workflows/release.yml`. Its
+  certificate was issued by `https://token.actions.githubusercontent.com` to
+  `release.yml@refs/heads/main`, source digest `623be58...`, trigger `workflow_dispatch`. A copy
+  with one byte appended failed (no attestation for its digest).
+- The self-test's mutant without the attestation check fails it.
+- **Amendment 1:** the first closure attempt's pre-commit gate caught a port-reuse race in a
+  P4-M010 test. The commit was rejected, and the tagger refused the uncommitted closure, as
+  P2-M034 intended. The closure was stashed, the plan amended, and the test fixed (port 0) and
+  verified on all platforms before this closure was redone.
+- The next real `vX.Y.Z` tag will carry attestations automatically. `v0.1.0` and `v0.2.0` stay
+  checksum-only.
