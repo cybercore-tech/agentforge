@@ -1,6 +1,6 @@
 # Plan: P3-M005 — MCP task-tool gateway
 
-Status: Draft
+Status: Approved
 Milestone: P3-M005
 Created: 2026-09-25
 Owner: AgentForge project
