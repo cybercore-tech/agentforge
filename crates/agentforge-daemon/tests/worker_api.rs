@@ -69,11 +69,25 @@ fn project() -> (PathBuf, String, String) {
             "platform=linux-x86_64\ncapability=rust\nmax_leases=2\n",
         )
         .expect("worker");
-        secrets.push(enroll_worker(&root, worker).expect("enroll"));
+        // A fixed secret per worker keeps the fixture portable (enrollment needs /dev/urandom;
+        // `secrets_are_private_and_enrolled_once` covers it on Unix).
+        let secret = if worker == "remote-a" { "a" } else { "b" }.repeat(64);
+        write_secret(&root, worker, &secret);
+        secrets.push(secret);
     }
     let b = secrets.pop().expect("b");
     let a = secrets.pop().expect("a");
     (root, a, b)
+}
+
+fn write_secret(root: &Path, worker: &str, secret: &str) {
+    let path = agentforge_operator::secrets::worker_secret_path(root, worker);
+    fs::write(&path, format!("{secret}\n")).expect("secret");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).expect("chmod");
+    }
 }
 
 fn start(root: &Path) -> WorkerApiServer {
@@ -229,19 +243,25 @@ fn the_api_is_off_by_default_and_binds_only_loopback() {
 fn secrets_are_private_and_enrolled_once() {
     use agentforge_operator::secrets::{load_worker_secret, read_secret_file, worker_secret_path};
     use std::os::unix::fs::PermissionsExt;
-    let (root, secret_a, _) = project();
-    let path = worker_secret_path(&root, "remote-a");
+    let (root, _, _) = project();
+    fs::write(
+        root.join(".forge/workers/remote-c.conf"),
+        "platform=linux-x86_64\ncapability=rust\nmax_leases=1\n",
+    )
+    .expect("worker");
+    let secret = enroll_worker(&root, "remote-c").expect("enroll");
+    let path = worker_secret_path(&root, "remote-c");
     assert_eq!(
         fs::metadata(&path).expect("meta").permissions().mode() & 0o777,
         0o600
     );
-    assert_eq!(secret_a.len(), 64);
+    assert_eq!(secret.len(), 64);
     assert_eq!(
-        load_worker_secret(&root, "remote-a").expect("load"),
-        Some(secret_a)
+        load_worker_secret(&root, "remote-c").expect("load"),
+        Some(secret)
     );
     assert!(
-        enroll_worker(&root, "remote-a").is_err(),
+        enroll_worker(&root, "remote-c").is_err(),
         "already enrolled"
     );
     assert!(enroll_worker(&root, "remote-z").is_err(), "unregistered");

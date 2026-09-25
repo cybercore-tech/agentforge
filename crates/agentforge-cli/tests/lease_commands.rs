@@ -433,6 +433,9 @@ fn dispatch_then_a_worker_runs_the_task_without_a_manual_grant() {
     fs::remove_dir_all(root).expect("cleanup");
 }
 
+// `forge worker enroll` needs /dev/urandom; the worker API itself is covered portably in the
+// daemon crate's tests.
+#[cfg(unix)]
 #[test]
 fn a_remote_worker_enrolls_and_claims_through_the_worker_api() {
     let root = temporary_repo();

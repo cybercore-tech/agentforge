@@ -374,7 +374,15 @@ fn forged_serves_the_worker_api_from_its_configuration() {
         "platform=linux-x86_64\ncapability=rust\nmax_leases=1\n",
     )
     .expect("worker");
-    let secret = agentforge_operator::secrets::enroll_worker(&root, "remote-a").expect("enroll");
+    // A fixed secret keeps this portable; enrollment itself is covered on Unix in worker_api.rs.
+    let secret = "c".repeat(64);
+    let secret_path = agentforge_operator::secrets::worker_secret_path(&root, "remote-a");
+    fs::write(&secret_path, format!("{secret}\n")).expect("secret");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&secret_path, fs::Permissions::from_mode(0o600)).expect("chmod");
+    }
     // Reserve a free loopback port for the configuration.
     let port = std::net::TcpListener::bind("127.0.0.1:0")
         .expect("probe")
