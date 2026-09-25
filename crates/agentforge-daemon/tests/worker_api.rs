@@ -508,7 +508,12 @@ fn the_worker_host_doctor_finds_each_setup_problem() {
     fs::remove_dir_all(root).expect("cleanup");
 }
 
-/// A local port with nothing listening on it (bound once, then released).
+/// Port 0 on loopback: nothing can listen there, so connecting always fails at once, with no race
+/// against other tests (P5-M004 Amendment 1).
+const CLOSED: &str = "127.0.0.1:0";
+
+/// A local port with nothing listening on it *now* (bound once, then released). Only for tests
+/// that must later start a server on it: a parallel test can be handed the same port meanwhile.
 fn free_port() -> std::net::SocketAddr {
     std::net::TcpListener::bind("127.0.0.1:0")
         .expect("probe")
@@ -518,9 +523,7 @@ fn free_port() -> std::net::SocketAddr {
 
 #[test]
 fn a_closed_port_is_unreachable_not_refused() {
-    let address = free_port();
-    let client =
-        WorkerClient::new(&address.to_string(), "remote-a", &"a".repeat(64)).expect("client");
+    let client = WorkerClient::new(CLOSED, "remote-a", &"a".repeat(64)).expect("client");
     let error = client.claim().expect_err("nothing listens");
     assert!(
         matches!(&error, ClientError::Unreachable(message)
@@ -640,9 +643,7 @@ fn a_run_once_worker_still_returns_the_outage() {
     use agentforge_daemon::worker_api::{RemoteWorkerOptions, run_remote_worker};
     use std::time::Duration;
 
-    let address = free_port();
-    let client =
-        WorkerClient::new(&address.to_string(), "remote-a", &"a".repeat(64)).expect("client");
+    let client = WorkerClient::new(CLOSED, "remote-a", &"a".repeat(64)).expect("client");
     let adapter = agentforge_adapter::ProcessAdapter::new(
         agentforge_adapter::ProcessAdapterConfig::new("never-runs", std::env::temp_dir()),
     )
