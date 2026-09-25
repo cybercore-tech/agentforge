@@ -14,7 +14,7 @@ agent-built milestones, Phase 4 remote-worker wiring, the P3 tool gateway, and P
 
 ## Active milestone
 
-No active milestone. P0-M014 — EINTR-safe pipe readers, built by a real remote agent — is complete.
+No active milestone. P2-M034 — closure and documentation-index integrity — is complete.
 `v0.2.0` (P5-M002) is the latest release, and every completed milestone is tagged `milestone/<ID>`.
 
 ## Known issues
@@ -22,10 +22,18 @@ No active milestone. P0-M014 — EINTR-safe pipe readers, built by a real remote
 - Dogfooding finding 12: audit events carry no wall-clock time (placeholder timestamp `1`).
 - Dogfooding finding 13: `forge worker remote run` does not report lease renewals.
 - Dogfooding finding 14: worker-host setup is manual and unchecked (hooks, profile paths, secret).
-- Dogfooding finding 15: `scripts/tag-milestone` can tag an unclosed plan (it reads the working-tree
-  milestone table, and the legacy fallback picks the plan's last commit).
+
 - The release publish upload step is proven only by the next real tag; the dry run covers
   everything else (P5-M002).
+
+## P2-M034 completion evidence
+
+- Approved plan: `.plans/P2-M034-closure-and-docs-integrity.plan.md`; the ADR-0044 addendum.
+- Implementation commit: `7023c50`. CI `36102686579` and `36102872926` are green, and both new
+  checks ran there.
+- Tagger: the incident replay is refused, and all 69 tags are unchanged (P2-M017 is reported under
+  the pre-P2-M034 rule). The ADR registry is complete (51) and the docs map is complete, both
+  enforced.
 
 ## P0-M014 completion evidence
 

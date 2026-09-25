@@ -1,6 +1,6 @@
 # Plan: P2-M034 — Closure and documentation-index integrity
 
-Status: Approved
+Status: Complete
 Milestone: P2-M034
 Created: 2026-09-24
 Owner: AgentForge project
@@ -128,16 +128,32 @@ validation), and DOGFOODING (finding 15 resolved).
 
 ## Acceptance criteria
 
-- [ ] The tagger decides only from `HEAD`, refuses uncommitted closures and unclosed plans, and
+- [x] The tagger decides only from `HEAD`, refuses uncommitted closures and unclosed plans, and
       keeps the legacy fallback for plans without status lines only; all 69 tags are unchanged.
-- [ ] The ADR registry lists all 51 ADRs, the README links every doc, and `xtask validate`
+- [x] The ADR registry lists all 51 ADRs, the README links every doc, and `xtask validate`
       enforces both in CI.
-- [ ] Docs updated; CI evidence; closed and tagged correctly.
+- [x] Docs updated; CI evidence; closed and tagged correctly.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
+Implementation commit: `7023c50`
+CI run: `36102686579` (push) and `36102872926` (dispatched repeat). The logs show `repository
+validation: ok` (including the new index check) and `tag-milestone self-test passed`.
+CI result: green on all seven jobs in both runs
+Completed: 2026-09-24
 Notes:
+- **Tagger.** Replaying the P0-M014 situation against the old script gave "would tag ...
+  (docs(plan): approve P9-M001)" with exit 0; the new script refuses it, with exit 1. The baseline
+  `--all --dry-run` caught one historical case the strict rule would have re-resolved,
+  `milestone/P2-M017`: its repair plan was closed without updating its status line (`f2f0005`
+  against strict `96e02c3`). Instead of rewriting old plans or moving a tag, pre-P2-M034 tags that
+  match the old rule are accepted and reported "(pre-P2-M034 closure rule)". New tags use the
+  strict rule only. The result: 69 considered, 0 errors, every tag unchanged. This is recorded in
+  the ADR-0044 addendum.
+- **Docs indexes.** Before the docs fix, `xtask validate` reported exactly the 26 missing ADR rows
+  and 4 unlinked docs. The rows were generated from each ADR's own title and status, the README
+  gained links for those docs plus the ADR registry, and the check now runs in the gate and CI.
+- The gate caught an extra trailing newline in the ADR addendum (the same class as P0-M014's
+  closure). It was fixed before commit, and every commit's exit code was checked directly.
+- This closure is tagged by the new tagger: refused while uncommitted, and tagged only after the
+  dry run names the "close ..." commit.

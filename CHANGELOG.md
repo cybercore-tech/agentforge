@@ -8,6 +8,13 @@ All notable AgentForge changes are documented here. The format follows
 
 ### Fixed
 
+- `scripts/tag-milestone` could tag a milestone whose closure was never committed (it read the
+  working-tree milestone table and fell back to the plan's last commit). It now decides only from
+  committed history and refuses uncommitted or unclosed milestones; existing tags are unchanged
+  (P2-M034).
+- The ADR registry was missing ADR-0026 to ADR-0051, and four docs were not linked from the README.
+  `xtask validate` now enforces both, in the gate and CI (P2-M034).
+
 - Process-pipe and stdin readers (agent output capture and input forwarding, gate capture, the CI
   provider reader, CLI input) now retry a read interrupted by a signal instead of failing
   (P0-M014). This change was implemented by Claude Code as a remote worker through AgentForge.

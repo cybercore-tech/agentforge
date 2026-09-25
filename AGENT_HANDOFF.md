@@ -2,7 +2,11 @@
 
 ## Repository state
 
-- Active milestone: none. P0-M014 is complete: the **first real-agent remote run** (`dec91f2`, by
+- Active milestone: none. P2-M034 is complete (`7023c50`): the tagger decides only from `HEAD`
+  and refuses uncommitted or unclosed milestones; `xtask validate` enforces the ADR registry and
+  README docs map. **When you add an ADR or a doc, add its registry row or README link in the same
+  commit, or the gate fails.** Open findings: 12, 13, and 14.
+- P0-M014 is complete: the **first real-agent remote run** (`dec91f2`, by
   Claude Code over GhostPort, exact-SHA import, integrated). New open findings: 12 (no wall-clock
   audit timestamps), 13 (no remote renewal report), 14 (unchecked worker-host setup). These are the
   candidates for the next milestone.
