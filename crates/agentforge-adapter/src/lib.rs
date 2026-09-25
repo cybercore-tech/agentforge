@@ -1114,7 +1114,7 @@ fn execute_interactive_process(
         let mut stdin = stdin.lock();
         let mut buffer = [0_u8; 4096];
         loop {
-            let length = stdin.read(&mut buffer)?;
+            let length = read_retrying(&mut stdin, &mut buffer)?;
             if length == 0 {
                 return Ok::<(), io::Error>(());
             }
@@ -1376,7 +1376,7 @@ fn drain_pty<R: Read + Send + 'static>(
         let mut buffer = [0_u8; 8192];
         let mut terminal = io::stdout();
         loop {
-            let length = reader.read(&mut buffer)?;
+            let length = read_retrying(&mut reader, &mut buffer)?;
             if length == 0 {
                 return Ok(());
             }
@@ -1442,7 +1442,7 @@ fn drain<R: Read + Send + 'static>(
     thread::spawn(move || {
         let mut buffer = [0_u8; 8192];
         loop {
-            let length = reader.read(&mut buffer)?;
+            let length = read_retrying(&mut reader, &mut buffer)?;
             if length == 0 {
                 return Ok(());
             }
@@ -1475,7 +1475,7 @@ fn drain_interactive<R: Read + Send + 'static>(
             Stream::Stderr => Box::new(io::stderr()),
         };
         loop {
-            let length = reader.read(&mut buffer)?;
+            let length = read_retrying(&mut reader, &mut buffer)?;
             if length == 0 {
                 return Ok(());
             }
@@ -1494,6 +1494,18 @@ fn drain_interactive<R: Read + Send + 'static>(
             }
         }
     })
+}
+
+/// Reads once from a pipe, PTY, or stdin, retrying reads interrupted by a signal (`EINTR`).
+///
+/// End of input and every other error are returned to the caller unchanged.
+fn read_retrying(reader: &mut impl Read, buffer: &mut [u8]) -> io::Result<usize> {
+    loop {
+        match reader.read(buffer) {
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+            result => return result,
+        }
+    }
 }
 
 fn write_field(output: &mut Vec<u8>, name: &str, value: &str) {
@@ -1523,13 +1535,103 @@ fn write_values<'a>(output: &mut Vec<u8>, name: &str, values: impl Iterator<Item
 #[cfg(test)]
 mod tests {
     use super::{
-        AdapterError, AdapterRequest, AgentAdapter, AgentProfileStore, ExecutionReport,
-        ProcessAdapterConfig, key_event_bytes, render_task_prompt, validate_result_binding,
+        AdapterError, AdapterRequest, AgentAdapter, AgentProfileStore, Capture, ExecutionReport,
+        ProcessAdapterConfig, Stream, drain, key_event_bytes, read_retrying, render_task_prompt,
+        validate_result_binding,
     };
     use agentforge_core::agent::{AgentResult, AgentRole, AgentTask, TaskOutcome};
     use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+    use std::collections::VecDeque;
     use std::fs;
+    use std::io::{self, Read};
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::{Arc, Mutex};
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    /// Replays scripted read results, then reports end of input.
+    struct ScriptedReader(VecDeque<io::Result<Vec<u8>>>);
+
+    impl ScriptedReader {
+        fn new(steps: Vec<io::Result<Vec<u8>>>) -> Self {
+            Self(steps.into())
+        }
+    }
+
+    impl Read for ScriptedReader {
+        fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+            match self.0.pop_front() {
+                None => Ok(0),
+                Some(Err(error)) => Err(error),
+                Some(Ok(bytes)) => {
+                    buffer[..bytes.len()].copy_from_slice(&bytes);
+                    Ok(bytes.len())
+                }
+            }
+        }
+    }
+
+    fn interrupted() -> io::Error {
+        io::Error::from(io::ErrorKind::Interrupted)
+    }
+
+    #[test]
+    fn read_retrying_retries_interrupted_reads_only() {
+        let mut buffer = [0_u8; 16];
+        let mut reader = ScriptedReader::new(vec![Err(interrupted()), Ok(b"data".to_vec())]);
+        assert_eq!(read_retrying(&mut reader, &mut buffer).unwrap(), 4);
+        assert_eq!(&buffer[..4], b"data");
+        assert_eq!(read_retrying(&mut reader, &mut buffer).unwrap(), 0);
+
+        let mut reader = ScriptedReader::new(vec![
+            Err(io::Error::from(io::ErrorKind::BrokenPipe)),
+            Ok(b"late".to_vec()),
+        ]);
+        let error = read_retrying(&mut reader, &mut buffer).unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::BrokenPipe);
+    }
+
+    #[test]
+    fn drain_keeps_output_across_an_interrupted_read() {
+        let capture = Arc::new(Mutex::new(Capture::default()));
+        let limited = Arc::new(AtomicBool::new(false));
+        let reader = ScriptedReader::new(vec![
+            Ok(b"before ".to_vec()),
+            Err(interrupted()),
+            Ok(b"after".to_vec()),
+        ]);
+        drain(
+            reader,
+            Arc::clone(&capture),
+            Arc::clone(&limited),
+            1024,
+            Stream::Stderr,
+        )
+        .join()
+        .unwrap()
+        .unwrap();
+        let capture = capture.lock().unwrap();
+        assert_eq!(capture.stderr, b"before after");
+        assert!(capture.stdout.is_empty());
+        assert!(!limited.load(Ordering::Acquire));
+    }
+
+    #[test]
+    fn drain_still_propagates_other_read_errors() {
+        let capture = Arc::new(Mutex::new(Capture::default()));
+        let limited = Arc::new(AtomicBool::new(false));
+        let reader = ScriptedReader::new(vec![
+            Ok(b"partial".to_vec()),
+            Err(io::Error::other("pipe failed")),
+            Ok(b"ignored".to_vec()),
+        ]);
+        let result = drain(reader, Arc::clone(&capture), limited, 1024, Stream::Stdout)
+            .join()
+            .unwrap();
+        assert!(
+            matches!(result, Err(AdapterError::Io(error)) if error.to_string() == "pipe failed")
+        );
+        assert_eq!(capture.lock().unwrap().stdout, b"partial");
+    }
 
     #[test]
     fn prompt_preserves_multiline_unicode_contract_data() {

@@ -1789,6 +1789,7 @@ fn bounded_line(reader: &mut impl Read, limit: usize) -> Result<Option<String>, 
             Ok(_) if buffer[0] == b'\n' => break,
             Ok(_) if bytes.len() < limit => bytes.push(buffer[0]),
             Ok(_) => oversized = true,
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
             Err(error) => return Err(error.to_string()),
         }
     }
@@ -2868,6 +2869,7 @@ fn read_bounded_line(reader: &mut impl Read) -> Option<String> {
                 bytes += 1;
             }
             Ok(_) => overflow = true,
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
             Err(_) => return None,
         }
     }
@@ -2912,8 +2914,76 @@ fn check(path: impl AsRef<Path>) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::{check, print_status};
+    use super::{bounded_line, check, print_status, read_bounded_line};
+    use std::collections::VecDeque;
+    use std::io::{self, Read};
     use std::path::Path;
+
+    /// Replays scripted read results, then reports end of input.
+    struct ScriptedReader(VecDeque<io::Result<Vec<u8>>>);
+
+    impl ScriptedReader {
+        /// Delivers `text` one byte per read, with an interrupted read before each byte.
+        fn interrupted_bytes(text: &str) -> Self {
+            let mut steps = VecDeque::new();
+            for byte in text.bytes() {
+                steps.push_back(Err(io::Error::from(io::ErrorKind::Interrupted)));
+                steps.push_back(Ok(vec![byte]));
+            }
+            Self(steps)
+        }
+    }
+
+    impl Read for ScriptedReader {
+        fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+            match self.0.pop_front() {
+                None => Ok(0),
+                Some(Err(error)) => Err(error),
+                Some(Ok(bytes)) => {
+                    buffer[..bytes.len()].copy_from_slice(&bytes);
+                    Ok(bytes.len())
+                }
+            }
+        }
+    }
+
+    fn failing_after(text: &str) -> ScriptedReader {
+        let mut steps: VecDeque<_> = text.bytes().map(|byte| Ok(vec![byte])).collect();
+        steps.push_back(Err(io::Error::from(io::ErrorKind::BrokenPipe)));
+        steps.push_back(Ok(b"\n".to_vec()));
+        ScriptedReader(steps)
+    }
+
+    #[test]
+    fn bounded_line_keeps_input_across_interrupted_reads() {
+        let mut reader = ScriptedReader::interrupted_bytes("yes\nno\n");
+        assert_eq!(bounded_line(&mut reader, 16), Ok(Some("yes".to_owned())));
+        assert_eq!(bounded_line(&mut reader, 16), Ok(Some("no".to_owned())));
+        assert_eq!(bounded_line(&mut reader, 16), Ok(None));
+    }
+
+    #[test]
+    fn bounded_line_still_propagates_other_read_errors() {
+        let mut reader = failing_after("ye");
+        let error = bounded_line(&mut reader, 16).unwrap_err();
+        assert_eq!(
+            error,
+            io::Error::from(io::ErrorKind::BrokenPipe).to_string()
+        );
+    }
+
+    #[test]
+    fn watch_input_keeps_input_across_interrupted_reads() {
+        let mut reader = ScriptedReader::interrupted_bytes("q\n");
+        assert_eq!(read_bounded_line(&mut reader), Some("q".to_owned()));
+        assert_eq!(read_bounded_line(&mut reader), None);
+    }
+
+    #[test]
+    fn watch_input_still_stops_on_other_read_errors() {
+        let mut reader = failing_after("q");
+        assert_eq!(read_bounded_line(&mut reader), None);
+    }
 
     #[test]
     fn checks_are_read_only_and_deterministic() {

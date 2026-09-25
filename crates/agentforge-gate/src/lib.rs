@@ -321,6 +321,17 @@ fn run_process(definition: &GateDefinition, directory: &Path) -> Result<GateRepo
         output_truncated: limited.load(Ordering::Acquire),
     })
 }
+/// Reads once from a gate output pipe, retrying reads interrupted by a signal (`EINTR`).
+///
+/// End of input and every other error are returned to the caller unchanged.
+fn read_retrying(reader: &mut impl Read, buffer: &mut [u8]) -> io::Result<usize> {
+    loop {
+        match reader.read(buffer) {
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+            result => return result,
+        }
+    }
+}
 fn drain<R: Read + Send + 'static>(
     mut r: R,
     c: Arc<Mutex<Capture>>,
@@ -331,7 +342,7 @@ fn drain<R: Read + Send + 'static>(
     thread::spawn(move || {
         let mut b = [0; 4096];
         loop {
-            let n = r.read(&mut b).map_err(GateError::Io)?;
+            let n = read_retrying(&mut r, &mut b).map_err(GateError::Io)?;
             if n == 0 {
                 return Ok(());
             }
@@ -590,4 +601,78 @@ fn parse_gate_profile(id: &str, text: &str) -> Result<GateDefinition, GateProfil
         .validate()
         .map_err(|error| GateProfileError::Invalid(error.to_string()))?;
     Ok(definition)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Capture, GateError, drain};
+    use std::collections::VecDeque;
+    use std::io::{self, Read};
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::{Arc, Mutex};
+
+    /// Replays scripted read results, then reports end of input.
+    struct ScriptedReader(VecDeque<io::Result<Vec<u8>>>);
+
+    impl Read for ScriptedReader {
+        fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+            match self.0.pop_front() {
+                None => Ok(0),
+                Some(Err(error)) => Err(error),
+                Some(Ok(bytes)) => {
+                    buffer[..bytes.len()].copy_from_slice(&bytes);
+                    Ok(bytes.len())
+                }
+            }
+        }
+    }
+
+    fn run(steps: Vec<io::Result<Vec<u8>>>, out: bool) -> (Result<(), GateError>, Capture, bool) {
+        let capture = Arc::new(Mutex::new(Capture::default()));
+        let limited = Arc::new(AtomicBool::new(false));
+        let result = drain(
+            ScriptedReader(steps.into()),
+            Arc::clone(&capture),
+            Arc::clone(&limited),
+            1024,
+            out,
+        )
+        .join()
+        .unwrap();
+        let capture = std::mem::take(&mut *capture.lock().unwrap());
+        (result, capture, limited.load(Ordering::Acquire))
+    }
+
+    #[test]
+    fn drain_keeps_output_across_an_interrupted_read() {
+        let (result, capture, limited) = run(
+            vec![
+                Err(io::Error::from(io::ErrorKind::Interrupted)),
+                Ok(b"gate ".to_vec()),
+                Err(io::Error::from(io::ErrorKind::Interrupted)),
+                Ok(b"output".to_vec()),
+            ],
+            true,
+        );
+        result.unwrap();
+        assert_eq!(capture.out, b"gate output");
+        assert!(capture.err.is_empty());
+        assert!(!limited);
+    }
+
+    #[test]
+    fn drain_still_propagates_other_read_errors() {
+        let (result, capture, _) = run(
+            vec![
+                Ok(b"partial".to_vec()),
+                Err(io::Error::from(io::ErrorKind::BrokenPipe)),
+                Ok(b"ignored".to_vec()),
+            ],
+            false,
+        );
+        assert!(
+            matches!(result, Err(GateError::Io(error)) if error.kind() == io::ErrorKind::BrokenPipe)
+        );
+        assert_eq!(capture.err, b"partial");
+    }
 }
