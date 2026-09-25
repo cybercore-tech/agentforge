@@ -1,6 +1,6 @@
 # Plan: P5-M002 — Release v0.2.0
 
-Status: Draft
+Status: Approved
 Milestone: P5-M002
 Created: 2026-09-24
 Owner: AgentForge project
