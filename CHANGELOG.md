@@ -6,6 +6,16 @@ All notable AgentForge changes are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-25
+
+The first release with **attested builds**: every archive carries a keyless SLSA build-provenance
+attestation from the release workflow, so you can verify where it came from with `gh attestation
+verify <archive> -R cybercore-tech/agentforge`. Remote workers can now run unattended. They ride
+out coordinator outages, run under a systemd user unit, and show up in `forge hud`. Agents can call
+AgentForge's own task tools over MCP, under their capability policy. **Upgrading from `v0.2.0` is
+recommended:** in `v0.2.0` a `forged` started with `forge daemon start` stops expiring leases after
+the first expiry. Compatibility note: tool-call audit events (code 13) cannot be read by `v0.2.0`.
+
 ### Added
 
 - Release archives carry keyless SLSA build-provenance attestations from the release workflow
@@ -217,6 +227,7 @@ coding agent (Claude Code), with hermetic gates, audited agent evidence, and ope
 - Release artifacts are intended for evaluation and controlled local use, not unattended production
   deployment.
 
-[Unreleased]: https://github.com/cybercore-tech/agentforge/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/cybercore-tech/agentforge/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/cybercore-tech/agentforge/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/cybercore-tech/agentforge/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/cybercore-tech/agentforge/releases/tag/v0.1.0

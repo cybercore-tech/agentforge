@@ -20,19 +20,19 @@ name = "forge"
 path = "src/main.rs"
 
 [dependencies]
-agentforge-core = { path = "../agentforge-core", version = "0.2.0" }
-agentforge-adapter = { path = "../agentforge-adapter", version = "0.2.0" }
-agentforge-audit = { path = "../agentforge-audit", version = "0.2.0" }
-agentforge-ci = { path = "../agentforge-ci", version = "0.2.0" }
-agentforge-daemon = { path = "../agentforge-daemon", version = "0.2.0" }
-agentforge-gate = { path = "../agentforge-gate", version = "0.2.0" }
-agentforge-intake = { path = "../agentforge-intake", version = "0.2.0" }
-agentforge-mcp = { path = "../agentforge-mcp", version = "0.2.0" }
-agentforge-hud = { path = "../agentforge-hud", version = "0.2.0" }
-agentforge-orchestrator = { path = "../agentforge-orchestrator", version = "0.2.0" }
-agentforge-operator = { path = "../agentforge-operator", version = "0.2.0" }
-agentforge-state = { path = "../agentforge-state", version = "0.2.0" }
-agentforge-worktree = { path = "../agentforge-worktree", version = "0.2.0" }
+agentforge-core = { path = "../agentforge-core", version = "0.3.0" }
+agentforge-adapter = { path = "../agentforge-adapter", version = "0.3.0" }
+agentforge-audit = { path = "../agentforge-audit", version = "0.3.0" }
+agentforge-ci = { path = "../agentforge-ci", version = "0.3.0" }
+agentforge-daemon = { path = "../agentforge-daemon", version = "0.3.0" }
+agentforge-gate = { path = "../agentforge-gate", version = "0.3.0" }
+agentforge-intake = { path = "../agentforge-intake", version = "0.3.0" }
+agentforge-mcp = { path = "../agentforge-mcp", version = "0.3.0" }
+agentforge-hud = { path = "../agentforge-hud", version = "0.3.0" }
+agentforge-orchestrator = { path = "../agentforge-orchestrator", version = "0.3.0" }
+agentforge-operator = { path = "../agentforge-operator", version = "0.3.0" }
+agentforge-state = { path = "../agentforge-state", version = "0.3.0" }
+agentforge-worktree = { path = "../agentforge-worktree", version = "0.3.0" }
 
 [lints]
 workspace = true
