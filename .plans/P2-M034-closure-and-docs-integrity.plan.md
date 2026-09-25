@@ -1,6 +1,6 @@
 # Plan: P2-M034 — Closure and documentation-index integrity
 
-Status: Draft
+Status: Approved
 Milestone: P2-M034
 Created: 2026-09-24
 Owner: AgentForge project
