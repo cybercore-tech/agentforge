@@ -119,7 +119,9 @@ gates, review, accept, integrate. This file is the run log and the list of frict
     remotely within about two minutes (the same precedent as P2-M030), and the milestone was tagged
     again after the real closure. Fix: the tagger reads the milestone table from `HEAD`, refuses
     uncommitted plan or table changes, and uses the legacy fallback only for plans that never had a
-    status line. **Open.**
+    status line. **Resolved in P2-M034** (with CI-run self-test cases and all 69 tags unchanged).
+    The same milestone also fixed the documentation indexes: 26 ADRs were missing from the registry,
+    and 4 docs were not linked from the README. `xtask validate` now enforces both.
 
 
 ## P1-M007 run log (2026-09-24)

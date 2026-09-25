@@ -53,12 +53,100 @@ fn validate_repository() -> Result<(), Vec<String>> {
 
     validate_required_paths(&mut errors);
     validate_active_plan(&mut errors);
+    validate_docs_indexes(&mut errors);
 
     if errors.is_empty() {
         Ok(())
     } else {
         Err(errors)
     }
+}
+
+/// Every ADR file has a registry row and every row has a file; every top-level doc is linked from
+/// the README's documentation map (P2-M034).
+fn validate_docs_indexes(errors: &mut Vec<String>) {
+    let adr_ids = match markdown_names("docs/adr") {
+        Ok(names) => names
+            .iter()
+            .filter(|name| name.starts_with("ADR-") && name.len() >= 8)
+            .map(|name| name[..8].to_owned())
+            .collect::<Vec<_>>(),
+        Err(error) => {
+            errors.push(format!("unable to list docs/adr: {error}"));
+            return;
+        }
+    };
+    match fs::read_to_string("docs/adr/README.md") {
+        Ok(registry) => errors.extend(adr_registry_errors(&adr_ids, &registry)),
+        Err(error) => errors.push(format!("unable to read docs/adr/README.md: {error}")),
+    }
+    let docs = match markdown_names("docs") {
+        Ok(names) => names,
+        Err(error) => {
+            errors.push(format!("unable to list docs: {error}"));
+            return;
+        }
+    };
+    match fs::read_to_string("README.md") {
+        Ok(readme) => errors.extend(unlinked_docs(&docs, &readme)),
+        Err(error) => errors.push(format!("unable to read README.md: {error}")),
+    }
+}
+
+/// File names ending in `.md` directly inside `directory`, sorted.
+fn markdown_names(directory: &str) -> std::io::Result<Vec<String>> {
+    let mut names = Vec::new();
+    for entry in fs::read_dir(directory)? {
+        let entry = entry?;
+        if !entry.file_type()?.is_file() {
+            continue;
+        }
+        if let Some(name) = entry.file_name().to_str() {
+            if name.ends_with(".md") {
+                names.push(name.to_owned());
+            }
+        }
+    }
+    names.sort();
+    Ok(names)
+}
+
+/// Compares ADR IDs from files with the `| ADR-NNNN |` rows of the registry.
+fn adr_registry_errors(file_ids: &[String], registry: &str) -> Vec<String> {
+    let rows = registry
+        .lines()
+        .filter_map(|line| line.strip_prefix("| "))
+        .filter(|rest| rest.starts_with("ADR-") && rest.len() >= 8)
+        .map(|rest| rest[..8].to_owned())
+        .collect::<Vec<_>>();
+    let mut errors = Vec::new();
+    for id in file_ids {
+        if !rows.contains(id) {
+            errors.push(format!(
+                "docs/adr/README.md: {id} has a file but no registry row"
+            ));
+        }
+    }
+    for (index, id) in rows.iter().enumerate() {
+        if !file_ids.contains(id) {
+            errors.push(format!(
+                "docs/adr/README.md: registry row {id} has no ADR file"
+            ));
+        }
+        if rows[..index].contains(id) {
+            errors.push(format!("docs/adr/README.md: {id} is listed more than once"));
+        }
+    }
+    errors
+}
+
+/// Top-level docs not linked as `(docs/<name>)` from the README.
+fn unlinked_docs(doc_names: &[String], readme: &str) -> Vec<String> {
+    doc_names
+        .iter()
+        .filter(|name| !readme.contains(&format!("(docs/{name})")))
+        .map(|name| format!("README.md: docs/{name} is not linked from the documentation map"))
+        .collect()
 }
 
 fn validate_required_paths(errors: &mut Vec<String>) {
@@ -290,7 +378,43 @@ fn git_output(args: &[&str]) -> Result<String, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_implementation_path, plan_status};
+    use super::{adr_registry_errors, is_implementation_path, plan_status, unlinked_docs};
+
+    fn ids(values: &[&str]) -> Vec<String> {
+        values.iter().map(|value| (*value).to_owned()).collect()
+    }
+
+    #[test]
+    fn adr_registry_matches_files_exactly() {
+        let registry = "| ID | Status | Decision |\n| --- | --- | --- |\n\
+                        | ADR-0001 | Accepted | One |\n| ADR-0002 | Accepted | Two |\n";
+        assert!(adr_registry_errors(&ids(&["ADR-0001", "ADR-0002"]), registry).is_empty());
+        let missing = adr_registry_errors(&ids(&["ADR-0001", "ADR-0002", "ADR-0003"]), registry);
+        assert_eq!(
+            missing,
+            ["docs/adr/README.md: ADR-0003 has a file but no registry row"]
+        );
+        let dangling = adr_registry_errors(&ids(&["ADR-0001"]), registry);
+        assert_eq!(
+            dangling,
+            ["docs/adr/README.md: registry row ADR-0002 has no ADR file"]
+        );
+        let doubled = format!("{registry}| ADR-0002 | Accepted | Two again |\n");
+        assert_eq!(
+            adr_registry_errors(&ids(&["ADR-0001", "ADR-0002"]), &doubled),
+            ["docs/adr/README.md: ADR-0002 is listed more than once"]
+        );
+    }
+
+    #[test]
+    fn every_doc_must_be_linked_from_the_readme() {
+        let readme = "## Documentation map\n\n- [Gates](docs/GATES.md)\n";
+        assert!(unlinked_docs(&ids(&["GATES.md"]), readme).is_empty());
+        assert_eq!(
+            unlinked_docs(&ids(&["GATES.md", "HIDDEN.md"]), readme),
+            ["README.md: docs/HIDDEN.md is not linked from the documentation map"]
+        );
+    }
 
     #[test]
     fn approved_plan_status_is_detected() {

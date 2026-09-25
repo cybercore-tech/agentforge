@@ -9,8 +9,12 @@ Usage:
 The closure commit is the earliest commit whose version of the milestone's plan
 (.plans/<ID>-*.plan.md) has a status line starting "Status: Complete" at the start of a line,
 verified by reading the plan at that commit. Prose that only mentions the words does not count
-(P2-M031). For older plans that never recorded the status line, the last commit touching the plan
-is used. When a milestone has several plan files (for example a repair plan), the latest closure
+(P2-M031). For older plans that never recorded any status line, the last commit touching the plan
+is used; a plan that has status lines but never committed `Status: Complete` is refused (P2-M034).
+
+Everything is decided from committed history (HEAD): docs/MILESTONES.md, the plan files, and the
+completion records. Uncommitted changes to docs/MILESTONES.md or the milestone's plans are refused,
+so a closure that failed to commit can never be tagged (P2-M034, dogfooding finding 15). When a milestone has several plan files (for example a repair plan), the latest closure
 wins. The tag message carries the title and acceptance signal from docs/MILESTONES.md and the
 plan's completion record.
 
@@ -21,6 +25,7 @@ Release tags (vX.Y.Z) are a separate decision; this namespace never triggers the
 """
 
 import argparse
+import os
 import re
 import subprocess
 import sys
@@ -32,6 +37,7 @@ ID = re.compile(r"^P\d+-M\d{3}$")
 # The plan's status line, anchored at the start of a line. Prose that merely mentions the words
 # (the P2-M030 plan does, inside backticks) must never count as a closure (P2-M031).
 STATUS_COMPLETE = re.compile(r"^Status: Complete", re.MULTILINE)
+MILESTONES = "docs/MILESTONES.md"
 
 
 class TagError(Exception):
@@ -79,13 +85,15 @@ def has_complete_status(plan_text):
     return bool(STATUS_COMPLETE.search(plan_text))
 
 
-def closure_commit(plans):
+def closure_commit(plans, strict=True):
     """The latest (across plan files) of each plan's earliest commit whose status line reads
-    `Status: Complete`, verified by reading the plan at that commit. Older plans without such a
-    line fall back to their last commit."""
+    `Status: Complete`, verified by reading the plan at that commit. Only plans that never had any
+    committed `Status:` line fall back to their last commit; a plan with status lines but no
+    committed closure contributes nothing (P2-M034). With `strict=False` it reproduces the
+    pre-P2-M034 rule (any plan without a committed closure falls back to its last commit), used only
+    to recognise tags created before P2-M034. `plans` are repository-relative paths."""
     candidates = []
-    for plan in plans:
-        relative = plan.relative_to(ROOT).as_posix()
+    for relative in plans:
         found = None
         log = git("log", "--format=%H %ct", "--reverse", "-G", "^Status: Complete", "--", relative)
         for line in log.stdout.splitlines():
@@ -95,6 +103,9 @@ def closure_commit(plans):
                 found = (int(stamp), commit)
                 break
         if found is None:
+            ever_status = git("log", "--format=%H", "-G", "^Status: ", "--", relative).stdout.strip()
+            if ever_status and strict:
+                continue
             last = git("log", "-1", "--format=%H %ct", "--", relative).stdout.split()
             if last:
                 found = (int(last[1]), last[0])
@@ -105,14 +116,53 @@ def closure_commit(plans):
     return max(candidates)[1]
 
 
+def committed_text(relative):
+    """A file's content at HEAD, or None when it is not committed."""
+    shown = git("show", f"HEAD:{relative}", check=False)
+    return shown.stdout if shown.returncode == 0 else None
+
+
+def committed_rows():
+    text = committed_text(MILESTONES)
+    if text is None:
+        raise TagError(f"{MILESTONES} is not committed")
+    return parse_milestones(text)
+
+
+def uncommitted_closure(milestone_id):
+    """Porcelain status lines for uncommitted changes to the milestone table or this milestone's
+    plans (including untracked plans)."""
+    status = git(
+        "status",
+        "--porcelain",
+        "--untracked-files=all",
+        "--",
+        MILESTONES,
+        f":(glob).plans/{milestone_id}-*.plan.md",
+    )
+    return [line for line in status.stdout.splitlines() if line.strip()]
+
+
 def plan_for(milestone_id):
-    plans = sorted((ROOT / ".plans").glob(f"{milestone_id}-*.plan.md"))
-    return plans
+    """The milestone's committed plan files, as repository-relative paths."""
+    listed = git("ls-tree", "--name-only", "HEAD", ".plans/").stdout.split()
+    return sorted(
+        path
+        for path in listed
+        if Path(path).name.startswith(f"{milestone_id}-") and path.endswith(".plan.md")
+    )
 
 
-def tag_one(milestone_id, rows, dry_run):
+def closure_for(milestone_id, rows):
+    """Validates a milestone against committed history and returns (row, plans, commit)."""
     if not ID.match(milestone_id):
         raise TagError(f"not a milestone ID: {milestone_id}")
+    dirty = uncommitted_closure(milestone_id)
+    if dirty:
+        raise TagError(
+            f"{milestone_id}: uncommitted changes to its closure ({'; '.join(dirty)}); "
+            "commit the closure first, then tag"
+        )
     row = rows.get(milestone_id)
     if row is None:
         raise TagError(f"{milestone_id} is not in docs/MILESTONES.md")
@@ -120,20 +170,48 @@ def tag_one(milestone_id, rows, dry_run):
         raise TagError(f"{milestone_id} is {row['status']}, not complete")
     plans = plan_for(milestone_id)
     if not plans:
-        raise TagError(f"{milestone_id} has no plan file")
+        raise TagError(f"{milestone_id} has no committed plan file")
     commit = closure_commit(plans)
     if commit is None:
-        raise TagError(f"{milestone_id}: no closure commit found")
+        raise TagError(
+            f"{milestone_id}: no committed version of its plan reads `Status: Complete`; "
+            "close the milestone (and commit the closure) first"
+        )
     if git("merge-base", "--is-ancestor", commit, "HEAD", check=False).returncode != 0:
         raise TagError(f"{milestone_id}: closure commit {commit[:7]} is not in HEAD's history")
-    name = f"milestone/{milestone_id}"
+    return row, plans, commit
+
+
+def existing_tag(name):
     existing = git("rev-parse", "--verify", "--quiet", f"refs/tags/{name}^{{commit}}", check=False)
-    if existing.returncode == 0:
-        if existing.stdout.strip() == commit:
+    return existing.stdout.strip() if existing.returncode == 0 else None
+
+
+def tag_one(milestone_id, rows, dry_run):
+    name = f"milestone/{milestone_id}"
+    tagged = existing_tag(name)
+    if tagged is not None and not uncommitted_closure(milestone_id):
+        # A tag created before P2-M034 may follow the old fallback rule (for example a repair
+        # plan that was closed without updating its status line). It stays valid, and is reported
+        # as such; new tags always use the strict rule.
+        plans = plan_for(milestone_id)
+        if plans and closure_commit(plans, strict=False) == tagged:
+            try:
+                strict = closure_for(milestone_id, rows)[2]
+            except TagError:
+                strict = None
+            if strict != tagged:
+                print(f"{name}: already tags {tagged[:7]} (pre-P2-M034 closure rule)")
+                return False
+    row, plans, commit = closure_for(milestone_id, rows)
+    if tagged is not None:
+        if tagged == commit:
             print(f"{name}: already tags {commit[:7]}")
             return False
-        raise TagError(f"{name} already tags {existing.stdout.strip()[:7]}, expected {commit[:7]}; not moving it")
-    record = "\n\n".join(filter(None, (completion_record(p.read_text(encoding="utf-8")) for p in plans)))
+        raise TagError(f"{name} already tags {tagged[:7]}, expected {commit[:7]}; not moving it")
+    record = "\n\n".join(
+        filter(None, (completion_record(committed_text(p) or "") for p in plans))
+    )
     message = tag_message(milestone_id, row, record)
     subject = git("log", "-1", "--format=%s", commit).stdout.strip()
     if dry_run:
@@ -182,8 +260,114 @@ def self_test():
             assert expected in str(error), (bad, error)
         else:
             raise AssertionError(f"{bad} was accepted")
+    integration_self_test()
     print("tag-milestone self-test passed")
     return 0
+
+
+def integration_self_test():
+    """Replays closure scenarios in throwaway Git repositories (P2-M034)."""
+    global ROOT
+    import tempfile
+
+    original = ROOT
+    with tempfile.TemporaryDirectory(prefix="tag-milestone-") as directory:
+        ROOT = Path(directory)
+        try:
+            def run(*arguments):
+                git(*arguments)
+
+            def write(relative, text):
+                path = ROOT / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(text, encoding="utf-8")
+
+            def table(**statuses):
+                rows = "".join(
+                    f"| {mid} | {status} | Sample {mid} | Signal. |\n"
+                    for mid, status in statuses.items()
+                )
+                write(MILESTONES, "| ID | Status | Milestone | Acceptance signal |\n"
+                      "| --- | --- | --- | --- |\n" + rows)
+
+            def plan(mid, status_line, extra=""):
+                write(f".plans/{mid}-sample.plan.md", f"# Plan\n\n{status_line}\n{extra}")
+
+            def commit(message):
+                run("add", "-A")
+                run("commit", "-q", "-m", message)
+                return git("rev-parse", "HEAD").stdout.strip()
+
+            def refused(mid, expected):
+                try:
+                    closure_for(mid, committed_rows())
+                except TagError as error:
+                    assert expected in str(error), (mid, str(error))
+                else:
+                    raise AssertionError(f"{mid} was accepted: {expected}")
+
+            run("init", "-q", "-b", "main")
+            run("config", "user.name", "Self Test")
+            run("config", "user.email", "self-test@example.invalid")
+            # P9-M001: drafted and approved, never closed (the P0-M014 situation).
+            # P9-M002: a legacy plan without any status line. P9-M003: prose mentions the status.
+            table(**{"P9-M001": "active", "P9-M002": "complete", "P9-M003": "complete"})
+            plan("P9-M001", "Status: Draft")
+            plan("P9-M002", "(no status line)", "first\n")
+            plan("P9-M003", "Status: Approved", "The closure sets Status: Complete later.\n")
+            commit("docs(plan): draft samples")
+            plan("P9-M001", "Status: Approved")
+            plan("P9-M002", "(no status line)", "second\n")
+            commit("docs(plan): approve P9-M001")
+            legacy_last = git("log", "-1", "--format=%H", "--", ".plans/P9-M002-sample.plan.md").stdout.strip()
+
+            # 1. Replay: the closure exists only in the working tree.
+            table(**{"P9-M001": "complete", "P9-M002": "complete", "P9-M003": "complete"})
+            plan("P9-M001", "Status: Complete")
+            refused("P9-M001", "uncommitted changes to its closure")
+            # 2. The table is committed as complete, but the plan never closed.
+            plan("P9-M001", "Status: Approved")
+            commit("docs: mark P9-M001 complete without closing its plan")
+            refused("P9-M001", "no committed version of its plan reads `Status: Complete`")
+            # 3. A proper closure commit is the one tagged.
+            plan("P9-M001", "Status: Complete")
+            closed = commit("docs(plan): close P9-M001")
+            _, _, chosen = closure_for("P9-M001", committed_rows())
+            assert chosen == closed, (chosen, closed)
+            # 4. A legacy plan (never any status line) still falls back to its last commit.
+            _, _, chosen = closure_for("P9-M002", committed_rows())
+            assert chosen == legacy_last, (chosen, legacy_last)
+            # 5. Prose mentioning the status line is not a closure, and the plan is not legacy.
+            refused("P9-M003", "no committed version of its plan reads `Status: Complete`")
+            # 6. A repair plan closed without updating its status line: strict picks the original
+            #    closure, while a tag made earlier by the old rule stays valid and is reported.
+            table(**{"P9-M001": "complete", "P9-M002": "complete", "P9-M003": "complete",
+                     "P9-M004": "complete"})
+            plan("P9-M004", "Status: Complete")
+            original = commit("docs(plan): close P9-M004")
+            write(".plans/P9-M004-repair.plan.md", "# Repair\n\nStatus: Approved\n")
+            # Later than the original closure, as in real history (the closure pick uses the
+            # committer time; commits in this test would otherwise share one second).
+            os.environ["GIT_COMMITTER_DATE"] = "2099-01-01T00:00:00Z"
+            try:
+                repair_last = commit("docs: record P9-M004 repair closure evidence")
+            finally:
+                del os.environ["GIT_COMMITTER_DATE"]
+            _, _, chosen = closure_for("P9-M004", committed_rows())
+            assert chosen == original, (chosen, original)
+            assert closure_commit(plan_for("P9-M004"), strict=False) == repair_last
+            run("tag", "-a", "milestone/P9-M004", "-m", "pre-P2-M034 tag", repair_last)
+            assert tag_one("P9-M004", committed_rows(), dry_run=True) is False
+            # A tag the old rule would not have chosen is still an error.
+            run("tag", "-a", "milestone/P9-M001", "-m", "wrong", legacy_last)
+            try:
+                tag_one("P9-M001", committed_rows(), dry_run=True)
+            except TagError as error:
+                assert "not moving it" in str(error), str(error)
+            else:
+                raise AssertionError("a wrong existing tag was accepted")
+        finally:
+            ROOT = original
 
 
 def main():
@@ -197,7 +381,11 @@ def main():
         return self_test()
     if bool(arguments.all) == bool(arguments.milestone):
         parser.error("give exactly one milestone ID or --all")
-    rows = parse_milestones((ROOT / "docs/MILESTONES.md").read_text(encoding="utf-8"))
+    try:
+        rows = committed_rows()
+    except TagError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
     targets = sorted(m for m, row in rows.items() if row["status"] == "complete") if arguments.all else [arguments.milestone]
     failures = 0
     created = 0

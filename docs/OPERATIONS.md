@@ -115,10 +115,20 @@ git log --oneline milestone/P2-M028..milestone/P2-M029   # everything a mileston
 ```
 
 Each annotated tag points at the earliest commit whose plan has a `Status: Complete` status line,
-verified by reading the plan at that commit (or, for older plans, the plan's last commit). Always
-check `--dry-run` output (every subject should read "close ...") before tagging many milestones. It carries the milestone's title, acceptance
+verified by reading the plan at that commit. Only plans that never had any status line use their
+last commit. The tagger reads only committed state and refuses uncommitted changes to the milestone
+table or the milestone's plans (P2-M034), so **commit the closure, check `git commit`'s own exit
+code (never through a pipe), and only then tag.** Always check the `--dry-run` output: every
+subject should read "close ...". It carries the milestone's title, acceptance
 signal, and completion record. Tags are never moved or deleted. A conflicting existing tag is an
 error, not something to overwrite.
+
+### Documentation indexes
+
+`xtask validate` (run by `./scripts/gate.sh`, the pre-commit hook, and CI) fails when an ADR file
+has no row in `docs/adr/README.md`, a registry row has no file, or a `docs/*.md` file is not linked
+from the README's documentation map (P2-M034). When you add an ADR or a doc, add its registry row
+or README link in the same commit.
 
 ## Local `.forge/` setup (operator machine)
 

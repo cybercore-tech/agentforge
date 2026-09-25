@@ -519,11 +519,13 @@ Clippy, tests, and documentation tests. Do not bypass hooks or validation with `
 
 - [Blueprint and intake](docs/BLUEPRINT.md)
 - [Task contract](docs/TASK_CONTRACT.md) and [task state](docs/TASK_STATE.md)
+- [Agent roles](docs/AGENT_ROLES.md) and [agent adapters](docs/AGENT_ADAPTERS.md)
 - [Policy and capabilities](docs/POLICY.md)
 - [Worktree isolation](docs/WORKTREE_ISOLATION.md)
-- [Orchestration loop](docs/ORCHESTRATION.md)
+- [Orchestration loop](docs/ORCHESTRATION.md) and the
+  [single-agent vertical slice](docs/VERTICAL_SLICE.md)
 - [Local daemon](docs/DAEMON.md)
-- [Operator HUD](docs/HUD.md)
+- [Operator HUD](docs/HUD.md) and [doctor and status diagnostics](docs/DOCTOR_STATUS.md)
 - [Audit log](docs/AUDIT.md)
 - [Gate engine](docs/GATES.md)
 - [CI observation](docs/CI.md)
@@ -537,6 +539,8 @@ Clippy, tests, and documentation tests. Do not bypass hooks or validation with `
   tags, agent runs, and recovery
 - [Dogfooding log](docs/DOGFOODING.md)
 - [Package identity and distribution](docs/REGISTRY.md)
+- [Architecture decision records](docs/adr/README.md): the registry of every ADR (checked by
+  `xtask validate`)
 - [Architecture notes](docs/architecture/README.md)
 - [Architecture decision records](docs/adr/README.md)
 
