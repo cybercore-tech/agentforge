@@ -1,0 +1,288 @@
+#!/usr/bin/env bash
+# Set up a remote-worker host from a bundle made by scripts/worker-bundle (P4-M011).
+#
+# Usage:
+#   scripts/worker-host-setup <bundle-dir> --repo <path> [options]
+#
+# Options:
+#   --repo PATH              the worker's clone of the project (cloned from the bundle's origin if
+#                            absent; required)
+#   --git-name NAME          Git identity for the clone, required when it has none
+#   --git-email EMAIL
+#   --profile NAME           agent profile to write in the clone (default claude-code)
+#   --claude PATH            Claude Code executable for the claude-code profile (default: on PATH)
+#   --agent-executable PATH  write the profile for this executable instead of the Claude Code bridge
+#   --forge PATH             forge executable (default: on PATH)
+#   --endpoint HOST:PORT     worker API endpoint (default: the GhostPort tunnel, 127.0.0.1:<port>)
+#   --no-ghostport           skip GhostPort (a local rehearsal against a loopback worker API)
+#   --install-unit           install the systemd user unit template and its env file link
+#   --dry-run                print what would be done, change nothing
+#
+# Idempotent: a second run changes nothing that is already right, never overwrites an existing
+# GhostPort key or clone, and ends with `forge worker remote doctor`, whose exit status it returns.
+# All files go under $HOME (~/.config/agentforge, ~/.config/ghostport); the secret is never printed.
+
+set -euo pipefail
+
+say() { echo "worker-host-setup: $*"; }
+fail() {
+  echo "worker-host-setup: $*" >&2
+  exit 1
+}
+usage() {
+  sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//' >&2
+  exit 2
+}
+
+[ $# -ge 1 ] || usage
+bundle="$1"
+shift
+repo="" git_name="" git_email="" profile=claude-code claude="" agent_executable="" forge_bin=""
+endpoint="" ghostport=1 install_unit=0 dry_run=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --no-ghostport) ghostport=0; shift; continue ;;
+    --install-unit) install_unit=1; shift; continue ;;
+    --dry-run) dry_run=1; shift; continue ;;
+  esac
+  [ $# -ge 2 ] || usage
+  case "$1" in
+    --repo) repo="$2" ;;
+    --git-name) git_name="$2" ;;
+    --git-email) git_email="$2" ;;
+    --profile) profile="$2" ;;
+    --claude) claude="$2" ;;
+    --agent-executable) agent_executable="$2" ;;
+    --forge) forge_bin="$2" ;;
+    --endpoint) endpoint="$2" ;;
+    *) usage ;;
+  esac
+  shift 2
+done
+[ -n "$repo" ] || fail "--repo is required"
+[ -f "$bundle/worker.env" ] && [ -f "$bundle/secret" ] || fail "$bundle is not a worker bundle"
+
+# The bundle's settings: plain KEY=VALUE lines, read without evaluating them.
+setting() {
+  local key="$1" line
+  line="$(grep -E "^$key=" "$bundle/worker.env" | tail -n 1)" || true
+  printf '%s' "${line#*=}"
+}
+worker="$(setting AGENTFORGE_WORKER_ID)"
+origin="$(setting AGENTFORGE_ORIGIN)"
+tunnel_port="$(setting AGENTFORGE_TUNNEL_PORT)"
+link="$(setting GHOSTPORT_LINK)"
+server="$(setting GHOSTPORT_SERVER)"
+control_port="$(setting GHOSTPORT_CONTROL_PORT)"
+data_port="$(setting GHOSTPORT_DATA_PORT)"
+server_public="$(setting GHOSTPORT_SERVER_PUBLIC_KEY)"
+[[ "$worker" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]] || fail "the bundle has an invalid worker ID"
+[ -n "$origin" ] || fail "the bundle has no origin"
+endpoint="${endpoint:-127.0.0.1:$tunnel_port}"
+if [ "$ghostport" = 1 ] && { [ -z "$server" ] || [ -z "$server_public" ]; }; then
+  fail "the bundle has no GhostPort server; make it with --server/--server-key or use --no-ghostport"
+fi
+
+config="${XDG_CONFIG_HOME:-$HOME/.config}"
+agentforge_dir="$config/agentforge"
+secret_path="$agentforge_dir/worker-$worker.secret"
+env_path="$agentforge_dir/worker-$worker.env"
+gp_dir="$config/ghostport"
+gp_key="$gp_dir/agentforge-$worker.key"
+gp_config="$gp_dir/agentforge-$worker.toml"
+
+run() {
+  if [ "$dry_run" = 1 ]; then
+    say "would run: $*"
+  else
+    "$@"
+  fi
+}
+
+# Writes stdin to a file with a mode, reporting whether it changed (idempotent).
+write_file() {
+  local path="$1" mode="$2" content
+  content="$(cat)"
+  if [ -f "$path" ] && [ "$(cat "$path")" = "$content" ]; then
+    say "unchanged: $path"
+    run chmod "$mode" "$path"
+    return
+  fi
+  if [ "$dry_run" = 1 ]; then
+    say "would write: $path"
+    return
+  fi
+  mkdir -p "$(dirname "$path")"
+  (umask 077 && printf '%s\n' "$content" > "$path")
+  chmod "$mode" "$path"
+  say "wrote: $path"
+}
+
+# 1. Prerequisites.
+missing=()
+command -v git > /dev/null || missing+=(git)
+forge_bin="${forge_bin:-$(command -v forge || true)}"
+[ -n "$forge_bin" ] && [ -x "$forge_bin" ] || missing+=("forge (build it: cargo install --path crates/agentforge-cli)")
+if [ "$ghostport" = 1 ]; then
+  command -v ghostport > /dev/null || missing+=(ghostport)
+fi
+if [ -z "$agent_executable" ]; then
+  command -v python3 > /dev/null || missing+=(python3)
+  claude="${claude:-$(command -v claude || true)}"
+  [ -n "$claude" ] && [ -x "$claude" ] || missing+=("claude (or pass --claude PATH, or --agent-executable)")
+fi
+if [ ${#missing[@]} -gt 0 ]; then
+  fail "missing prerequisites: ${missing[*]}"
+fi
+say "worker $worker; forge: $("$forge_bin" version 2>/dev/null || echo "$forge_bin")"
+
+# 2. The clone: created if absent, never replaced.
+if [ -d "$repo/.git" ] || git -C "$repo" rev-parse --git-dir > /dev/null 2>&1; then
+  current="$(git -C "$repo" remote get-url origin 2>/dev/null || true)"
+  [ "$current" = "$origin" ] || fail "$repo exists but its origin is '${current:-none}', not $origin"
+  say "clone exists: $repo"
+else
+  [ ! -e "$repo" ] || [ -z "$(ls -A "$repo")" ] || fail "$repo exists and is not a clone of $origin"
+  run git clone -q "$origin" "$repo"
+  [ "$dry_run" = 1 ] || say "cloned $origin into $repo"
+fi
+if [ "$dry_run" = 0 ]; then
+  repo="$(cd "$repo" && pwd)"
+fi
+
+# 3. Git identity and hooks.
+if [ "$dry_run" = 0 ]; then
+  for key in user.name user.email; do
+    if ! git -C "$repo" config "$key" > /dev/null; then
+      value="$git_name"
+      [ "$key" = user.email ] && value="$git_email"
+      [ -n "$value" ] || fail "the clone has no $key; pass --git-name and --git-email"
+      git -C "$repo" config "$key" "$value"
+      say "set $key in the clone"
+    fi
+  done
+  if [ -x "$repo/scripts/install-hooks" ]; then
+    (cd "$repo" && ./scripts/install-hooks > /dev/null)
+    say "installed the project's hooks"
+  fi
+fi
+
+# 4. The secret (content never printed).
+if [ -f "$secret_path" ] && cmp -s "$bundle/secret" "$secret_path"; then
+  say "unchanged: $secret_path"
+  run chmod 600 "$secret_path"
+elif [ "$dry_run" = 1 ]; then
+  say "would install the secret: $secret_path"
+else
+  mkdir -p "$agentforge_dir"
+  install -m 600 "$bundle/secret" "$secret_path"
+  say "installed the secret: $secret_path"
+fi
+
+# 5. The agent profile, pointing into this clone.
+profile_path="$repo/.forge/agents/$profile.conf"
+if [ -n "$agent_executable" ]; then
+  write_file "$profile_path" 644 <<PROFILE
+version=1
+executable=$agent_executable
+timeout_ms=3600000
+max_output_bytes=8388608
+PROFILE
+else
+  [ -f "$repo/scripts/agents/claude-code-bridge" ] || [ "$dry_run" = 1 ] \
+    || fail "$repo has no scripts/agents/claude-code-bridge; use --agent-executable"
+  write_file "$profile_path" 644 <<PROFILE
+version=1
+executable=$(command -v python3)
+argument=$repo/scripts/agents/claude-code-bridge
+argument=--claude
+argument=$claude
+argument=--forge
+argument=$forge_bin
+env.PATH=/usr/bin:/bin:$(dirname "$claude"):$(dirname "$forge_bin")
+env.HOME=$HOME
+timeout_ms=3600000
+max_output_bytes=8388608
+PROFILE
+fi
+
+# 6. GhostPort: the worker host's own key and client config.
+if [ "$ghostport" = 1 ]; then
+  if [ -f "$gp_key" ]; then
+    say "GhostPort key exists: $gp_key"
+  else
+    if [ "$dry_run" = 1 ]; then
+      say "would generate a GhostPort key: $gp_key"
+    else
+      mkdir -p "$gp_dir"
+      ghostport keygen --out "$gp_key" > /dev/null
+      say "generated GhostPort key: $gp_key"
+    fi
+  fi
+  write_file "$gp_config" 600 <<TOML
+# GhostPort client for AgentForge worker $worker (scripts/worker-host-setup, P4-M011).
+role = "client"
+private_key_path = "$gp_key"
+peer_public_key = "$server_public"
+server_control_addr = "$server:$control_port"
+server_data_addr = "$server:$data_port"
+
+[[links]]
+id = "$link"
+mode = "forward"
+listen = "127.0.0.1:$tunnel_port"
+TOML
+  if [ "$dry_run" = 0 ]; then
+    ghostport check "$gp_config" > /dev/null || fail "ghostport check rejected $gp_config"
+    worker_public="$(tr -d '[:space:]' < "$gp_key.pub")"
+    cat <<SNIPPET
+worker-host-setup: GhostPort client config is valid. On the COORDINATOR, add this peer to the
+GhostPort server config (the [[links]] entry came with worker-bundle), then restart it:
+
+[[peers]]
+name = "$worker-host"
+public_key = "$worker_public"
+links = ["$link"]
+
+Start the client here: ghostport run $gp_config
+SNIPPET
+  fi
+fi
+
+# 7. The env file for the systemd unit (and for running by hand).
+write_file "$env_path" 600 <<ENV
+AGENTFORGE_ENDPOINT=$endpoint
+AGENTFORGE_SECRET_FILE=$secret_path
+AGENTFORGE_REPO=$repo
+AGENTFORGE_PROFILE=$profile
+ENV
+if [ "$install_unit" = 1 ]; then
+  unit_dir="$config/systemd/user"
+  if [ "$dry_run" = 1 ]; then
+    say "would install $repo/contrib/systemd/agentforge-worker@.service into $unit_dir"
+    say "would run: systemctl --user daemon-reload"
+    say "then: systemctl --user enable --now agentforge-worker@$worker"
+  else
+    install -Dm644 "$repo/contrib/systemd/agentforge-worker@.service" \
+      "$unit_dir/agentforge-worker@.service"
+    systemctl --user daemon-reload
+    say "installed the unit; start it with: systemctl --user enable --now agentforge-worker@$worker"
+  fi
+fi
+
+# 8. The doctor decides.
+if [ "$dry_run" = 1 ]; then
+  say "would run: forge worker remote doctor (dry run: nothing changed)"
+  exit 0
+fi
+say "running forge worker remote doctor"
+set +e
+"$forge_bin" worker remote doctor --endpoint "$endpoint" --worker "$worker" \
+  --secret-file "$secret_path" --repo "$repo" --profile "$profile"
+status=$?
+set -e
+if [ "$status" -ne 0 ] && [ "$ghostport" = 1 ]; then
+  say "if only the endpoint check failed: finish the coordinator side (peer entry above), start"
+  say "the GhostPort client, and run this script again"
+fi
+exit "$status"

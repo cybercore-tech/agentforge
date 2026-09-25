@@ -1,0 +1,165 @@
+#!/usr/bin/env bash
+# Prepare a remote worker on the coordinator and write its setup bundle (P4-M011).
+#
+# Usage:
+#   scripts/worker-bundle <project-root> <worker-id> --origin <git-url> [options]
+#
+# Options:
+#   --origin URL         where the worker host clones the project from (required)
+#   --server HOST        the coordinator as the worker host reaches it (GhostPort; default: none,
+#                        for a rehearsal without GhostPort)
+#   --control-port N     GhostPort server control port (default 9000)
+#   --data-port N        GhostPort server data port (default 9001)
+#   --server-key FILE    the coordinator's GhostPort public key file (e.g. identity.key.pub)
+#   --api-port N         the worker API's loopback port on the coordinator (default 47420)
+#   --tunnel-port N      the tunnel's local port on the worker host (default 47500)
+#   --platform NAME      worker platform for a new profile (default linux-x86_64)
+#   --capability NAME    worker capability for a new profile (repeatable; default rust)
+#   --max-leases N       lease capacity for a new profile (default 1)
+#   --out DIR            bundle directory (default ./worker-<id>.bundle)
+#
+# It registers the worker (.forge/workers/<id>.conf) if needed, enrolls it if it has no secret yet,
+# makes sure .forge/worker-api.conf binds the loopback API port, and writes a bundle (mode 700):
+# worker.env, secret (mode 600), and README.txt. Copy the bundle to the worker host and run
+# scripts/worker-host-setup there. The secret is never printed. An existing, different worker
+# profile or worker-API bind is refused, never changed.
+
+set -euo pipefail
+
+fail() {
+  echo "worker-bundle: $*" >&2
+  exit 1
+}
+
+usage() {
+  sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//' >&2
+  exit 2
+}
+
+[ $# -ge 2 ] || usage
+root="$1"
+worker="$2"
+shift 2
+origin="" server="" control_port=9000 data_port=9001 server_key="" api_port=47420
+tunnel_port=47500 platform=linux-x86_64 max_leases=1 out=""
+capabilities=()
+while [ $# -gt 0 ]; do
+  [ $# -ge 2 ] || usage
+  case "$1" in
+    --origin) origin="$2" ;;
+    --server) server="$2" ;;
+    --control-port) control_port="$2" ;;
+    --data-port) data_port="$2" ;;
+    --server-key) server_key="$2" ;;
+    --api-port) api_port="$2" ;;
+    --tunnel-port) tunnel_port="$2" ;;
+    --platform) platform="$2" ;;
+    --capability) capabilities+=("$2") ;;
+    --max-leases) max_leases="$2" ;;
+    --out) out="$2" ;;
+    *) usage ;;
+  esac
+  shift 2
+done
+[ -n "$origin" ] || fail "--origin is required"
+[[ "$worker" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]] || fail "invalid worker ID: $worker"
+for port in "$control_port" "$data_port" "$api_port" "$tunnel_port"; do
+  [[ "$port" =~ ^[0-9]+$ ]] && [ "$port" -ge 1 ] && [ "$port" -le 65535 ] || fail "invalid port: $port"
+done
+[ ${#capabilities[@]} -gt 0 ] || capabilities=(rust)
+[ -d "$root/.forge" ] || fail "$root is not an initialized AgentForge project (no .forge)"
+command -v forge > /dev/null || fail "forge is not on PATH"
+if [ -n "$server" ]; then
+  [ -n "$server_key" ] || fail "--server needs --server-key (the coordinator's GhostPort public key)"
+  [ -f "$server_key" ] || fail "no such file: $server_key"
+fi
+out="${out:-./worker-$worker.bundle}"
+
+# 1. The worker profile: written if missing, never changed.
+profile="$root/.forge/workers/$worker.conf"
+wanted="platform=$platform"$'\n'
+for capability in "${capabilities[@]}"; do
+  wanted+="capability=$capability"$'\n'
+done
+wanted+="max_leases=$max_leases"$'\n'
+if [ -f "$profile" ]; then
+  [ "$(cat "$profile")"$'\n' = "$wanted" ] \
+    || fail "$profile exists with different settings; edit it by hand or drop the profile options"
+  echo "worker-bundle: worker $worker is already registered"
+else
+  mkdir -p "$root/.forge/workers"
+  printf '%s' "$wanted" > "$profile"
+  echo "worker-bundle: registered worker $worker ($profile)"
+fi
+
+# 2. Enrollment: the secret stays in files only.
+secret_file="$root/.forge/workers/$worker.secret"
+if [ -f "$secret_file" ]; then
+  echo "worker-bundle: worker $worker is already enrolled"
+else
+  forge worker enroll "$root" "$worker" > /dev/null || fail "forge worker enroll failed"
+  echo "worker-bundle: enrolled worker $worker"
+fi
+
+# 3. The worker API on loopback.
+api_conf="$root/.forge/worker-api.conf"
+bind="bind=127.0.0.1:$api_port"
+if [ -f "$api_conf" ]; then
+  [ "$(grep -v '^[[:space:]]*#' "$api_conf" | grep -v '^[[:space:]]*$')" = "$bind" ] \
+    || fail "$api_conf already binds something else; keep it and pass its port with --api-port"
+  echo "worker-bundle: worker API already configured ($bind)"
+else
+  echo "$bind" > "$api_conf"
+  echo "worker-bundle: worker API configured ($bind); restart forged: forge daemon restart $root"
+fi
+
+# 4. The bundle.
+link="agentforge-$worker"
+server_public=""
+[ -n "$server_key" ] && server_public="$(tr -d '[:space:]' < "$server_key")"
+mkdir -p "$out"
+chmod 700 "$out"
+install -m 600 "$secret_file" "$out/secret"
+cat > "$out/worker.env" <<ENV
+# AgentForge worker bundle for $worker (scripts/worker-bundle, P4-M011).
+AGENTFORGE_WORKER_ID=$worker
+AGENTFORGE_ORIGIN=$origin
+AGENTFORGE_TUNNEL_PORT=$tunnel_port
+GHOSTPORT_LINK=$link
+GHOSTPORT_SERVER=$server
+GHOSTPORT_CONTROL_PORT=$control_port
+GHOSTPORT_DATA_PORT=$data_port
+GHOSTPORT_SERVER_PUBLIC_KEY=$server_public
+ENV
+chmod 600 "$out/worker.env"
+cat > "$out/README.txt" <<README
+AgentForge worker bundle for $worker.
+
+1. Copy this directory to the worker host (it holds the worker's secret; keep it private).
+2. On the worker host, with forge installed:
+     scripts/worker-host-setup <this directory> --repo ~/src/<project> \\
+       --git-name "<name>" --git-email "<email>" [--install-unit]
+   (get the script from the project: $origin)
+3. It prints the worker host's GhostPort public key and the [[peers]] entry to add to the
+   coordinator's GhostPort server config, below. Add it, restart the GhostPort server, and run
+   the script again: the doctor then checks the whole path.
+README
+echo "worker-bundle: wrote $out (secret, worker.env, README.txt)"
+
+if [ -n "$server" ]; then
+  cat <<SNIPPET
+
+Add this to the coordinator's GhostPort server config (the worker host's key comes from
+worker-host-setup):
+
+[[peers]]
+name = "$worker-host"
+public_key = "<worker host public key from worker-host-setup>"
+links = ["$link"]
+
+[[links]]
+id = "$link"
+mode = "forward"
+target = "127.0.0.1:$api_port"
+SNIPPET
+fi

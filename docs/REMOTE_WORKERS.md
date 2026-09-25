@@ -340,6 +340,54 @@ Verified end to end through GhostPort v0.1.1: grant, remote claim and run, impor
 coordinator gate 1/1, then accept, approve, and integrate. The exact remote commit landed on
 `main`.
 
+## Setting up a worker host in two commands
+
+Since P4-M011, two scripts do the whole setup below.
+
+**On the coordinator**, in the project:
+
+```bash
+scripts/worker-bundle . remote-1 --origin git@github.com:you/project.git \
+  --server coordinator.example.com --server-key ~/.config/ghostport/identity.key.pub
+forge daemon restart .      # if it said the worker API was just configured
+```
+
+It registers the worker (`.forge/workers/remote-1.conf`) if needed and enrolls it if it has no
+secret, and it makes sure `.forge/worker-api.conf` binds the loopback API port (47420). An existing,
+different profile or bind is refused, never changed. It writes `./worker-remote-1.bundle/` (mode
+700), holding `worker.env`, `secret` (mode 600), and `README.txt`, and it prints the GhostPort
+server `[[links]]` entry and a `[[peers]]` entry to complete. The secret is never printed.
+
+**Copy the bundle to the worker host** (it holds the secret), then run:
+
+```bash
+scripts/worker-host-setup worker-remote-1.bundle --repo ~/src/project \
+  --git-name "Remote Worker" --git-email you@example.com [--install-unit]
+```
+
+It checks for `git`, `forge`, `ghostport`, `python3`, and `claude`, then clones the origin and sets
+the clone's Git identity and hooks. It installs the secret (`~/.config/agentforge/worker-<id>.secret`,
+mode 600) and writes a Claude Code profile that points into *this* clone (or use
+`--agent-executable`). It generates the host's GhostPort key and client config
+(`~/.config/ghostport/agentforge-<id>.{key,toml}`, validated with `ghostport check`) and writes the
+env file (`~/.config/agentforge/worker-<id>.env`); `--install-unit` also installs the systemd unit.
+Finally it runs `forge worker remote doctor` and returns its status.
+
+The first run prints the worker host's public key as a `[[peers]]` entry. Add it to the
+coordinator's GhostPort server config, start both GhostPort ends, and run the script again. Re-runs
+are idempotent: an existing clone, key, or file that is already right is left alone ("unchanged"),
+and the doctor then passes through the tunnel. Start the worker with `systemctl --user enable --now
+agentforge-worker@remote-1` (or run `forge worker remote run` with the env file's values). Use
+`--dry-run` to see every step first.
+
+Files go under `$XDG_CONFIG_HOME` (or `~/.config` when it is unset). To rehearse on one machine
+under a scratch `HOME`, unset `XDG_CONFIG_HOME` too, or the files land in your real config.
+
+Rehearsed on one host (P4-M011): a coordinator with a real GhostPort server, and a worker host set up
+only by these scripts. The doctor failed on the endpoint until the tunnel was up and then passed
+(6 checks ok and 1 warning, because the scratch project has no hooks). A remote task ran through the tunnel and was
+imported at the exact SHA. A CLI test runs both scripts in CI (without GhostPort).
+
 ## Setting up and checking a worker host
 
 A worker host needs (P4-M009, from the P0-M014 real-agent run):
