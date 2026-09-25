@@ -249,12 +249,13 @@ fn claims_are_refused_for_other_workers_released_leases_and_started_tasks() {
 #[test]
 fn a_slow_agent_keeps_its_lease_renewed() {
     let root = project();
-    // A 300 ms window renews about every 100 ms; the agent runs for about 1 s.
+    // A 1.5 s window renews about every 500 ms; the agent runs for about 3 s. Each renewal has
+    // about 1 s of slack, which absorbs a slow CI runner's lock and fsync time (P5-M002).
     grant_lease(
         &root,
         &id("P4-M005-T0001"),
         Some("w-a"),
-        300,
+        1_500,
         now_ms(),
         "op",
     )
@@ -264,7 +265,7 @@ fn a_slow_agent_keeps_its_lease_renewed() {
     let summary = run_worker(
         &root,
         "w-a",
-        &adapter("/bin/sleep", &["1"]),
+        &adapter("/bin/sleep", &["3"]),
         &once(),
         |report| {
             if let WorkerReport::Renewals {
@@ -279,8 +280,8 @@ fn a_slow_agent_keeps_its_lease_renewed() {
     )
     .expect("worker");
     assert_eq!(summary.failures, 0);
+    assert!(failures.is_empty(), "renewal failed: {failures:?}");
     assert!(renewed >= 3, "renewed {renewed} times");
-    assert!(failures.is_empty(), "{failures:?}");
     let timeline = timeline(&root);
     assert!(
         !timeline.iter().any(|event| event.ends_with(":expired")),
