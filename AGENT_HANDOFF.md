@@ -2,7 +2,12 @@
 
 ## Repository state
 
-- Active milestone: none. P4-M008 is complete (`42eb636`; CI `36095220162`, `36095589777`, and
+- Active milestone: none. P5-M002 is complete: **`v0.2.0` is published** (tag on `991eb60`). Its
+  publish step failed a second time (staging directories); the release was published via
+  recovery, and the workflow was fixed in `46d8480`. Dispatched dry runs now exercise the publish
+  job except the upload. **The next release tag is the first real test of the upload**; watch it.
+  Open: finding 11 (EINTR in pipe readers). Next planned: a real-agent remote-worker dogfood.
+- P4-M008 is complete (`42eb636`; CI `36095220162`, `36095589777`, and
   `36095597117`). Remote execution: `forge worker remote run --repo`, then RESULT with a bundle,
   then `import_remote_result` (exact SHA, ancestry, path boundary, local gates, slot-serialized).
   Phase 4's remote-execution path is complete end to end.

@@ -574,6 +574,9 @@ paths and restored reliable CI:
   tunnel;
 - **P4-M008** remote execution: remote results are imported only at their verified exact SHA,
   gated locally, and reviewed as usual;
+- **P5-M002** release
+  [`v0.2.0`](https://github.com/cybercore-tech/agentforge/releases/tag/v0.2.0): remote workers and
+  the audit-corruption fix;
 - **P5-M001** the first tagged release,
   [`v0.1.0`](https://github.com/cybercore-tech/agentforge/releases/tag/v0.1.0), with checksummed
   archives for Linux, macOS, and Windows.

@@ -1,6 +1,6 @@
 # Plan: P5-M002 — Release v0.2.0
 
-Status: Approved
+Status: Complete
 Milestone: P5-M002
 Created: 2026-09-24
 Owner: AgentForge project
@@ -124,9 +124,12 @@ CHANGELOG release section, README, site, RELEASE, and REGISTRY; closure records.
 ## Acceptance criteria
 
 - [ ] `v0.2.0` is published **by the workflow**, with four checksummed archives and a
-      directly verifiable `SHA256SUMS`.
-- [ ] Version metadata, the CHANGELOG, and the docs agree on `0.2.0`.
-- [ ] A downloaded binary reports `0.2.0`; closed and tagged.
+      directly verifiable `SHA256SUMS`. **Not met as written:** the tag run's publish step failed
+      (Amendment 2). The release was published from that run's own artifacts with the documented
+      recovery, and it has four checksummed archives and a `SHA256SUMS` that verifies with plain
+      `sha256sum -c`. The workflow is fixed, and the dry run proves everything except the upload.
+- [x] Version metadata, the CHANGELOG, and the docs agree on `0.2.0`.
+- [x] A downloaded binary reports `0.2.0`; closed and tagged.
 
 ## Amendment 1 (2026-09-24)
 
@@ -187,8 +190,26 @@ local runs.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
+Implementation commit: `991eb60` (release prep plus the EINTR fix, tagged `v0.2.0`); `46d8480`
+(release workflow fix); `84df7f9` (renewal-test flake fix)
+CI run: `36097122882` and `36097287895` on `991eb60`; dry run `36097289496`; tag run `36097480845`
+(builds green, publish failed); `36098012428` on `46d8480` (a flake, see Amendment 3); new-style dry
+run `36098172256` on `46d8480` (publish preparation green, upload skipped); `36098488170`,
+`36098648215`, and `36098655755` on `84df7f9`
+CI result: green on all seven jobs on `991eb60` and `84df7f9`
+Completed: 2026-09-24
 Notes:
+- `v0.2.0` is published at https://github.com/cybercore-tech/agentforge/releases/tag/v0.2.0 and
+  marked Latest. It has four archives, their `.sha256` files, and a bare `SHA256SUMS`; a fresh full
+  download passes plain `sha256sum -c SHA256SUMS`; the binaries report `0.2.0`. The release notes
+  are the CHANGELOG `[0.2.0]` section, install steps, and provenance.
+- The release gate found three real issues, each classified and recorded by amendment before any
+  code changed:
+  1. an intermittent `EINTR` in the daemon and worker API socket readers, fixed before tagging
+     (finding 11 tracks eight pipe readers);
+  2. a third latent publish-job defect (staging directories in `dist/*`), which the P5-M001
+     workflow fix should have covered, since its own recovery already removed them;
+  3. a timing flake in the P4-M005 renewal test.
+- **Carried forward:** the dispatched dry run now exercises the whole publish job except the
+  upload, and passed on real artifacts (`36098172256`). The upload step itself is proven only by
+  the next real tag. Watch it.

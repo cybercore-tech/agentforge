@@ -14,12 +14,25 @@ agent-built milestones, Phase 4 remote-worker wiring, the P3 tool gateway, and P
 
 ## Active milestone
 
-No active milestone. P4-M008 — remote execution and exact-SHA import — is complete.
-`v0.2.0` (P5-M002) is being released, and every completed milestone is tagged `milestone/<ID>`.
+No active milestone. P5-M002 — release v0.2.0 — is complete.
+`v0.2.0` (P5-M002) is the latest release, and every completed milestone is tagged `milestone/<ID>`.
 
 ## Known issues
 
-None open. Dogfooding findings 1–10 are resolved; see `docs/DOGFOODING.md`.
+- Dogfooding finding 11: eight process-pipe `read()` loops give up on `EINTR` instead of retrying.
+  The socket readers were fixed in P5-M002.
+- The release publish upload step is proven only by the next real tag; the dry run covers
+  everything else (P5-M002).
+
+## P5-M002 completion evidence
+
+- Approved plan: `.plans/P5-M002-release-v0-2-0.plan.md` (three amendments).
+- `v0.2.0` was tagged on `991eb60` (CI `36097122882` and `36097287895`). The tag run's publish step
+  failed on staging directories, so the release was published from that run's artifacts. The
+  workflow was fixed in `46d8480` (dry run `36098172256`), and the test flake in `84df7f9` (CI
+  `36098488170`, `36098648215`, and `36098655755`).
+- https://github.com/cybercore-tech/agentforge/releases/tag/v0.2.0 verified with a plain
+  `sha256sum -c SHA256SUMS`, and the binaries report `0.2.0`.
 
 ## P4-M008 completion evidence
 
