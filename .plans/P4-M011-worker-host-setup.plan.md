@@ -1,6 +1,6 @@
 # Plan: P4-M011 — Worker-host setup scripts
 
-Status: Draft
+Status: Approved
 Milestone: P4-M011
 Created: 2026-09-25
 Owner: AgentForge project
