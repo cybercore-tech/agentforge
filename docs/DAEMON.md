@@ -139,6 +139,14 @@ in-progress sweep instead of being refused. Since P4-M006 the same tick also run
 `.forge/dispatch.conf` enables it (ADR-0049). Daemon `run` and `launch` refuse leased tasks like the
 direct commands do (see [REMOTE_WORKERS.md](REMOTE_WORKERS.md#operating-leases)).
 
+## Worker API for remote workers
+
+Since P4-M007 `forged serve` also serves the authenticated remote-worker API (protocol `AFW1`)
+when `.forge/worker-api.conf` contains `bind=127.0.0.1:<port>`. It is off without the file, and a
+non-loopback bind stops the daemon from starting. The listener runs on its own thread and is
+stopped with the daemon. Remote workers reach it through GhostPort; see
+[REMOTE_WORKERS.md](REMOTE_WORKERS.md#workers-on-other-machines-ghostport).
+
 ## Long-running executions
 
 `daemon run` and `daemon launch` run the agent, and since P1-M004 its gates, before they respond,

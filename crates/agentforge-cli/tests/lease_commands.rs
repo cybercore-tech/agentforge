@@ -432,3 +432,127 @@ fn dispatch_then_a_worker_runs_the_task_without_a_manual_grant() {
     );
     fs::remove_dir_all(root).expect("cleanup");
 }
+
+#[test]
+fn a_remote_worker_enrolls_and_claims_through_the_worker_api() {
+    let root = temporary_repo();
+    let root_text = root.to_str().expect("root");
+    assert!(forge(&root, &["init", root_text]).status.success());
+    let created = forge(
+        &root,
+        &[
+            "task",
+            "create",
+            root_text,
+            "P4-M007-T0001",
+            "P4-M007",
+            "implementer",
+            "remote fixture",
+            "--allowed",
+            "src",
+            "--capability",
+            "run_local_commands",
+        ],
+    );
+    assert!(created.status.success(), "{created:?}");
+    fs::create_dir_all(root.join(".forge/workers")).expect("workers");
+    fs::write(
+        root.join(".forge/workers/remote-1.conf"),
+        "platform=linux-x86_64\ncapability=rust\nmax_leases=1\n",
+    )
+    .expect("profile");
+
+    let enrolled = forge(&root, &["worker", "enroll", root_text, "remote-1"]);
+    let output = text(&enrolled);
+    assert!(enrolled.status.success(), "{output}");
+    let secret = output
+        .lines()
+        .find_map(|line| line.strip_prefix("secret="))
+        .expect("secret line")
+        .to_owned();
+    assert_eq!(secret.len(), 64);
+    let again = forge(&root, &["worker", "enroll", root_text, "remote-1"]);
+    assert!(!again.status.success() && text(&again).contains("already enrolled"));
+
+    // The worker host keeps its own copy of the secret.
+    let secret_file = root.join("remote-1.secret");
+    fs::write(&secret_file, format!("{secret}\n")).expect("secret file");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&secret_file, fs::Permissions::from_mode(0o600)).expect("chmod");
+    }
+    let server = agentforge_daemon::worker_api::WorkerApiServer::start(
+        &root,
+        "127.0.0.1:0".parse().expect("addr"),
+    )
+    .expect("worker api");
+    let endpoint = server.address.to_string();
+    let secret_path = secret_file.to_str().expect("path").to_owned();
+    let remote = |action: &str, extra: &[&str]| {
+        let mut arguments = vec![
+            "worker",
+            "remote",
+            action,
+            "--endpoint",
+            &endpoint,
+            "--worker",
+            "remote-1",
+            "--secret-file",
+            &secret_path,
+        ];
+        arguments.extend_from_slice(extra);
+        forge(&root, &arguments)
+    };
+
+    let idle = remote("claim", &[]);
+    assert!(text(&idle).contains("no claimable leases"), "{idle:?}");
+    assert!(
+        forge(
+            &root,
+            &[
+                "lease",
+                "grant",
+                root_text,
+                "P4-M007-T0001",
+                "--actor",
+                "op"
+            ]
+        )
+        .status
+        .success()
+    );
+    let contract = root.join("contract.txt");
+    let claimed = remote(
+        "claim",
+        &["--contract-out", contract.to_str().expect("path")],
+    );
+    let output = text(&claimed);
+    assert!(claimed.status.success(), "{output}");
+    assert!(
+        output.contains("claimed lease=P4-M007-T0001.L1 task=P4-M007-T0001 generation=1"),
+        "{output}"
+    );
+    assert!(
+        fs::read(&contract)
+            .expect("contract")
+            .starts_with(b"agentforge-task-prompt-v1\n")
+    );
+    let renewed = remote(
+        "renew",
+        &["--lease", "P4-M007-T0001.L1", "--ttl-ms", "3600000"],
+    );
+    assert!(renewed.status.success(), "{renewed:?}");
+    let released = remote("release", &["--lease", "P4-M007-T0001.L1"]);
+    assert!(
+        text(&released).contains("released lease=P4-M007-T0001.L1"),
+        "{released:?}"
+    );
+
+    fs::write(&secret_file, format!("{}\n", "f".repeat(64))).expect("wrong secret");
+    let refused = remote("claim", &[]);
+    assert!(!refused.status.success());
+    assert!(text(&refused).contains("unauthorized"), "{refused:?}");
+    drop(server);
+    fs::remove_dir_all(root).expect("cleanup");
+}

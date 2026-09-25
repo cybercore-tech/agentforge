@@ -162,7 +162,9 @@ task, or one overlapping a lease, cannot run locally. `forged` expires due lease
 host: it claims its leases, runs each task through the standard launch path, renews while the agent
 runs, and releases the lease (P4-M005). An enabled `.forge/dispatch.conf` lets `forged` (or `forge
 lease dispatch`) grant ready tasks in listed milestones to workers automatically, once per task
-(P4-M006).
+(P4-M006). Workers on other machines connect through GhostPort to `forged`'s loopback worker API
+(`.forge/worker-api.conf`), authenticated with `forge worker enroll` secrets. `forge worker remote
+claim|renew|release` is the client (P4-M007; recipe in `docs/REMOTE_WORKERS.md`).
 
 ## Recovery procedures
 
@@ -177,6 +179,8 @@ lease dispatch`) grant ready tasks in listed milestones to workers automatically
 | `task integrate` says the merge was approved for another commit, or is not bound to a reviewed commit | The task branch moved after approval, or the approval predates P1-M008. Review `forge task diff` again, then `forge task approve ... merge_protected_branch` binds the current head. |
 | A launch says a task "is leased to worker ..." or "overlaps task ... leased to worker ..." | Release the lease (`forge lease release`) or wait for it to expire, then launch. `forge lease list` shows who holds what. |
 | A task is never dispatched automatically | Check `forge lease dispatch . --actor <you>`: it lists each skipped task with its reason (milestone not listed, approval missing, overlap, or "already had a lease"). Tasks that had a lease are dispatched only once; grant them manually. |
+| `worker remote` says `unauthorized` | The secret file does not match `.forge/workers/<id>.secret` on the coordinator, or the worker is not registered. Re-enroll: delete the coordinator's `.secret`, run `forge worker enroll`, and copy the new secret (mode 600). |
+| `worker remote` cannot reach the endpoint, or the connection resets | Check that the GhostPort client is running and connected (`ghostport status`), the link ID matches a link that peer is allowed, and `forged` shows `worker API listening`. Repeated bad handshakes from one address are rate-limited by GhostPort for a while. |
 | A worker was stopped mid-run | Its lease expires on its own (or run `forge lease expire`). The task stays `running` with its evidence: review it, or `forge task cancel` and create a new attempt. |
 | `lease state is locked by another operation` | Another lease command or the daemon sweep is running; retry. If the lock outlived a crash and no `forge` or `forged` process runs for the project, remove `.forge/state/remote-leases.lock`. |
 | `audit append lock ... is held by another writer` | Another append is in progress (milliseconds); retry. If it persists and no `forge` or `forged` process is running for the project, a crash left `.forge/audit.log.lock` behind. Remove it. |

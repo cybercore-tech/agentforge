@@ -149,9 +149,131 @@ fn worker_command(arguments: Vec<String>) -> ExitCode {
             }
         }
         Some("run") => worker_run_command(&arguments[1..]),
+        Some("enroll") if arguments.len() == 3 => {
+            match agentforge_operator::secrets::enroll_worker(&arguments[1], &arguments[2]) {
+                Ok(secret) => {
+                    println!(
+                        "enrolled worker {} ({})",
+                        arguments[2],
+                        agentforge_operator::secrets::worker_secret_path(
+                            &arguments[1],
+                            &arguments[2]
+                        )
+                        .display()
+                    );
+                    println!("secret={secret}");
+                    println!(
+                        "copy this secret to the worker host (mode 600); it is not shown again"
+                    );
+                    ExitCode::SUCCESS
+                }
+                Err(error) => {
+                    eprintln!("worker enroll failed: {error}");
+                    ExitCode::from(1)
+                }
+            }
+        }
+        Some("remote") => worker_remote_command(&arguments[1..]),
         _ => {
-            eprintln!("worker requires: list <root> | {WORKER_RUN_USAGE}");
+            eprintln!(
+                "worker requires: list <root> | enroll <root> <worker-id> | {WORKER_RUN_USAGE} | {WORKER_REMOTE_USAGE}"
+            );
             ExitCode::from(2)
+        }
+    }
+}
+
+const WORKER_REMOTE_USAGE: &str = "remote claim|renew|release --endpoint <host:port> --worker <id> --secret-file <path> [--lease <id>] [--ttl-ms <ms>] [--contract-out <path>]";
+
+fn worker_remote_command(arguments: &[String]) -> ExitCode {
+    use agentforge_daemon::worker_api::WorkerClient;
+    let usage = |reason: &str| {
+        eprintln!("worker {WORKER_REMOTE_USAGE}: {reason}");
+        ExitCode::from(2)
+    };
+    let Some(action) = arguments.first().map(String::as_str) else {
+        return usage("missing action");
+    };
+    let mut options = std::collections::BTreeMap::new();
+    let mut index = 1;
+    while index < arguments.len() {
+        let flag = arguments[index].as_str();
+        if !matches!(
+            flag,
+            "--endpoint" | "--worker" | "--secret-file" | "--lease" | "--ttl-ms" | "--contract-out"
+        ) {
+            return usage(&format!("unexpected argument {flag}"));
+        }
+        let Some(value) = arguments.get(index + 1) else {
+            return usage(&format!("{flag} needs a value"));
+        };
+        if options.insert(flag, value.clone()).is_some() {
+            return usage(&format!("repeated {flag}"));
+        }
+        index += 2;
+    }
+    let (Some(endpoint), Some(worker), Some(secret_file)) = (
+        options.get("--endpoint"),
+        options.get("--worker"),
+        options.get("--secret-file"),
+    ) else {
+        return usage("--endpoint, --worker, and --secret-file are required");
+    };
+    let secret = match agentforge_operator::secrets::read_secret_file(secret_file) {
+        Ok(secret) => secret,
+        Err(error) => {
+            eprintln!("worker remote: {error}");
+            return ExitCode::from(1);
+        }
+    };
+    let client = match WorkerClient::new(endpoint, worker, &secret) {
+        Ok(client) => client,
+        Err(error) => {
+            eprintln!("worker remote: {error}");
+            return ExitCode::from(2);
+        }
+    };
+    let lease = options.get("--lease");
+    let ttl = match options.get("--ttl-ms").map(|value| value.parse::<u64>()) {
+        None => agentforge_operator::leases::DEFAULT_LEASE_TTL_MS,
+        Some(Ok(ttl)) => ttl,
+        Some(Err(_)) => return usage("--ttl-ms is not a number"),
+    };
+    let result = match (action, lease) {
+        ("claim", None) => client.claim().and_then(|claim| {
+            let Some(claim) = claim else {
+                println!("no claimable leases for worker {worker}");
+                return Ok(());
+            };
+            println!(
+                "claimed lease={} task={} generation={} expires_at_ms={} base={} contract_bytes={}",
+                claim.lease_id,
+                claim.task_id,
+                claim.generation,
+                claim.expires_at_ms,
+                claim.base_commit,
+                claim.contract.len()
+            );
+            if let Some(path) = options.get("--contract-out") {
+                std::fs::write(path, &claim.contract)
+                    .map_err(|error| format!("cannot write {path}: {error}"))?;
+                println!("contract written to {path}");
+            }
+            Ok(())
+        }),
+        ("renew", Some(lease)) => client
+            .renew(lease, ttl)
+            .map(|expires| println!("renewed lease={lease} expires_at_ms={expires}")),
+        ("release", Some(lease)) => client
+            .release(lease)
+            .map(|()| println!("released lease={lease}")),
+        _ => return usage("claim takes no --lease; renew and release need --lease"),
+    };
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("worker remote {action} failed: {error}");
+            ExitCode::from(1)
         }
     }
 }

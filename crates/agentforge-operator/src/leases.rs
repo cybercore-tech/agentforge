@@ -258,12 +258,26 @@ pub fn renew_lease(
     now: u64,
     actor: &str,
 ) -> Result<LeaseView, OperatorError> {
+    renew_lease_as(root.as_ref(), lease_id, ttl_ms, now, actor, None, &[])
+}
+
+/// [`renew_lease`] that also requires the lease to belong to `owner` when given, and records extra
+/// audit fields (the remote channel records `channel=remote`).
+pub fn renew_lease_as(
+    root: &Path,
+    lease_id: &str,
+    ttl_ms: u64,
+    now: u64,
+    actor: &str,
+    owner_required: Option<&str>,
+    fields: &[(&str, &str)],
+) -> Result<LeaseView, OperatorError> {
     validate_actor(actor)?;
     validate_ttl(ttl_ms)?;
-    let root = root.as_ref();
     let _lock = LeaseLock::acquire(root, LEASE_LOCK_WAIT)?;
     let mut book = load_book(root)?;
     let (lease_id, owner, generation) = owner_of(&book, lease_id)?;
+    require_owner(&lease_id, &owner, owner_required)?;
     sweep_due(root, &mut book, now, actor)?;
     let expires_at_ms = now
         .checked_add(ttl_ms)
@@ -271,7 +285,7 @@ pub fn renew_lease(
     let result = book
         .renew(&lease_id, &owner, generation, now, expires_at_ms)
         .cloned();
-    finish_owner_change(root, &book, result, "renewed", now, actor)
+    finish_owner_change(root, &book, result, "renewed", now, actor, fields)
 }
 
 /// Releases an active lease on behalf of its recorded owner, freeing its task.
@@ -281,14 +295,41 @@ pub fn release_lease(
     now: u64,
     actor: &str,
 ) -> Result<LeaseView, OperatorError> {
+    release_lease_as(root.as_ref(), lease_id, now, actor, None, &[])
+}
+
+/// [`release_lease`] with an optional required owner and extra audit fields.
+pub fn release_lease_as(
+    root: &Path,
+    lease_id: &str,
+    now: u64,
+    actor: &str,
+    owner_required: Option<&str>,
+    fields: &[(&str, &str)],
+) -> Result<LeaseView, OperatorError> {
     validate_actor(actor)?;
-    let root = root.as_ref();
     let _lock = LeaseLock::acquire(root, LEASE_LOCK_WAIT)?;
     let mut book = load_book(root)?;
     let (lease_id, owner, generation) = owner_of(&book, lease_id)?;
+    require_owner(&lease_id, &owner, owner_required)?;
     sweep_due(root, &mut book, now, actor)?;
     let result = book.release(&lease_id, &owner, generation, now).cloned();
-    finish_owner_change(root, &book, result, "released", now, actor)
+    finish_owner_change(root, &book, result, "released", now, actor, fields)
+}
+
+fn require_owner(
+    lease_id: &LeaseId,
+    owner: &RemoteWorkerId,
+    required: Option<&str>,
+) -> Result<(), OperatorError> {
+    match required {
+        Some(worker) if worker != owner.as_str() => Err(OperatorError::new(format!(
+            "lease {} belongs to worker {}, not {worker}",
+            lease_id.as_str(),
+            owner.as_str()
+        ))),
+        _ => Ok(()),
+    }
 }
 
 /// Claims an active lease for the worker that holds it, before running its task (P4-M005).
@@ -302,9 +343,19 @@ pub fn claim_lease(
     worker_id: &str,
     now: u64,
 ) -> Result<LeaseClaim, OperatorError> {
+    claim_lease_as(root.as_ref(), lease_id, worker_id, now, &[])
+}
+
+/// [`claim_lease`] with extra audit fields (the remote channel records `channel=remote`).
+pub fn claim_lease_as(
+    root: &Path,
+    lease_id: &str,
+    worker_id: &str,
+    now: u64,
+    fields: &[(&str, &str)],
+) -> Result<LeaseClaim, OperatorError> {
     let actor = format!("worker:{worker_id}");
     validate_actor(&actor)?;
-    let root = root.as_ref();
     let _lock = LeaseLock::acquire(root, LEASE_LOCK_WAIT)?;
     let mut book = load_book(root)?;
     let (lease_id, owner, generation) = owner_of(&book, lease_id)?;
@@ -339,7 +390,7 @@ pub fn claim_lease(
             state.as_str()
         )));
     }
-    commit(root, &book, &[(&lease, "claimed")], &actor)?;
+    commit_fields(root, &book, &[(&lease, "claimed")], &actor, fields)?;
     Ok(LeaseClaim {
         lease_id,
         worker_id: owner,
@@ -442,9 +493,10 @@ fn finish_owner_change(
     action: &str,
     now: u64,
     actor: &str,
+    fields: &[(&str, &str)],
 ) -> Result<LeaseView, OperatorError> {
     let lease = result.map_err(|error| OperatorError::new(error.to_string()))?;
-    commit(root, book, &[(&lease, action)], actor)?;
+    commit_fields(root, book, &[(&lease, action)], actor, fields)?;
     Ok(view(&lease, now))
 }
 

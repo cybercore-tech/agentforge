@@ -2,6 +2,7 @@
 
 pub mod dispatch;
 pub mod leases;
+pub mod secrets;
 pub mod worker;
 
 use agentforge_audit::{AuditEvent, AuditEventKind, AuditStore, FileAuditStore};

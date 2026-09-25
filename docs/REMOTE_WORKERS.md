@@ -215,3 +215,83 @@ lease per task, and path ownership. It stops when every worker is full or after 
 grants. **Dispatch runs once per task:** a task that already had a lease is skipped, so a failed or
 abandoned attempt waits for you (grant it manually to retry). Automatic grants are audited with
 `dispatch=auto`.
+
+## Workers on other machines (GhostPort)
+
+P4-M007 (ADR-0050) adds an authenticated, encrypted channel for workers on other hosts. AgentForge
+still listens only on loopback. [GhostPort](https://github.com/cybercore-tech/ghostport) carries
+the traffic (Noise KK, pinned keys), and every request is also authenticated with the worker's own
+AgentForge secret. In this milestone a remote worker can claim, renew, and release its leases and
+receive the exact contract and base commit. Remote execution and result import are P4-M008.
+
+### 1. On the coordinator
+
+```bash
+# Register and enroll the worker (prints the secret once; copy it to the worker host, mode 600).
+printf 'platform=linux-x86_64\ncapability=rust\nmax_leases=1\n' > .forge/workers/remote-1.conf
+forge worker enroll . remote-1
+
+# Turn on the worker API (loopback only) and restart forged.
+echo 'bind=127.0.0.1:47420' > .forge/worker-api.conf
+forge daemon restart .
+```
+
+GhostPort server config on the coordinator. There is one `[[peers]]` entry per worker host, and
+each is allowed only its own link:
+
+```toml
+role = "server"
+private_key_path = "/home/you/.config/ghostport/identity.key"
+listen_control = "0.0.0.0:9000"
+listen_data = "0.0.0.0:9001"
+
+[[peers]]
+name = "remote-1-host"
+public_key = "<worker host's public key>"
+links = ["agentforge-remote-1"]
+
+[[links]]
+id = "agentforge-remote-1"
+mode = "forward"
+target = "127.0.0.1:47420"      # forged's worker API
+```
+
+### 2. On the worker host
+
+```toml
+role = "client"
+private_key_path = "/home/you/.config/ghostport/identity.key"
+peer_public_key = "<coordinator's public key>"
+server_control_addr = "coordinator.example.com:9000"
+server_data_addr = "coordinator.example.com:9001"
+
+[[links]]
+id = "agentforge-remote-1"
+mode = "forward"
+listen = "127.0.0.1:47500"      # the worker talks to this local end of the tunnel
+```
+
+```bash
+forge worker remote claim   --endpoint 127.0.0.1:47500 --worker remote-1 --secret-file ~/.config/agentforge/remote-1.secret --contract-out contract.txt
+forge worker remote renew   --endpoint 127.0.0.1:47500 --worker remote-1 --secret-file ... --lease <lease> --ttl-ms 3600000
+forge worker remote release --endpoint 127.0.0.1:47500 --worker remote-1 --secret-file ... --lease <lease>
+```
+
+A claim returns the lease, the coordinator's exact base commit, and the task contract (the
+`agentforge-task-prompt-v1` document a local agent would receive). A renewal must extend the
+current expiry. Expiry is judged on the coordinator's clock.
+
+### Security properties (verified with GhostPort v0.1.1)
+
+- A host without a pinned GhostPort key cannot connect: the server logs `no configured peer
+  matched`, and repeated attempts are rate-limited.
+- A wrong or missing AgentForge secret is refused with `unauthorized`, even through a valid tunnel.
+  Nothing is written to state or audit.
+- A worker can only claim, renew, or release its own leases.
+- On the wire, only ciphertext: a capture of the tunnel's data path contained no protocol text,
+  secret, contract, or IDs.
+- The worker API and its client refuse non-loopback addresses, so the plaintext protocol never
+  leaves the machine.
+
+**Rotating a secret:** delete `.forge/workers/<id>.secret`, run `forge worker enroll` again, and
+update the worker host.

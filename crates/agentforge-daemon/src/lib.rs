@@ -1,5 +1,7 @@
 //! Bounded, local-only orchestration daemon protocol and lifecycle.
 
+pub mod worker_api;
+
 use agentforge_adapter::{AgentProfileStore, ProcessAdapter, ProcessAdapterConfig};
 use agentforge_audit::FileAuditStore;
 use agentforge_core::task::TaskId;
@@ -624,6 +626,8 @@ fn sweep_leases_once(root: &Path, slot: &ExecutionSlot) {
 }
 
 struct Server {
+    /// Optional loopback worker API for remote workers (P4-M007); stopped on drop.
+    _worker_api: Option<worker_api::WorkerApiServer>,
     root: PathBuf,
     active: ExecutionSlot,
     sweeper_stop: Arc<AtomicBool>,
@@ -683,6 +687,25 @@ impl Server {
                 return Err(DaemonError::Io(error));
             }
         };
+        let worker_api = match worker_api::load_worker_api_bind(&root) {
+            Ok(None) => None,
+            Ok(Some(bind)) => match worker_api::WorkerApiServer::start(&root, bind) {
+                Ok(server) => {
+                    eprintln!("forged: worker API listening on {}", server.address);
+                    Some(server)
+                }
+                Err(error) => {
+                    drop(lock);
+                    let _ = fs::remove_file(&lock_path);
+                    return Err(DaemonError::Io(error));
+                }
+            },
+            Err(reason) => {
+                drop(lock);
+                let _ = fs::remove_file(&lock_path);
+                return Err(DaemonError::Protocol(reason));
+            }
+        };
         let endpoint = Endpoint {
             address: listener.local_addr()?,
             pid: std::process::id(),
@@ -690,6 +713,7 @@ impl Server {
         write_endpoint(&endpoint_path, &endpoint)?;
         Ok(Self {
             root,
+            _worker_api: worker_api,
             active: Arc::new(Mutex::new(None)),
             sweeper_stop: Arc::new(AtomicBool::new(false)),
             sweeper: None,

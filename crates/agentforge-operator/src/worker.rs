@@ -160,8 +160,9 @@ pub fn run_worker<A: AgentAdapter>(
     }
 }
 
-/// The next lease this worker can claim: its own, active at `now`, for a pending, ready task.
-fn next_claimable(
+/// The next lease this worker can claim: its own, active at `now`, for a pending, ready task, in
+/// lease-ID order. Shared by the same-host worker and the remote worker API.
+pub fn next_claimable(
     root: &Path,
     worker_id: &str,
     now: u64,

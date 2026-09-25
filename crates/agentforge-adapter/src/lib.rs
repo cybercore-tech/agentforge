@@ -4,7 +4,8 @@
 //! not change task state or establish that an agent completed its assigned work.
 
 use agentforge_core::agent::{
-    AGENT_CONTRACT_VERSION, AgentResult, AgentTask, ApprovalBoundary, Capability, TaskContractError,
+    AGENT_CONTRACT_VERSION, AgentResult, AgentRole, AgentTask, ApprovalBoundary, Capability,
+    TaskContractError,
 };
 use agentforge_core::task::{TaskId, TaskIdError};
 use agentforge_worktree::{WorktreeError, WorktreeManager, WorktreeStatus};
@@ -744,6 +745,173 @@ pub fn render_task_prompt(task: &AgentTask) -> Vec<u8> {
         &task.evidence_requirements,
     );
     output
+}
+
+/// Maximum size of a task-prompt document accepted by [`parse_task_prompt`].
+pub const MAX_TASK_PROMPT_BYTES: usize = 64 * 1024;
+
+/// Decodes a version-one task-prompt document back into the task contract (P4-M007).
+///
+/// This is the inverse of [`render_task_prompt`] and the wire format for sending a contract to a
+/// remote worker. It is strict: the header, field order, lengths, list counts, and enum values
+/// must match exactly, nothing may trail, and the decoded task must validate.
+///
+/// # Errors
+///
+/// Returns [`AdapterError::InvalidConfiguration`] for any malformed or oversized document and
+/// [`AdapterError::InvalidTask`] when the decoded contract is invalid.
+pub fn parse_task_prompt(document: &[u8]) -> Result<AgentTask, AdapterError> {
+    const MALFORMED: AdapterError =
+        AdapterError::InvalidConfiguration("malformed agentforge-task-prompt-v1 document");
+    if document.len() > MAX_TASK_PROMPT_BYTES {
+        return Err(AdapterError::InvalidConfiguration(
+            "task-prompt document exceeds its size limit",
+        ));
+    }
+    let mut reader = PromptReader {
+        bytes: document
+            .strip_prefix(b"agentforge-task-prompt-v1\n".as_slice())
+            .ok_or(MALFORMED)?,
+    };
+    let contract_version = reader
+        .field("contract_version")?
+        .parse::<u16>()
+        .map_err(|_| MALFORMED)?;
+    let task_id = reader.field("task_id")?;
+    let milestone_id = reader.field("milestone_id")?;
+    let role = reader.field("primary_role")?;
+    let primary_role = ALL_ROLES
+        .into_iter()
+        .find(|candidate| candidate.as_str() == role)
+        .ok_or(MALFORMED)?;
+    let goal = reader.field("goal")?;
+    let mut task = AgentTask::new(task_id, milestone_id, primary_role, goal);
+    task.contract_version = contract_version;
+    task.non_goals = reader.list("non_goals")?;
+    task.dependency_task_ids = reader.list("dependency_task_ids")?;
+    task.allowed_paths = reader.list("allowed_paths")?;
+    task.forbidden_paths = reader.list("forbidden_paths")?;
+    task.capabilities = reader
+        .list("capabilities")?
+        .iter()
+        .map(|value| {
+            ALL_CAPABILITIES
+                .into_iter()
+                .find(|candidate| candidate.as_str() == value)
+                .ok_or(MALFORMED)
+        })
+        .collect::<Result<_, _>>()?;
+    task.required_approvals = reader
+        .list("required_approvals")?
+        .iter()
+        .map(|value| {
+            ALL_APPROVALS
+                .into_iter()
+                .find(|candidate| candidate.as_str() == value)
+                .ok_or(MALFORMED)
+        })
+        .collect::<Result<_, _>>()?;
+    task.required_gates = reader.list("required_gates")?;
+    task.expected_outputs = reader.list("expected_outputs")?;
+    task.evidence_requirements = reader.list("evidence_requirements")?;
+    if !reader.bytes.is_empty() {
+        return Err(MALFORMED);
+    }
+    task.validate().map_err(AdapterError::InvalidTask)?;
+    Ok(task)
+}
+
+const ALL_ROLES: [AgentRole; 9] = [
+    AgentRole::Planner,
+    AgentRole::Architect,
+    AgentRole::Researcher,
+    AgentRole::Implementer,
+    AgentRole::Tester,
+    AgentRole::Reviewer,
+    AgentRole::SecurityReviewer,
+    AgentRole::Integrator,
+    AgentRole::ReleaseManager,
+];
+
+const ALL_CAPABILITIES: [Capability; 13] = [
+    Capability::ReadRepository,
+    Capability::WriteOwnedPaths,
+    Capability::RunLocalCommands,
+    Capability::UseNetwork,
+    Capability::ReadGitHub,
+    Capability::WriteGitHub,
+    Capability::ManageWorktrees,
+    Capability::ReadSecrets,
+    Capability::UseMcpTools,
+    Capability::CreatePullRequest,
+    Capability::MergeProtectedBranch,
+    Capability::DeployStaging,
+    Capability::DeployProduction,
+];
+
+const ALL_APPROVALS: [ApprovalBoundary; 11] = [
+    ApprovalBoundary::ActivateImplementationPlan,
+    ApprovalBoundary::ExpandTaskScope,
+    ApprovalBoundary::ChangeDependencies,
+    ApprovalBoundary::ElevateCapability,
+    ApprovalBoundary::AccessSecrets,
+    ApprovalBoundary::DestructiveDataMigration,
+    ApprovalBoundary::IrreversibleExternalChange,
+    ApprovalBoundary::MergeProtectedBranch,
+    ApprovalBoundary::PublishRelease,
+    ApprovalBoundary::DeployProduction,
+    ApprovalBoundary::ChangeGovernanceRules,
+];
+
+/// Strict reader over the `name <len>\n<value>\n` prompt encoding.
+struct PromptReader<'a> {
+    bytes: &'a [u8],
+}
+
+impl PromptReader<'_> {
+    /// Reads `name <n>\n` and returns `n`.
+    fn header(&mut self, name: &str) -> Result<usize, AdapterError> {
+        const MALFORMED: AdapterError =
+            AdapterError::InvalidConfiguration("malformed agentforge-task-prompt-v1 document");
+        let end = self
+            .bytes
+            .iter()
+            .position(|byte| *byte == b'\n')
+            .ok_or(MALFORMED)?;
+        let line = std::str::from_utf8(&self.bytes[..end]).map_err(|_| MALFORMED)?;
+        let (found, count) = line.split_once(' ').ok_or(MALFORMED)?;
+        if found != name || count.is_empty() || !count.bytes().all(|b| b.is_ascii_digit()) {
+            return Err(MALFORMED);
+        }
+        let count = count.parse::<usize>().map_err(|_| MALFORMED)?;
+        self.bytes = &self.bytes[end + 1..];
+        Ok(count)
+    }
+
+    fn field(&mut self, name: &str) -> Result<String, AdapterError> {
+        const MALFORMED: AdapterError =
+            AdapterError::InvalidConfiguration("malformed agentforge-task-prompt-v1 document");
+        let length = self.header(name)?;
+        if self.bytes.len() < length + 1 || self.bytes[length] != b'\n' {
+            return Err(MALFORMED);
+        }
+        let value = std::str::from_utf8(&self.bytes[..length])
+            .map_err(|_| MALFORMED)?
+            .to_owned();
+        self.bytes = &self.bytes[length + 1..];
+        Ok(value)
+    }
+
+    fn list(&mut self, name: &str) -> Result<Vec<String>, AdapterError> {
+        let count = self.header(name)?;
+        // Every item needs at least "item 0\n\n"; this also bounds allocation.
+        if count > self.bytes.len() / 8 {
+            return Err(AdapterError::InvalidConfiguration(
+                "malformed agentforge-task-prompt-v1 document",
+            ));
+        }
+        (0..count).map(|_| self.field("item")).collect()
+    }
 }
 
 /// Validates a separately supplied result is bound to the task but does not accept it.

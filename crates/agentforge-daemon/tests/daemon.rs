@@ -358,3 +358,59 @@ fn running_daemon_dispatches_ready_tasks_under_an_enabled_policy() {
     assert_eq!(event.fields()["worker_id"], "w-a");
     fs::remove_dir_all(root).expect("cleanup");
 }
+
+#[test]
+fn forged_serves_the_worker_api_from_its_configuration() {
+    use agentforge_daemon::worker_api::WorkerClient;
+    use agentforge_state::TaskStore;
+    let _lifecycle_guard = daemon_lifecycle_guard();
+    let root = temporary_repo();
+    agentforge_state::FileTaskStore::for_project_root(&root)
+        .save(&agentforge_core::task::TaskGraph::from_tasks([]).expect("graph"))
+        .expect("task snapshot");
+    fs::create_dir_all(root.join(".forge/workers")).expect("workers");
+    fs::write(
+        root.join(".forge/workers/remote-a.conf"),
+        "platform=linux-x86_64\ncapability=rust\nmax_leases=1\n",
+    )
+    .expect("worker");
+    let secret = agentforge_operator::secrets::enroll_worker(&root, "remote-a").expect("enroll");
+    // Reserve a free loopback port for the configuration.
+    let port = std::net::TcpListener::bind("127.0.0.1:0")
+        .expect("probe")
+        .local_addr()
+        .expect("addr")
+        .port();
+    fs::write(
+        root.join(".forge/worker-api.conf"),
+        format!("bind=127.0.0.1:{port}\n"),
+    )
+    .expect("conf");
+
+    let Some((server, _)) = start_foreground(&root) else {
+        fs::remove_dir_all(root).expect("cleanup");
+        return;
+    };
+    let client =
+        WorkerClient::new(&format!("127.0.0.1:{port}"), "remote-a", &secret).expect("client");
+    let claimed = client.claim();
+    stop(&root).expect("cooperative stop");
+    assert!(wait_for_exit(&server).is_ok());
+    assert_eq!(
+        claimed.expect("claim"),
+        None,
+        "authenticated, nothing leased"
+    );
+    assert!(
+        std::net::TcpStream::connect(("127.0.0.1", port)).is_err(),
+        "the worker API stops with the daemon"
+    );
+
+    // A non-loopback bind stops the daemon from starting.
+    fs::write(root.join(".forge/worker-api.conf"), "bind=0.0.0.0:7420\n").expect("conf");
+    assert!(matches!(
+        serve(&root, DEFAULT_BIND),
+        Err(DaemonError::Protocol(reason)) if reason.contains("loopback")
+    ));
+    fs::remove_dir_all(root).expect("cleanup");
+}
