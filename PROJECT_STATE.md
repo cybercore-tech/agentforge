@@ -14,15 +14,26 @@ agent-built milestones, Phase 4 remote-worker wiring, the P3 tool gateway, and P
 
 ## Active milestone
 
-No active milestone. P5-M002 — release v0.2.0 — is complete.
+No active milestone. P0-M014 — EINTR-safe pipe readers, built by a real remote agent — is complete.
 `v0.2.0` (P5-M002) is the latest release, and every completed milestone is tagged `milestone/<ID>`.
 
 ## Known issues
 
-- Dogfooding finding 11: eight process-pipe `read()` loops give up on `EINTR` instead of retrying.
-  The socket readers were fixed in P5-M002.
+- Dogfooding finding 12: audit events carry no wall-clock time (placeholder timestamp `1`).
+- Dogfooding finding 13: `forge worker remote run` does not report lease renewals.
+- Dogfooding finding 14: worker-host setup is manual and unchecked (hooks, profile paths, secret).
+- Dogfooding finding 15: `scripts/tag-milestone` can tag an unclosed plan (it reads the working-tree
+  milestone table, and the legacy fallback picks the plan's last commit).
 - The release publish upload step is proven only by the next real tag; the dry run covers
   everything else (P5-M002).
+
+## P0-M014 completion evidence
+
+- Approved plan: `.plans/P0-M014-eintr-safe-pipe-readers.plan.md`.
+- Implementation commit: `dec91f2`, by Claude Code as remote worker `remote-dogfood` over GhostPort,
+  imported at its exact SHA, with the coordinator `workspace` gate 1/1, then integrated. CI
+  `36100473858` and `36100635646` are green.
+- The run log and findings 12 to 14 are in `docs/DOGFOODING.md`.
 
 ## P5-M002 completion evidence
 

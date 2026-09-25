@@ -21,6 +21,7 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 | P0-M011 | complete | Doctor and status diagnostics | Operators can inspect environment, project, agents, worktrees, and blockers. |
 | P0-M012 | complete | Single-agent vertical slice | One approved task flows through worktree, agent, gates, review handoff, and audit evidence. |
 | P0-M013 | complete | Coordinated audit appends and first-use audit logs | Concurrent writers (threads, processes, daemon executions) cannot corrupt the audit chain, attempt logs are appended atomically, and a fresh project can record its first operator action. |
+| P0-M014 | complete | EINTR-safe pipe readers (remote real-agent dogfood) | All pipe and stdin read loops retry on `Interrupted`; implemented by Claude Code as a remote worker through GhostPort, imported at its exact SHA, gated on the coordinator, and integrated. |
 
 ## Future phase reservations
 

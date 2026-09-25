@@ -88,7 +88,39 @@ gates, review, accept, integrate. This file is the run log and the list of frict
     worker API test failed intermittently with `Interrupted system call (os error 4)`. The two
     socket readers (`worker_api::read_line` and the daemon's `read_frame`) were fixed in P5-M002.
     Eight process-pipe read loops with the same pattern remain: adapter capture (3), stdin
-    forwarding, gate capture, the CI provider reader, and two CLI input readers. **Open.**
+    forwarding, gate capture, the CI provider reader, and two CLI input readers. **Resolved in
+    P0-M014:** Claude Code fixed all eight as a remote worker (`dec91f2`).
+12. **Audit events carry no wall-clock time.** Found while reviewing the P0-M014 remote run: ten of
+    the twelve production `AuditEvent::new` calls pass the placeholder timestamp `1`. The chain
+    proves order and integrity, but nothing in the evidence says *when* a claim, renewal, agent run,
+    gate, or import happened. The run's timing (7 min 14 s end to end) had to be measured outside
+    AgentForge. Needed for remote work (lease timelines, slow gates, incident review). **Open.**
+13. **The remote worker does not report lease renewals.** `forge worker run` (same host) prints
+    `lease renewed N time(s)`, but `forge worker remote run` has no renewal report. The one renewal
+    (#27) was visible only in the coordinator's audit. The worker host cannot tell whether its lease
+    is healthy. **Open.**
+14. **Worker-host setup is manual and unchecked.** The worker host needed its own clone and Git
+    identity, `./scripts/install-hooks`, a `claude-code` profile rewritten to point at the clone's
+    own bridge (profiles hold absolute paths), and the secret file with mode 600. `forge worker
+    remote run` checks none of this. With hooks missing, the agent's pre-commit gate would silently
+    not run. The coordinator gate still protects `main`, but the agent loses its own feedback. A
+    worker-host preflight (a "doctor") would catch it. **Open.**
+15. **The milestone tagger can tag an unclosed plan.** During the P0-M014 closure, the closure
+    commit was rejected by the text policy (an extra trailing newline), and the rejection was hidden
+    because the operator piped `git commit` through `tail`. `scripts/tag-milestone` still passed,
+    for two reasons:
+    - it reads `docs/MILESTONES.md` from the working tree, where the uncommitted closure already
+      said `complete`;
+    - finding no committed `Status: Complete`, it fell back to the legacy "last commit touching the
+      plan" rule, meant for old plans without status lines.
+
+    It tagged and pushed the **approve** commit `cff4846`. The dry run printed that subject ("approve
+    ..."), and the operator did not stop, against AGENTS.md rule 14. The tag was deleted locally and
+    remotely within about two minutes (the same precedent as P2-M030), and the milestone was tagged
+    again after the real closure. Fix: the tagger reads the milestone table from `HEAD`, refuses
+    uncommitted plan or table changes, and uses the legacy fallback only for plans that never had a
+    status line. **Open.**
+
 
 ## P1-M007 run log (2026-09-24)
 
@@ -107,3 +139,22 @@ Attempts `T0001` and `T0002` are cancelled. Their branches and worktrees are kep
 | `P2-M033-T0001` | 252 s | `agent-exit=0`, gates 1/1, reviewed with `forge task diff`, accepted, integrated by `forge task integrate --target main` as `29484bc`, then retired |
 
 The first attempt of an agent-built milestone to succeed without operator repair.
+
+## P0-M014 remote run log (2026-09-24)
+
+This was the first real-agent run of the remote-worker path. Both ends ran on one host, with
+separate clones, GhostPort key sets, and loopback ports; everything except a network hop was real.
+
+| Step | Evidence |
+| --- | --- |
+| Operator grant | `LeaseRecorded granted` #25 (15 min window) |
+| Claim over the GhostPort tunnel | #26 `claimed` with `channel=remote` and base `cff4846` |
+| Agent run in the worker's own clone | Claude Code through the bridge; worker-side pre-commit gate passed (isolated target dir; plan policy ok; 66 test groups ok, 0 failed) |
+| Renewal during the run | #27 `renewed` over the tunnel |
+| Result | `dec91f2` (4 files, +356/−9), bundle sent with `RESULT` |
+| Coordinator import | #28–#32: exact-SHA verified, worktree at `dec91f2`, coordinator `workspace` gate (`./scripts/gate.sh full`) 1/1 |
+| Release | #33 `released` |
+| Review and land | diff read and accepted; merge approval bound to `dec91f2`; `forge task integrate` fast-forwarded `main`; worktree retired |
+
+Wall clock (measured externally; see finding 12): 7 min 14 s from claim to import. It passed on the
+first attempt. The commit on `main` is authored by the remote worker, exactly as imported.

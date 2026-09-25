@@ -2,7 +2,11 @@
 
 ## Repository state
 
-- Active milestone: none. P5-M002 is complete: **`v0.2.0` is published** (tag on `991eb60`). Its
+- Active milestone: none. P0-M014 is complete: the **first real-agent remote run** (`dec91f2`, by
+  Claude Code over GhostPort, exact-SHA import, integrated). New open findings: 12 (no wall-clock
+  audit timestamps), 13 (no remote renewal report), 14 (unchecked worker-host setup). These are the
+  candidates for the next milestone.
+- P5-M002 is complete: **`v0.2.0` is published** (tag on `991eb60`). Its
   publish step failed a second time (staging directories); the release was published via
   recovery, and the workflow was fixed in `46d8480`. Dispatched dry runs now exercise the publish
   job except the upload. **The next release tag is the first real test of the upload**; watch it.

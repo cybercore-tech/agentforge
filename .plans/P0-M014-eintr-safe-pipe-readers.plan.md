@@ -1,6 +1,6 @@
 # Plan: P0-M014 — EINTR-safe pipe readers (remote real-agent dogfood)
 
-Status: Approved
+Status: Complete
 Milestone: P0-M014
 Created: 2026-09-24
 Owner: AgentForge project
@@ -131,15 +131,37 @@ DOGFOODING: a remote run log and findings. CHANGELOG, README, and MILESTONES at 
 
 ## Acceptance criteria
 
-- [ ] All eight pipe readers retry on `Interrupted`, with tests.
-- [ ] Implemented by Claude Code as a remote worker through GhostPort, imported at its exact SHA,
+- [x] All eight pipe readers retry on `Interrupted`, with tests.
+- [x] Implemented by Claude Code as a remote worker through GhostPort, imported at its exact SHA,
       gated on the coordinator, and integrated with `forge task integrate`.
-- [ ] Remote run log and findings recorded; CI evidence; closed and tagged.
+- [x] Remote run log and findings recorded; CI evidence; closed and tagged.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
+Implementation commit: `dec91f2`, by Claude Code as remote worker `remote-dogfood`, integrated with
+`forge task integrate`
+CI run: `36100473858` (push) and `36100635646` (dispatched repeat)
+CI result: green on all seven jobs in both runs
+Completed: 2026-09-24
 Notes:
+- The remote path worked on the first attempt, end to end:
+  - the grant;
+  - a claim through the GhostPort tunnel;
+  - Claude Code in the worker's own clone, with its pre-commit gate passing in an isolated target
+    dir;
+  - one lease renewal over the tunnel;
+  - a bundle result `dec91f2`;
+  - the coordinator's exact-SHA import and its full `workspace` gate (1/1);
+  - review, accept, the merge approval bound to `dec91f2`, and integrate.
+- The operator reviewed the diff: one `read_retrying` helper per crate (adapter, gate, CI) that
+  retries only `Interrupted`, and `Interrupted` arms in the two CLI loops (each `match` is the whole
+  loop body, so the arm retries), with scripted-reader tests. 7 min 14 s end to end, measured
+  externally.
+- Findings recorded in `docs/DOGFOODING.md`: 11 resolved; new 12 (no wall-clock audit timestamps),
+  13 (no remote renewal reporting), and 14 (unchecked worker-host setup).
+- One host, not two: the second machine is being reinstalled. Only the network hop is untested.
+- **Closure incident (finding 15):** the first closure commit was rejected by the text policy (an
+  extra trailing newline) without being noticed, because its exit code was masked by a pipe. The
+  tagger then tagged and pushed the approve commit `cff4846` as `milestone/P0-M014`. The tag was
+  deleted locally and remotely within about two minutes, and the milestone was tagged again on this
+  closure commit.

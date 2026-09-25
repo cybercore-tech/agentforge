@@ -8,6 +8,10 @@ All notable AgentForge changes are documented here. The format follows
 
 ### Fixed
 
+- Process-pipe and stdin readers (agent output capture and input forwarding, gate capture, the CI
+  provider reader, CLI input) now retry a read interrupted by a signal instead of failing
+  (P0-M014). This change was implemented by Claude Code as a remote worker through AgentForge.
+
 - The release workflow's publish job failed on the build staging directories in the artifacts. It
   now uploads only the four archives, their `.sha256` files, and `SHA256SUMS`, and requires exactly
   four archives. A manual (dry-run) release now exercises the whole publish job except the upload
