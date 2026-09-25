@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "agentforge-adapter"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "agentforge-core",
  "agentforge-worktree",
@@ -14,19 +14,19 @@ dependencies = [
 
 [[package]]
 name = "agentforge-audit"
-version = "0.1.0"
+version = "0.2.0"
 
 [[package]]
 name = "agentforge-ci"
-version = "0.1.0"
+version = "0.2.0"
 
 [[package]]
 name = "agentforge-core"
-version = "0.1.0"
+version = "0.2.0"
 
 [[package]]
 name = "agentforge-daemon"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "agentforge-adapter",
  "agentforge-audit",
@@ -39,11 +39,11 @@ dependencies = [
 
 [[package]]
 name = "agentforge-gate"
-version = "0.1.0"
+version = "0.2.0"
 
 [[package]]
 name = "agentforge-hud"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "agentforge-audit",
  "agentforge-core",
@@ -54,14 +54,14 @@ dependencies = [
 
 [[package]]
 name = "agentforge-intake"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "agentforge-core",
 ]
 
 [[package]]
 name = "agentforge-operator"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "agentforge-adapter",
  "agentforge-audit",
@@ -75,7 +75,7 @@ dependencies = [
 
 [[package]]
 name = "agentforge-orchestrator"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "agentforge-adapter",
  "agentforge-audit",
@@ -89,7 +89,7 @@ dependencies = [
 
 [[package]]
 name = "agentforge-platform"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "agentforge-adapter",
  "agentforge-audit",
@@ -107,28 +107,28 @@ dependencies = [
 
 [[package]]
 name = "agentforge-policy"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "agentforge-core",
 ]
 
 [[package]]
 name = "agentforge-scheduler"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "agentforge-core",
 ]
 
 [[package]]
 name = "agentforge-state"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "agentforge-core",
 ]
 
 [[package]]
 name = "agentforge-worktree"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "agentforge-core",
 ]
@@ -533,4 +533,4 @@ dependencies = [
 
 [[package]]
 name = "xtask"
-version = "0.1.0"
+version = "0.2.0"

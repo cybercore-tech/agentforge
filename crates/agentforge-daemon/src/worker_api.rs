@@ -455,7 +455,13 @@ fn read_line(stream: &mut TcpStream, maximum: usize) -> io::Result<String> {
     let mut line = Vec::new();
     let mut byte = [0_u8; 1];
     loop {
-        if stream.read(&mut byte)? == 0 {
+        let count = match stream.read(&mut byte) {
+            Ok(count) => count,
+            // A signal interrupted the read; nothing was consumed, so retry (P5-M002).
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+            Err(error) => return Err(error),
+        };
+        if count == 0 {
             return Err(io::Error::new(
                 io::ErrorKind::UnexpectedEof,
                 "connection closed",

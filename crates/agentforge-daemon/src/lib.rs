@@ -1233,7 +1233,12 @@ fn read_frame(stream: &mut TcpStream) -> io::Result<Vec<u8>> {
     let mut frame = Vec::new();
     let mut byte = [0_u8; 1];
     loop {
-        let count = stream.read(&mut byte)?;
+        let count = match stream.read(&mut byte) {
+            Ok(count) => count,
+            // A signal interrupted the read; nothing was consumed, so retry (P5-M002).
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+            Err(error) => return Err(error),
+        };
         if count == 0 {
             if frame.is_empty() {
                 return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "empty frame"));

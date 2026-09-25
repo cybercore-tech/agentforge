@@ -6,6 +6,14 @@ All notable AgentForge changes are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-24
+
+Workers on other machines can now run AgentForge tasks. They claim leases over an authenticated
+GhostPort tunnel, run the task in their own clone, and return the commit. The coordinator imports
+it only at the verified exact SHA and runs the gates itself. This release also fixes audit-log
+corruption under concurrent writers, which affects `v0.1.0`, and binds merge approvals to the
+reviewed commit. **Upgrading from `v0.1.0` is recommended.**
+
 ### Added
 
 - Remote-worker lease operations (P4-M004, ADR-0046):
@@ -55,6 +63,8 @@ All notable AgentForge changes are documented here. The format follows
 
 ### Fixed
 
+- The daemon and worker API socket readers gave up on an interrupted system call (`EINTR`) instead
+  of retrying, which intermittently failed daemon and remote-worker requests (P5-M002).
 - Audit-log corruption when two writers appended concurrently: for example, `forge task approve`
   while a daemon execution was running. That made the next open fail the integrity check. Appends
   now take a short lock, verify other writers' records, and renumber a stale event instead of
@@ -147,5 +157,6 @@ coding agent (Claude Code), with hermetic gates, audited agent evidence, and ope
 - Release artifacts are intended for evaluation and controlled local use, not unattended production
   deployment.
 
-[Unreleased]: https://github.com/cybercore-tech/agentforge/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/cybercore-tech/agentforge/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/cybercore-tech/agentforge/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/cybercore-tech/agentforge/releases/tag/v0.1.0

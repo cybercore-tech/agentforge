@@ -84,6 +84,12 @@ gates, review, accept, integrate. This file is the run log and the list of frict
     before anything else has written the log. **Resolved in P0-M013:** operator actions create the
     log on first use once the task snapshot exists.
 
+11. **Blocking reads give up on `EINTR` instead of retrying.** Found by the P5-M002 release gate: a
+    worker API test failed intermittently with `Interrupted system call (os error 4)`. The two
+    socket readers (`worker_api::read_line` and the daemon's `read_frame`) were fixed in P5-M002.
+    Eight process-pipe read loops with the same pattern remain: adapter capture (3), stdin
+    forwarding, gate capture, the CI provider reader, and two CLI input readers. **Open.**
+
 ## P1-M007 run log (2026-09-24)
 
 | Attempt | Duration | Outcome |

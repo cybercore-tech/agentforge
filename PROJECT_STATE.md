@@ -2,8 +2,9 @@
 
 ## Current release
 
-- Workspace version: `0.1.0`
-- Release line: `0.1.x` alpha; `v0.1.0` is the first tagged release (P5-M001)
+- Workspace version: `0.2.0`
+- Release line: `0.2.x` alpha; `v0.2.0` (P5-M002) follows `v0.1.0`, the first tagged release
+  (P5-M001)
 
 ## Current phase
 
@@ -14,7 +15,7 @@ agent-built milestones, Phase 4 remote-worker wiring, the P3 tool gateway, and P
 ## Active milestone
 
 No active milestone. P4-M008 — remote execution and exact-SHA import — is complete.
-`v0.1.0` is the latest release, and every completed milestone is tagged `milestone/<ID>`.
+`v0.2.0` (P5-M002) is being released, and every completed milestone is tagged `milestone/<ID>`.
 
 ## Known issues
 
