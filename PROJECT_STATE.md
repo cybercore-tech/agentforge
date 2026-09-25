@@ -14,15 +14,21 @@ agent-built milestones, Phase 4 remote-worker wiring, the P3 tool gateway, and P
 
 ## Active milestone
 
-No active milestone. P4-M009 — worker-host doctor — is complete.
+No active milestone. P0-M015 — wall-clock audit timestamps — is complete.
 `v0.2.0` (P5-M002) is the latest release, and every completed milestone is tagged `milestone/<ID>`.
 
 ## Known issues
 
-- Dogfooding finding 12: audit events carry no wall-clock time (placeholder timestamp `1`).
 
 - The release publish upload step is proven only by the next real tag; the dry run covers
   everything else (P5-M002).
+
+## P0-M015 completion evidence
+
+- Approved plan: `.plans/P0-M015-wall-clock-audit-timestamps.plan.md`.
+- Implementation commit: `bb1aff6`. CI `36105499481` and `36105880664` are green.
+- All 11 production sites stamp at creation, a guard test keeps placeholders out, and the HUD
+  shows `at=` and `duration=`. Finding 12 is resolved.
 
 ## P4-M009 completion evidence
 

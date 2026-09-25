@@ -2,7 +2,10 @@
 
 ## Repository state
 
-- Active milestone: none. P4-M009 is complete (`d003175`): `forge worker remote doctor` and the
+- Active milestone: none. P0-M015 is complete (`bb1aff6`): audit events carry wall-clock times.
+  **Create audit events with `AuditEvent::now`, never `new`, in production code** (a guard test
+  enforces it). All P0-M014 findings (11 to 15) are resolved.
+- P4-M009 is complete (`d003175`): `forge worker remote doctor` and the
   `run` preflight. Run the doctor on any new worker host. Open: finding 12 (audit timestamps), next.
 - P2-M034 is complete (`7023c50`): the tagger decides only from `HEAD`
   and refuses uncommitted or unclosed milestones; `xtask validate` enforces the ADR registry and

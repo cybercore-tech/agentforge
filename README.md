@@ -580,6 +580,8 @@ paths and restored reliable CI:
   gated locally, and reviewed as usual;
 - **P0-M014** the first real-agent remote run: Claude Code, as a remote worker over GhostPort, fixed
   the EINTR pipe readers, and it was imported at the exact SHA and integrated;
+- **P0-M015** every audit event records when it happened, and the HUD shows event times and
+  agent-run durations;
 - **P4-M009** a worker-host doctor: `forge worker remote run` refuses to start on a misconfigured
   host;
 - **P5-M002** release

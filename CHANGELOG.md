@@ -8,6 +8,10 @@ All notable AgentForge changes are documented here. The format follows
 
 ### Added
 
+- Audit events record wall-clock time: they are stamped when created (`AuditEvent::now`), the store
+  stamps any stragglers, and the HUD shows `at=` on recent events and `duration=` on agent runs
+  (P0-M015). Earlier records carried the placeholder `1` and render without a time.
+
 - `forge worker remote doctor` checks a worker host: clone, Git identity, hooks, agent profile paths
   (including paths copied from another checkout), secret file, and an authenticated, side-effect-free
   `PING` to the coordinator. `forge worker remote run` runs it first and refuses to start on any

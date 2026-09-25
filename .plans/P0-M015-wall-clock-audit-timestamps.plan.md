@@ -1,6 +1,6 @@
 # Plan: P0-M015 — Wall-clock audit timestamps
 
-Status: Approved
+Status: Complete
 Milestone: P0-M015
 Created: 2026-09-24
 Owner: AgentForge project
@@ -126,14 +126,23 @@ AUDIT.md, HUD.md, and DOGFOODING. README, CHANGELOG, and MILESTONES at closure.
 
 ## Acceptance criteria
 
-- [ ] Every new audit event has a wall-clock timestamp, stamped at creation (with a store backstop).
-- [ ] The HUD shows event times and agent-run durations; legacy records render without them.
-- [ ] Docs; CI evidence; closed and tagged correctly.
+- [x] Every new audit event has a wall-clock timestamp, stamped at creation (with a store backstop).
+- [x] The HUD shows event times and agent-run durations; legacy records render without them.
+- [x] Docs; CI evidence; closed and tagged correctly.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
+Implementation commit: `bb1aff6`
+CI run: `36105499481` (push) and `36105880664` (dispatched repeat)
+CI result: green on all seven jobs in both runs
+Completed: 2026-09-25
 Notes:
+- All 11 production call sites now stamp events at creation. The guard test was proven with a
+  probe file (it failed and named the file) before the probe was removed.
+- The HUD's date conversion was cross-checked against Python's `datetime` on four fixed epochs. My
+  first hand-computed 2026 expectation in the test was wrong and the implementation was right; the
+  expectation was corrected from the reference, not guessed.
+- Legacy records (timestamp `1`) render unchanged, without a time. From now on, remote and local
+  runs can be timed from the audit log alone.
+- This completes the operator's ordered fixes: finding 14 and 13 (P4-M009), then 12 (this
+  milestone).
