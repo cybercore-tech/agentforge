@@ -1,6 +1,6 @@
 # Plan: P5-M003 — Provable release upload
 
-Status: Approved
+Status: Complete
 Milestone: P5-M003
 Created: 2026-09-25
 Owner: AgentForge project
@@ -117,7 +117,29 @@ row). CHANGELOG at closure.
 
 ## Acceptance criteria
 
-- [ ] A dispatched release run uploads, verifies, and deletes a draft release, leaving nothing.
-- [ ] Tag runs verify the published assets after upload.
-- [ ] The script's self-test runs in CI and covers the failure cases.
-- [ ] Docs; CI evidence; closed and tagged correctly.
+- [x] A dispatched release run uploads, verifies, and deletes a draft release, leaving nothing.
+- [x] Tag runs verify the published assets after upload.
+- [x] The script's self-test runs in CI and covers the failure cases.
+- [x] Docs; CI evidence; closed and tagged correctly.
+
+## Completion record
+
+Implementation commit: `8353548`
+CI run: `36107774174` (push) and `36108002066` (dispatched repeat); release rehearsal
+`36107796647`
+CI result: green on all seven jobs in both runs; the rehearsal is green on all five jobs
+Completed: 2026-09-25
+Notes:
+- **The upload is proven without a release.** Rehearsal run `36107796647` built all four targets,
+  uploaded the nine release files to the draft `rehearsal-36107796647-1` through the same `gh
+  release create` a tag uses, downloaded them back, and verified names, bytes, and `SHA256SUMS`
+  ("verified 9 assets"), then deleted the draft. Checked independently afterwards: `gh release
+  list` shows only `v0.1.0` and `v0.2.0` (with `v0.2.0` still Latest), and the GitHub API finds no
+  `rehearsal-*` tag. The check P5-M002 carried forward to the next real tag is closed.
+- The self-test (20 checks, run in CI's repository job) was mutation-tested: removing the
+  verification, the draft deletion, the regular-file check, or the `sha256sum -c` check each fails
+  it. The `sha256sum -c` mutant first survived, because the byte comparison caught every corruption
+  case first; a stale-`SHA256SUMS` case now covers it.
+- The plan was approved on the second attempt: the first approval commit wrote the milestone ID
+  instead of the plan path to `.plans/ACTIVE`, and the pre-commit validation refused it. The
+  commit's exit code was checked, so nothing proceeded on it.

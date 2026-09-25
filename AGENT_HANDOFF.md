@@ -2,7 +2,11 @@
 
 ## Repository state
 
-- Active milestone: none. P0-M015 is complete (`bb1aff6`): audit events carry wall-clock times.
+- Active milestone: none. P5-M003 is complete (`8353548`): **before tagging a release after any
+  release-workflow change, dispatch `release.yml` on `main`**. It rehearses the upload into a
+  draft release, verifies it, and deletes it (`docs/RELEASE.md`). The release upload is no longer
+  an unproven step.
+- P0-M015 is complete (`bb1aff6`): audit events carry wall-clock times.
   **Create audit events with `AuditEvent::now`, never `new`, in production code** (a guard test
   enforces it). All P0-M014 findings (11 to 15) are resolved.
 - P4-M009 is complete (`d003175`): `forge worker remote doctor` and the
@@ -18,7 +22,7 @@
 - P5-M002 is complete: **`v0.2.0` is published** (tag on `991eb60`). Its
   publish step failed a second time (staging directories); the release was published via
   recovery, and the workflow was fixed in `46d8480`. Dispatched dry runs now exercise the publish
-  job except the upload. **The next release tag is the first real test of the upload**; watch it.
+  job except the upload. (Superseded by P5-M003: dispatch now rehearses the upload too.)
   Open: finding 11 (EINTR in pipe readers). Next planned: a real-agent remote-worker dogfood.
 - P4-M008 is complete (`42eb636`; CI `36095220162`, `36095589777`, and
   `36095597117`). Remote execution: `forge worker remote run --repo`, then RESULT with a bundle,

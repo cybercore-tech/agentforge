@@ -14,14 +14,20 @@ agent-built milestones, Phase 4 remote-worker wiring, the P3 tool gateway, and P
 
 ## Active milestone
 
-No active milestone. P0-M015 — wall-clock audit timestamps — is complete.
+No active milestone. P5-M003 — provable release upload — is complete.
 `v0.2.0` (P5-M002) is the latest release, and every completed milestone is tagged `milestone/<ID>`.
 
 ## Known issues
 
+- None open. The release upload, carried forward from P5-M002, is now rehearsed on dispatch
+  (P5-M003).
 
-- The release publish upload step is proven only by the next real tag; the dry run covers
-  everything else (P5-M002).
+## P5-M003 completion evidence
+
+- Approved plan: `.plans/P5-M003-provable-release-upload.plan.md`.
+- Implementation commit: `8353548`. CI `36107774174` and `36108002066` are green.
+- Release rehearsal `36107796647` uploaded nine assets to a draft release, verified them, and
+  deleted it; afterwards no draft and no `rehearsal-*` tag remain.
 
 ## P0-M015 completion evidence
 

@@ -35,6 +35,11 @@ All notable AgentForge changes are documented here. The format follows
   four archives. A manual (dry-run) release now exercises the whole publish job except the upload
   (P5-M002). `v0.2.0` was published from its tag run's own artifacts with the documented recovery.
 
+- The release upload could only be tested by a real tag, and it failed on both so far. A manually
+  dispatched release run now rehearses it: it uploads the release files to a draft release (no
+  tag), downloads them back, verifies names, bytes, and `SHA256SUMS`, and deletes the draft. Tag
+  runs verify their published assets the same way (`scripts/publish-release`, P5-M003).
+
 ## [0.2.0] - 2026-09-24
 
 Workers on other machines can now run AgentForge tasks. They claim leases over an authenticated

@@ -582,6 +582,8 @@ paths and restored reliable CI:
   the EINTR pipe readers, and it was imported at the exact SHA and integrated;
 - **P0-M015** every audit event records when it happened, and the HUD shows event times and
   agent-run durations;
+- **P5-M003** the release upload is rehearsed on every manual release run (upload to a draft
+  release, verify every asset, delete it), so publish defects surface before a tag;
 - **P4-M009** a worker-host doctor: `forge worker remote run` refuses to start on a misconfigured
   host;
 - **P5-M002** release
@@ -595,7 +597,6 @@ Candidate next milestones, each still requiring its own approved plan:
 
 - remote worker ergonomics: HUD view of remote workers and leases, and a supervised `forge worker
   remote run` service (P4);
-- authenticated worker transport and exact-SHA result acceptance (P4);
 - an MCP/tool gateway mapped to capability policy (P3);
 - signed release artifacts with provenance attestations (P5).
 
