@@ -14,17 +14,22 @@ agent-built milestones, Phase 4 remote-worker wiring, the P3 tool gateway, and P
 
 ## Active milestone
 
-No active milestone. P2-M034 — closure and documentation-index integrity — is complete.
+No active milestone. P4-M009 — worker-host doctor — is complete.
 `v0.2.0` (P5-M002) is the latest release, and every completed milestone is tagged `milestone/<ID>`.
 
 ## Known issues
 
 - Dogfooding finding 12: audit events carry no wall-clock time (placeholder timestamp `1`).
-- Dogfooding finding 13: `forge worker remote run` does not report lease renewals.
-- Dogfooding finding 14: worker-host setup is manual and unchecked (hooks, profile paths, secret).
 
 - The release publish upload step is proven only by the next real tag; the dry run covers
   everything else (P5-M002).
+
+## P4-M009 completion evidence
+
+- Approved plan: `.plans/P4-M009-worker-host-doctor.plan.md`.
+- Implementation commit: `d003175`. CI `36104260988` and `36104451697` are green.
+- The doctor covers every P0-M014 setup step, and `run` refuses on failure; findings 13 and 14 are
+  resolved.
 
 ## P2-M034 completion evidence
 

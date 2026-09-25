@@ -6,6 +6,13 @@ All notable AgentForge changes are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `forge worker remote doctor` checks a worker host: clone, Git identity, hooks, agent profile paths
+  (including paths copied from another checkout), secret file, and an authenticated, side-effect-free
+  `PING` to the coordinator. `forge worker remote run` runs it first and refuses to start on any
+  failing check, and now reports lease renewals after each task (P4-M009).
+
 ### Fixed
 
 - `scripts/tag-milestone` could tag a milestone whose closure was never committed (it read the

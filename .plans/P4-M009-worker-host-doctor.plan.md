@@ -1,6 +1,6 @@
 # Plan: P4-M009 — Worker-host doctor
 
-Status: Approved
+Status: Complete
 Milestone: P4-M009
 Created: 2026-09-24
 Owner: AgentForge project
@@ -129,15 +129,22 @@ rows), and DOGFOODING (findings 13 and 14 resolved).
 
 ## Acceptance criteria
 
-- [ ] `forge worker remote doctor` checks every requirement from the P0-M014 run, with fixes.
-- [ ] `forge worker remote run` refuses to start on a failing check.
-- [ ] Remote renewals are reported (finding 13).
-- [ ] Docs; CI evidence; closed and tagged correctly.
+- [x] `forge worker remote doctor` checks every requirement from the P0-M014 run, with fixes.
+- [x] `forge worker remote run` refuses to start on a failing check.
+- [x] Remote renewals are reported (finding 13).
+- [x] Docs; CI evidence; closed and tagged correctly.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
+Implementation commit: `d003175`
+CI run: `36104260988` (push) and `36104451697` (dispatched repeat)
+CI result: green on all seven jobs in both runs
+Completed: 2026-09-24
 Notes:
+- All seven checks are covered by per-failure tests.
+- One design change during implementation: the profile-path warning first used a name-based
+  heuristic. It was replaced by a principled rule before commit: warn when an absolute argument
+  lives in a *different Git checkout* than the worker's clone. That is exactly the P0-M014 copied
+  bridge path.
+- The existing remote-execution CLI test passes through the new preflight unchanged.
+- Findings 13 and 14 are resolved; finding 12 (audit timestamps) is next, as its own milestone.
