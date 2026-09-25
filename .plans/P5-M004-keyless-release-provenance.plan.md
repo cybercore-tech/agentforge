@@ -1,6 +1,6 @@
 # Plan: P5-M004 — Keyless release provenance
 
-Status: Draft
+Status: Approved
 Milestone: P5-M004
 Created: 2026-09-25
 Owner: AgentForge project
