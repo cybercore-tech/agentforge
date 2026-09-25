@@ -95,6 +95,7 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 | P4-M008 | complete | Remote execution and exact-SHA import | A worker on another machine runs its claimed task and returns a git bundle; the coordinator imports it only at the verified exact SHA with in-bounds paths, runs gates locally, and hands it to normal review through `integrate`. |
 | P4-M009 | complete | Worker-host doctor | `forge worker remote doctor` checks clone, identity, hooks, profile paths, secret, and an authenticated `PING`; `worker remote run` refuses on any failing check; remote renewals are reported. |
 | P4-M010 | complete | Remote-worker visibility and supervision | `forge hud` shows workers (capacity, last seen) and active leases; a remote worker rides out coordinator outages, stops on refusals, and runs under a systemd user-unit template; spawned `forged` keeps its sweep alive, and workers can retry a task. |
+| P4-M011 | complete | Worker-host setup scripts | `scripts/worker-bundle` and `scripts/worker-host-setup` set up a remote worker in two commands, idempotently, ending in a passing doctor; tested in CI and rehearsed live through real GhostPort. |
 
 ## Phase 1 — multi-agent scheduling and integration
 

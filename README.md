@@ -586,6 +586,8 @@ paths and restored reliable CI:
   agent-run durations;
 - **P5-M003** the release upload is rehearsed on every manual release run (upload to a draft
   release, verify every asset, delete it), so publish defects surface before a tag;
+- **P4-M011** worker-host setup in two commands (`scripts/worker-bundle`, then
+  `scripts/worker-host-setup`), rehearsed through real GhostPort;
 - **P5-M005** release
   [`v0.3.0`](https://github.com/cybercore-tech/agentforge/releases/tag/v0.3.0), the first with
   attested archives: remote-worker supervision, the MCP gateway, and the daemon sweep fix;

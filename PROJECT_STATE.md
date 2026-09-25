@@ -14,13 +14,21 @@ agent-built milestones, Phase 4 remote-worker wiring, the P3 tool gateway, and P
 
 ## Active milestone
 
-No active milestone. P5-M005 — release v0.3.0 — is complete.
+No active milestone. P4-M011 — worker-host setup scripts — is complete.
 `v0.3.0` (P5-M005) is the latest release, and every completed milestone is tagged `milestone/<ID>`.
 
 ## Known issues
 
 - None open. Dogfooding findings 16 (spawned `forged` lost its sweep) and 17 (workers could not
   retry a task) were found and resolved in P4-M010.
+
+## P4-M011 completion evidence
+
+- Approved plan: `.plans/P4-M011-worker-host-setup.plan.md`.
+- Implementation commit: `3358a30`. CI `36187573886` and `36187851798` are green; the integration
+  test ran on Linux and macOS.
+- A live rehearsal through real GhostPort passed the doctor and imported a remote task at its exact
+  SHA. The two-machine run now needs only the scripts on each side.
 
 ## P5-M005 completion evidence
 

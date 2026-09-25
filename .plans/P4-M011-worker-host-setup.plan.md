@@ -1,6 +1,6 @@
 # Plan: P4-M011 — Worker-host setup scripts
 
-Status: Approved
+Status: Complete
 Milestone: P4-M011
 Created: 2026-09-25
 Owner: AgentForge project
@@ -150,7 +150,31 @@ REMOTE_WORKERS, OPERATIONS; CHANGELOG at closure.
 
 ## Acceptance criteria
 
-- [ ] The two scripts set up a worker host from a bundle, idempotently, with the doctor passing.
-- [ ] The CLI test runs a remote task through a host set up only by the scripts.
-- [ ] A live rehearsal with real GhostPort passes on this host.
-- [ ] Docs; CI evidence; closed and tagged correctly.
+- [x] The two scripts set up a worker host from a bundle, idempotently, with the doctor passing.
+- [x] The CLI test runs a remote task through a host set up only by the scripts.
+- [x] A live rehearsal with real GhostPort passes on this host.
+- [x] Docs; CI evidence; closed and tagged correctly.
+
+## Completion record
+
+Implementation commit: `3358a30`
+CI run: `36187573886` (push) and `36187851798` (dispatched repeat)
+CI result: green on all seven jobs in both runs; the new integration test ran and passed on Linux
+and macOS
+Completed: 2026-09-25
+Notes:
+- **Live rehearsal with real GhostPort** on this host, with scratch keys and configs. The first
+  `worker-host-setup` run failed only the doctor's endpoint check, and printed the `[[peers]]`
+  entry. After adding it to the server config and starting both GhostPort ends, the second run
+  changed nothing ("unchanged" for every file) and the doctor passed. A remote task through the
+  tunnel was imported at the exact SHA (`3ccaf22`).
+- **Rehearsal mistake:** the first live run overrode `HOME` but not `XDG_CONFIG_HOME`, which this
+  session sets to the real `~/.config`. Five new files were written there: the GhostPort key pair
+  and client config, and the worker secret and env file. They came from that run only, nothing was
+  overwritten, and all five (and the empty `~/.config/agentforge`) were removed. The script is
+  right to honour `XDG_CONFIG_HOME`. The CI test clears it, and REMOTE_WORKERS now warns about it
+  for rehearsals.
+- The rehearsal also found the dry run hiding its keygen step, which was fixed before commit.
+- A mutant that skips installing the secret fails the integration test.
+- The systemd unit option was checked with `--dry-run` only, to leave the user's manager alone. The
+  unit itself was verified live in P4-M010.

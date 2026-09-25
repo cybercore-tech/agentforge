@@ -2,7 +2,11 @@
 
 ## Repository state
 
-- Active milestone: none. P5-M005 is complete: **`v0.3.0` is published** (tag on `c50ed73`). It is
+- Active milestone: none. P4-M011 is complete (`3358a30`): for the two-machine run, use
+  `scripts/worker-bundle` on the coordinator and `scripts/worker-host-setup` on the worker host
+  (REMOTE_WORKERS.md). **When rehearsing under a scratch `HOME`, also unset `XDG_CONFIG_HOME`**, or
+  the files land in the real config.
+- P5-M005 is complete: **`v0.3.0` is published** (tag on `c50ed73`). It is
   the first attested release, and the first real tag the workflow published by itself.
   `xtask validate` now requires a `.cargo/registry-preflight.toml` patch entry for every internal
   crate the CLI depends on: add one with any new crate.

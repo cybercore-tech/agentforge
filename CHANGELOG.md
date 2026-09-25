@@ -6,6 +6,13 @@ All notable AgentForge changes are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `scripts/worker-bundle` (on the coordinator) and `scripts/worker-host-setup` (on the worker host)
+  set up a remote worker in two commands: registration, enrollment, clone, identity, hooks, secret,
+  agent profile, GhostPort key and config, env file, and the optional systemd unit. The worker-host
+  script is idempotent and ends with `forge worker remote doctor` (P4-M011).
+
 ## [0.3.0] - 2026-09-25
 
 The first release with **attested builds**: every archive carries a keyless SLSA build-provenance
