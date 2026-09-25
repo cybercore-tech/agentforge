@@ -87,6 +87,7 @@ not as release files. Old releases stay verifiable by checksum only.
   `docs/adr/README.md`
 - closure records: `docs/MILESTONES.md`, `CHANGELOG.md`, `README.md`, `PROJECT_STATE.md`,
   `AGENT_HANDOFF.md`
+- Amendment 1: `crates/agentforge-daemon/tests/worker_api.rs`
 
 ## Test-first matrix
 
@@ -131,3 +132,22 @@ RELEASE, README, OPERATIONS, ADR-0053; CHANGELOG at closure.
 - [ ] A rehearsal proves it end to end, and an independent local verification passes (and a
       tampered archive fails).
 - [ ] ADR, docs; CI evidence; closed and tagged correctly.
+
+## Amendment 1 (2026-09-25)
+
+The pre-commit gate on this milestone's first closure attempt failed in a P4-M010 test,
+`a_closed_port_is_unreachable_not_refused`: `Unreachable("response failed: Connection reset by
+peer")` where the test expects the message to start with `cannot reach worker API`.
+Classification: semantic/test, a race in the test. `free_port()` binds `127.0.0.1:0`, reads the
+port, and releases it. Another test in the same binary, running in parallel, can be given that
+port for its own server, so the "closed" port briefly had a live server that reset the connection.
+The product classified it correctly (`Unreachable`). The closure commit was rejected, and the
+tagger (P2-M034) refused to tag the uncommitted closure, as designed. The closure was set aside
+(stashed) and will be redone after this fix.
+
+Fix: the two tests that only need a refused connection (`a_closed_port_is_unreachable_not_refused`
+and `a_run_once_worker_still_returns_the_outage`) connect to port 0, where nothing can listen, so
+connecting fails at once on every platform, with no race. The outage-and-reconnect test must later
+start a server on its port, so it keeps `free_port()`. Its residual risk (another test being given
+the same port within the few hundred milliseconds before its server starts) is recorded rather
+than hidden.
