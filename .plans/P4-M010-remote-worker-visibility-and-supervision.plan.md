@@ -107,6 +107,8 @@ sections. Every other client method is unchanged.
 - `crates/agentforge-cli/src/main.rs`, `crates/agentforge-cli/tests/*.rs`
 - `contrib/systemd/agentforge-worker@.service`, `contrib/systemd/worker.env.example`
 - `docs/REMOTE_WORKERS.md`, `docs/HUD.md`, `docs/OPERATIONS.md`
+- Amendment 1: `crates/agentforge-daemon/src/lib.rs`, `crates/agentforge-cli/tests/*.rs`,
+  `docs/DAEMON.md`, `docs/DOGFOODING.md`
 - closure records: `docs/MILESTONES.md`, `CHANGELOG.md`, `README.md`, `PROJECT_STATE.md`,
   `AGENT_HANDOFF.md`
 
@@ -159,3 +161,36 @@ sections), and OPERATIONS (commands and recovery rows). README and CHANGELOG at 
       it.
 - [ ] A tracked systemd user-unit template runs a worker unattended, verified live on this host.
 - [ ] Docs; CI evidence; closed and tagged correctly.
+
+## Amendment 1 (2026-09-25)
+
+The live check found a latent defect outside this plan's boundary (dogfooding finding 16).
+Classification: semantic, in the daemon's process setup; not caused by this milestone's changes.
+
+`forge daemon start` spawns `forged` with stderr piped back to itself, to report startup failures.
+When `forge` exits, the pipe's read end closes. Every later `eprintln!` in `forged` then fails with
+`EPIPE`, and `eprintln!` panics on a write failure, killing the thread that logged:
+
+- **The lease sweep** logs `forged: expired N lease(s)` after recording an expiry. Reproduced live:
+  the first expiry was recorded (audit #9), and the sweep thread was gone afterwards. A second lease
+  granted with a 1 s TTL was never expired (audit #10 is its grant, with no expiry 14 s later), and
+  `forged` had two threads instead of three. Automatic dispatch runs in the same sweep, so it stops
+  too.
+- **A worker API connection** logs a refused request before answering, so a refused worker saw
+  `response failed: connection closed` instead of `unauthorized`. The P4-M010 runner classified it,
+  correctly, as a transport failure and retried, so a rotated secret was retried forever instead of
+  stopping the worker.
+
+The tests missed it because they start `forged` in-process or keep its stderr open. Fix:
+
+1. `forged` logs through a helper that ignores write failures (`let _ = writeln!(stderr, ...)`), so
+   logging can never kill a thread. Every runtime `eprintln!` in `agentforge-daemon/src/lib.rs` and
+   `worker_api.rs` uses it.
+2. `forge daemon start` sends `forged`'s stderr to `.forge/daemon/forged.log` (appended) instead of
+   a pipe that dies with `forge`, so the log survives. A startup failure is reported from the
+   bytes the log gained during startup.
+3. A regression test starts `forged` through the real `forge daemon start`, lets `forge` exit, and
+   requires two consecutive lease expiries to be recorded and logged, plus a bad-secret worker
+   request to be refused with `unauthorized`.
+
+Docs: DAEMON (the log file) and DOGFOODING (finding 16).
