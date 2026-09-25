@@ -2,7 +2,11 @@
 
 ## Repository state
 
-- Active milestone: none. P4-M010 is complete (`32df9a5`, `1a2b3cb`): `forge hud` shows workers
+- Active milestone: none. P3-M005 is complete (`9e4cf6f`): `forge mcp serve` is the MCP
+  task-tool gateway (`docs/MCP_GATEWAY.md`, ADR-0052). Give a task `use_mcp_tools` (plus
+  `read_repository` / `run_local_commands`) and the bridge profile `--forge`. `serde_json` is
+  allowed **only** in `agentforge-mcp`; ask before using it elsewhere.
+- P4-M010 is complete (`32df9a5`, `1a2b3cb`): `forge hud` shows workers
   and leases; remote workers retry an unreachable coordinator and stop on refusals; see
   `contrib/systemd/` and `docs/REMOTE_WORKERS.md#running-a-worker-unattended`. **`forged` logs
   through `crate::log`, never `eprintln!`** (a started daemon's stderr is a file, but logging must

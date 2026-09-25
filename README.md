@@ -584,6 +584,8 @@ paths and restored reliable CI:
   agent-run durations;
 - **P5-M003** the release upload is rehearsed on every manual release run (upload to a draft
   release, verify every asset, delete it), so publish defects surface before a tag;
+- **P3-M005** an MCP task-tool gateway: agents call AgentForge's task tools under their capability
+  policy, with every call audited;
 - **P4-M010** remote-worker visibility and supervision: `forge hud` shows workers and leases,
   workers ride out coordinator outages under a systemd user unit, and two daemon and worker defects
   found live are fixed;
@@ -599,7 +601,7 @@ paths and restored reliable CI:
 Candidate next milestones, each still requiring its own approved plan:
 
 - a two-machine remote-worker run over a real network (P4);
-- an MCP/tool gateway mapped to capability policy (P3);
+- external MCP servers behind the gateway's capability map (P3);
 - signed release artifacts with provenance attestations (P5).
 
 ## Contributing 🤝

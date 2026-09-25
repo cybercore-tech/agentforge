@@ -14,13 +14,20 @@ agent-built milestones, Phase 4 remote-worker wiring, the P3 tool gateway, and P
 
 ## Active milestone
 
-No active milestone. P4-M010 — remote-worker visibility and supervision — is complete.
+No active milestone. P3-M005 — MCP task-tool gateway — is complete.
 `v0.2.0` (P5-M002) is the latest release, and every completed milestone is tagged `milestone/<ID>`.
 
 ## Known issues
 
 - None open. Dogfooding findings 16 (spawned `forged` lost its sweep) and 17 (workers could not
   retry a task) were found and resolved in P4-M010.
+
+## P3-M005 completion evidence
+
+- Approved plan: `.plans/P3-M005-mcp-task-tool-gateway.plan.md`.
+- Implementation commit: `9e4cf6f`. CI `36143255345` and `36143670594` are green.
+- A real Claude Code session used `task_contract`, `check_changes`, and `run_gate` through the
+  bridge, and all three calls are recorded as `ToolInvoked`.
 
 ## P4-M010 completion evidence
 

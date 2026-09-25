@@ -8,6 +8,12 @@ All notable AgentForge changes are documented here. The format follows
 
 ### Added
 
+- `forge mcp serve`, an MCP task-tool gateway (P3-M005, ADR-0052). An agent can call
+  `task_contract`, `check_changes`, and `run_gate` for its own task. Each tool is mapped to the
+  task's capabilities and checked with the policy engine, and every call is recorded as a
+  `ToolInvoked` audit event (new kind, code 13). The Claude Code bridge wires it in for tasks that
+  hold `use_mcp_tools` (new `--forge` argument). New dependencies: `serde` and `serde_json`.
+
 - `forge hud` shows remote workers (platform, active leases against capacity, and when each was
   last seen through its own claims, renewals, and releases) and active leases with their time to
   expiry, plus lease totals by state (P4-M010).

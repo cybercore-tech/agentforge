@@ -1,6 +1,6 @@
 # Plan: P3-M005 — MCP task-tool gateway
 
-Status: Approved
+Status: Complete
 Milestone: P3-M005
 Created: 2026-09-25
 Owner: AgentForge project
@@ -181,7 +181,30 @@ CHANGELOG at closure.
 
 ## Acceptance criteria
 
-- [ ] `forge mcp serve` speaks MCP over stdio and serves the three task tools under the policy map.
-- [ ] Every call is policy-checked and audited when the project is known.
-- [ ] The bridge wires the gateway for `use_mcp_tools` tasks; a real Claude Code session uses it.
-- [ ] ADR, docs; CI evidence; closed and tagged correctly.
+- [x] `forge mcp serve` speaks MCP over stdio and serves the three task tools under the policy map.
+- [x] Every call is policy-checked and audited when the project is known.
+- [x] The bridge wires the gateway for `use_mcp_tools` tasks; a real Claude Code session uses it.
+- [x] ADR, docs; CI evidence; closed and tagged correctly.
+
+## Completion record
+
+Implementation commit: `9e4cf6f`
+CI run: `36143255345` (push) and `36143670594` (dispatched repeat)
+CI result: green on all seven jobs in both runs
+Completed: 2026-09-25
+Notes:
+- **Real client.** A Claude Code session, launched through `forge run` and the bridge on a
+  throwaway project, called `task_contract`, `check_changes` (1 changed, 0 denied), and `run_gate`
+  (passed). It created the file within scope, and the bridge committed it. The orchestrator's
+  gate passed 1/1, and the calls are `ToolInvoked` #1 to #3 in that project's audit log. The run
+  took 18 s.
+- The tool calls have lower sequence numbers than the run's `AgentStarted`, because the
+  orchestrator persists a run's events in one batch when it finishes. The timestamps show the true
+  order. This is documented in MCP_GATEWAY.md.
+- **Dependencies.** The lockfile gained `serde`, `serde_core`, `serde_derive`, `serde_json`,
+  `itoa`, `memchr`, and `zmij`. The plan listed `ryu`; current `serde_json` uses `zmij` instead.
+  All have MSRV 1.71 or lower and permissive licenses.
+- **Tests.** Mutation checks: listing without the policy check, calling without it, and allowed
+  calls going unrecorded each fail the suite.
+- A dry-run helper briefly staged a `__pycache__` file from importing the bridge as a module. It
+  was removed before commit.
