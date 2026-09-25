@@ -2,7 +2,11 @@
 
 ## Repository state
 
-- Active milestone: none. P4-M006 is complete (`23db2a0`; CI `36081432343`, `36081582250`, and
+- Active milestone: none. P4-M007 is complete (`ac71c1b` and `d0797da`; CI `36092464428`,
+  `36092602029`, and `36092609574`). Remote workers use `forge worker enroll`, the loopback AFW1
+  API from `.forge/worker-api.conf`, and `forge worker remote` through GhostPort; the recipe is in
+  REMOTE_WORKERS. Next: P4-M008, remote execution with a git-bundle result and exact-SHA import.
+- P4-M006 is complete (`23db2a0`; CI `36081432343`, `36081582250`, and
   `36081590100`). `.forge/dispatch.conf` (opt-in and milestone-scoped) lets forged or `forge lease
   dispatch` grant ready, approved tasks to workers, once per task. Next P4 candidates: authenticated
   transport for workers on other hosts (GhostPort) and exact-SHA acceptance of their results.

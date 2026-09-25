@@ -29,6 +29,14 @@ All notable AgentForge changes are documented here. The format follows
   - Only tasks with every pre-execution approval recorded are granted, once per task, within
     worker capacity.
   - Automatic grants are audited with `dispatch=auto`.
+- A remote-worker channel over GhostPort (P4-M007, ADR-0050).
+  - `forge worker enroll` creates a per-worker secret.
+  - `forged` serves a loopback-only worker API (`AFW1`) from `.forge/worker-api.conf`.
+  - `forge worker remote claim|renew|release` is the client. Workers on other machines reach it
+    through a GhostPort tunnel, and every request is authenticated as one worker and limited to
+    its leases.
+  - The task contract travels as the `agentforge-task-prompt-v1` document, with the new
+    `parse_task_prompt` decoder.
 
 ### Changed
 

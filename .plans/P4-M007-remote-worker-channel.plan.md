@@ -1,6 +1,6 @@
 # Plan: P4-M007 — Authenticated remote-worker channel over GhostPort
 
-Status: Approved
+Status: Complete
 Milestone: P4-M007
 Created: 2026-09-24
 Owner: AgentForge project
@@ -181,17 +181,29 @@ MILESTONES at closure.
 
 ## Acceptance criteria
 
-- [ ] A registered, enrolled worker can claim, renew, and release its leases through `forged`'s
+- [x] A registered, enrolled worker can claim, renew, and release its leases through `forged`'s
       loopback worker API, and receives the exact contract and base commit.
-- [ ] Requests are authenticated per worker and limited to that worker's leases; bad requests
+- [x] Requests are authenticated per worker and limited to that worker's leases; bad requests
       change nothing.
-- [ ] Verified through a real GhostPort tunnel.
-- [ ] ADR-0050 and docs; CI evidence; closed and tagged.
+- [x] Verified through a real GhostPort tunnel.
+- [x] ADR-0050 and docs; CI evidence; closed and tagged.
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
-Notes:
+Implementation commit: `ac71c1b` (channel) and `d0797da` (portable test fixtures)
+CI run: `36092464428` (push), plus `36092602029` and `36092609574` (dispatched), on `d0797da`
+CI result: green on all seven jobs in all three runs
+Completed: 2026-09-24
+Notes: Operator-authored as planned, with no amendments. GhostPort v0.1.1 was built from
+`~/tools/daemons/ghostport`, and real server and client processes ran on this host, with separate
+key sets for the coordinator and the worker host:
+- claim, renew, and release through the tunnel, with the contract and base commit delivered;
+- an unpinned GhostPort key was rejected (`no configured peer matched`);
+- a wrong AgentForge secret through a valid tunnel got `unauthorized`;
+- a recording relay on the tunnel data path captured 1,473 bytes with no protocol text, secret,
+  contract, or IDs.
+
+The first capture attempt was invalid, not failed: GhostPort's handshake rate limiter had
+blocked the relay's connections after the impostor test from the same address. That is itself a
+security property. Before pushing, review caught that the enroll-based fixtures could not run on
+Windows (no `/dev/urandom` path by design), fixed in `d0797da`.

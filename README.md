@@ -570,13 +570,16 @@ paths and restored reliable CI:
 - **P4-M005** a same-host worker process (`forge worker run`) runs the tasks leased to it;
 - **P4-M006** opt-in automatic dispatch: `forged` hands ready tasks to idle workers under a
   reviewed policy;
+- **P4-M007** workers on other machines claim their leases over an authenticated GhostPort
+  tunnel;
 - **P5-M001** the first tagged release,
   [`v0.1.0`](https://github.com/cybercore-tech/agentforge/releases/tag/v0.1.0), with checksummed
   archives for Linux, macOS, and Windows.
 
 Candidate next milestones, each still requiring its own approved plan:
 
-- a same-host dispatch HUD view, then authenticated worker transport for other hosts (P4);
+- remote execution: a worker on another machine runs its claimed task and returns the commit for
+  exact-SHA acceptance (P4-M008);
 - authenticated worker transport and exact-SHA result acceptance (P4);
 - an MCP/tool gateway mapped to capability policy (P3);
 - signed release artifacts with provenance attestations (P5).
