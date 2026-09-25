@@ -1,6 +1,6 @@
 # Plan: P4-M008 — Remote execution and exact-SHA result import
 
-Status: Draft
+Status: Approved
 Milestone: P4-M008
 Created: 2026-09-24
 Owner: AgentForge project
