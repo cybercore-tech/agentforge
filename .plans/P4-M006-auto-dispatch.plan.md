@@ -1,6 +1,6 @@
 # Plan: P4-M006 — Opt-in automatic dispatch to registered workers
 
-Status: Draft
+Status: Approved
 Milestone: P4-M006
 Created: 2026-09-24
 Owner: AgentForge project
