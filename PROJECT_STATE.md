@@ -14,13 +14,21 @@ agent-built milestones, Phase 4 remote-worker wiring, the P3 tool gateway, and P
 
 ## Active milestone
 
-No active milestone. P5-M003 — provable release upload — is complete.
+No active milestone. P4-M010 — remote-worker visibility and supervision — is complete.
 `v0.2.0` (P5-M002) is the latest release, and every completed milestone is tagged `milestone/<ID>`.
 
 ## Known issues
 
-- None open. The release upload, carried forward from P5-M002, is now rehearsed on dispatch
-  (P5-M003).
+- None open. Dogfooding findings 16 (spawned `forged` lost its sweep) and 17 (workers could not
+  retry a task) were found and resolved in P4-M010.
+
+## P4-M010 completion evidence
+
+- Approved plan: `.plans/P4-M010-remote-worker-visibility-and-supervision.plan.md` (two
+  amendments).
+- Implementation commits: `32df9a5` and `1a2b3cb`. CI `36111985574` and `36112235466` are green.
+- Live: a worker from the unit template rode out a coordinator outage in one process, stopped on
+  `unauthorized`, and recovered under systemd; findings 16 and 17 are fixed with regression tests.
 
 ## P5-M003 completion evidence
 

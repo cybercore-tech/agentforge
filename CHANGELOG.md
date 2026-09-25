@@ -8,6 +8,14 @@ All notable AgentForge changes are documented here. The format follows
 
 ### Added
 
+- `forge hud` shows remote workers (platform, active leases against capacity, and when each was
+  last seen through its own claims, renewals, and releases) and active leases with their time to
+  expiry, plus lease totals by state (P4-M010).
+- `forge worker remote run` keeps running through a coordinator outage: an unreachable worker API
+  is retried with capped backoff (2 s doubling to 60 s), while refusals such as `unauthorized` stop
+  it. `contrib/systemd/agentforge-worker@.service` runs one worker per systemd user unit
+  (P4-M010).
+
 - Audit events record wall-clock time: they are stamped when created (`AuditEvent::now`), the store
   stamps any stragglers, and the HUD shows `at=` on recent events and `duration=` on agent runs
   (P0-M015). Earlier records carried the placeholder `1` and render without a time.
@@ -18,6 +26,13 @@ All notable AgentForge changes are documented here. The format follows
   failing check, and now reports lease renewals after each task (P4-M009).
 
 ### Fixed
+
+- A `forged` started by `forge daemon start` stopped expiring leases (and dispatching) after its
+  first expiry, and answered refused workers with a dropped connection. Logging to its stderr pipe
+  panicked once `forge` had exited. `forged` now logs to `.forge/daemon/forged.log`, and logging can
+  no longer fail a thread (P4-M010).
+- A remote worker could not run the same task again after an attempt on that host (`managed task
+  branch already exists`). Attempts are now archived under their lease IDs (P4-M010).
 
 - `scripts/tag-milestone` could tag a milestone whose closure was never committed (it read the
   working-tree milestone table and fell back to the plan's last commit). It now decides only from

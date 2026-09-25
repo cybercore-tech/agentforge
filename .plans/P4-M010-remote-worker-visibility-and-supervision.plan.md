@@ -1,6 +1,6 @@
 # Plan: P4-M010 — Remote-worker visibility and supervision
 
-Status: Approved
+Status: Complete
 Milestone: P4-M010
 Created: 2026-09-25
 Owner: AgentForge project
@@ -156,11 +156,11 @@ sections), and OPERATIONS (commands and recovery rows). README and CHANGELOG at 
 
 ## Acceptance criteria
 
-- [ ] `forge hud` shows workers (capacity, last activity) and active leases (expiry), read-only.
-- [ ] A remote worker keeps running through a coordinator outage and resumes; refusals still stop
+- [x] `forge hud` shows workers (capacity, last activity) and active leases (expiry), read-only.
+- [x] A remote worker keeps running through a coordinator outage and resumes; refusals still stop
       it.
-- [ ] A tracked systemd user-unit template runs a worker unattended, verified live on this host.
-- [ ] Docs; CI evidence; closed and tagged correctly.
+- [x] A tracked systemd user-unit template runs a worker unattended, verified live on this host.
+- [x] Docs; CI evidence; closed and tagged correctly.
 
 ## Amendment 1 (2026-09-25)
 
@@ -225,3 +225,31 @@ Tests (CLI, the real worker loop): the same task, leased twice to one host with 
 agent, is abandoned both times for the boundary violation (not a branch conflict), with both
 attempts archived. The successful remote run leaves `agentforge/remote/<lease>` and no task branch.
 Docs: REMOTE_WORKERS (the worker's archive names) and DOGFOODING (finding 17).
+
+## Completion record
+
+Implementation commit: `32df9a5` (feature and both amendments); `1a2b3cb` (test race fix)
+CI run: `36111513273` (push on `32df9a5`: one test race, see Notes); `36111985574` (push) and
+`36112235466` (dispatched repeat) on `1a2b3cb`
+CI result: green on all seven jobs in both runs on `1a2b3cb`
+Completed: 2026-09-25
+Notes:
+- **Live on this host** with the unit template: a coordinator outage was ridden out in one process
+  (retries at 2, 4, and 8 s, `NRestarts=0`), then reconnect, claim, and exact-SHA import. A
+  rotated secret stopped the worker on `unauthorized`, and systemd recovered it once the new
+  secret was installed. The test unit files were removed afterwards.
+- **The live run found two latent defects**, each recorded by amendment before any code changed:
+  - finding 16: a `forge daemon start`ed `forged` lost the lease sweep (and dispatch) after its
+    first expiry, and dropped refused worker connections, because logging to a closed stderr pipe
+    panicked;
+  - finding 17: a remote worker could never run a task again after an attempt on that host.
+
+  Both have regression tests that failed first. Neither was caught by the existing tests, which run
+  `forged` in-process or only ever claim a task once per host.
+- **Design refinement:** the HUD's `last-seen` uses the worker's own events (actor
+  `worker:<id>`), not every lease event naming it, because an operator grant is not a sighting.
+- **CI:** the first push run failed on a race in the new regression test. It read `forged.log`
+  between the sweep's audit record and its log line. The test now reads the log after `stop()`,
+  which waits out the sweep, and the product was unchanged. Classified as semantic/test and fixed
+  forward in `1a2b3cb`.
+- The HUD read-only guarantee is tested by comparing every file under `.forge` before and after.

@@ -2,7 +2,13 @@
 
 ## Repository state
 
-- Active milestone: none. P5-M003 is complete (`8353548`): **before tagging a release after any
+- Active milestone: none. P4-M010 is complete (`32df9a5`, `1a2b3cb`): `forge hud` shows workers
+  and leases; remote workers retry an unreachable coordinator and stop on refusals; see
+  `contrib/systemd/` and `docs/REMOTE_WORKERS.md#running-a-worker-unattended`. **`forged` logs
+  through `crate::log`, never `eprintln!`** (a started daemon's stderr is a file, but logging must
+  never be able to panic a thread; finding 16). Remote-worker attempts are archived under
+  `agentforge/remote/<lease>` in the worker's clone (finding 17).
+- P5-M003 is complete (`8353548`): **before tagging a release after any
   release-workflow change, dispatch `release.yml` on `main`**. It rehearses the upload into a
   draft release, verifies it, and deletes it (`docs/RELEASE.md`). The release upload is no longer
   an unproven step.
