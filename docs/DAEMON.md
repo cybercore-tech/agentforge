@@ -34,6 +34,15 @@ For bounded background supervision, use the forge operator commands:
 start waits for a verified loopback endpoint. restart performs a cooperative stop followed by
 start. Neither command kills a PID merely because it appears in daemon metadata.
 
+A daemon started this way writes its log to `.forge/daemon/forged.log` (appended across starts):
+the worker API address, lease expiries, dispatch grants, refused worker requests, and sweep
+errors. A startup failure is reported from what the log gained during that start. Since P4-M010
+logging can never stop the daemon: before, `forged`'s stderr was a pipe back to `forge daemon
+start`, and once that command exited, the first log line panicked the thread that wrote it. The
+lease sweep then stopped for good after its first expiry, and a refused worker got a dropped
+connection instead of `unauthorized` (dogfooding finding 16). A foreground `forged serve` still
+logs to its own stderr.
+
 ## Prepare a task
 
 Worktrees are explicit operator actions. Create and inspect the deterministic task worktree before

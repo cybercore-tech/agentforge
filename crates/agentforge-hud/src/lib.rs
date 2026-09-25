@@ -3,6 +3,7 @@
 use agentforge_audit::{AuditEvent, AuditEventKind, AuditStore, FileAuditStore};
 use agentforge_core::task::TaskState;
 use agentforge_intake::IntakeError;
+use agentforge_operator::leases::{LeaseView, WorkerView, list_leases, list_workers};
 use agentforge_state::{FileTaskStore, StateError, TaskStore};
 use agentforge_worktree::{GitOperation, WorktreeError, WorktreeManager};
 use std::collections::BTreeMap;
@@ -14,6 +15,8 @@ const MAX_RECENT_EVENTS: usize = 8;
 const MAX_RENDERED_BYTES: usize = 16 * 1024;
 /// Maximum number of recent agent runs shown in the HUD.
 pub const MAX_AGENT_RUNS: usize = 5;
+/// Maximum number of active leases listed in the HUD (P4-M010).
+pub const MAX_LEASES: usize = 16;
 /// Maximum characters rendered from one audit field value.
 const MAX_FIELD_CHARS: usize = 256;
 /// Default watch refresh interval in milliseconds.
@@ -327,6 +330,117 @@ pub fn agent_runs<'a>(events: impl IntoIterator<Item = &'a AuditEvent>) -> Vec<A
     runs.split_off(start)
 }
 
+/// One registered worker as the coordinator sees it (P4-M010).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct WorkerSummary {
+    /// Worker ID.
+    pub worker_id: String,
+    /// Declared platform.
+    pub platform: String,
+    /// Declared lease capacity.
+    pub max_leases: u16,
+    /// Active leases at the observation time.
+    pub active_leases: usize,
+    /// When the worker last did something recorded in the audit log (an event whose actor is
+    /// `worker:<id>`: a claim, renewal, release, or a same-host run), if ever.
+    pub last_seen_ms: Option<u64>,
+    /// What that last recorded event was (the lease action, or the event kind).
+    pub last_action: Option<String>,
+}
+
+/// One active lease (P4-M010).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LeaseSummary {
+    /// Lease ID.
+    pub lease_id: String,
+    /// Leased task.
+    pub task_id: String,
+    /// Owning worker.
+    pub worker_id: String,
+    /// Task lease generation.
+    pub generation: u64,
+    /// Expiry on the coordinator's clock.
+    pub expires_at_ms: u64,
+}
+
+/// Leases by effective state at the observation time (P4-M010).
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct LeaseTotals {
+    /// Active leases.
+    pub active: usize,
+    /// Expired leases, including active ones past expiry that no sweep has recorded yet.
+    pub expired: usize,
+    /// Released leases.
+    pub released: usize,
+}
+
+/// Projects registered workers with their last recorded activity from audit events in sequence
+/// order. Only timestamped events count as sightings.
+pub fn worker_summaries<'a>(
+    workers: &[WorkerView],
+    events: impl IntoIterator<Item = &'a AuditEvent>,
+) -> Vec<WorkerSummary> {
+    let mut seen = BTreeMap::<&str, (u64, String)>::new();
+    for event in events {
+        let Some(worker) = event.actor().strip_prefix("worker:") else {
+            continue;
+        };
+        if !event.has_timestamp() {
+            continue;
+        }
+        let action = event
+            .fields()
+            .get("action")
+            .filter(|_| event.kind() == AuditEventKind::LeaseRecorded)
+            .map_or_else(
+                || format!("{:?}", event.kind()),
+                |action| bound_field(action),
+            );
+        seen.insert(worker, (event.timestamp(), action));
+    }
+    workers
+        .iter()
+        .map(|view| {
+            let id = view.descriptor.worker_id().as_str();
+            let last = seen.get(id);
+            WorkerSummary {
+                worker_id: id.to_owned(),
+                platform: bound_field(view.descriptor.platform()),
+                max_leases: view.descriptor.max_concurrent_leases(),
+                active_leases: view.active_leases,
+                last_seen_ms: last.map(|(at, _)| *at),
+                last_action: last.map(|(_, action)| action.clone()),
+            }
+        })
+        .collect()
+}
+
+/// Totals every lease by effective state and lists the active ones, capped at [`MAX_LEASES`].
+#[must_use]
+pub fn lease_summaries(leases: &[LeaseView]) -> (LeaseTotals, Vec<LeaseSummary>) {
+    let mut totals = LeaseTotals::default();
+    let mut active = Vec::new();
+    for lease in leases {
+        match lease.state.as_str() {
+            "active" => {
+                totals.active += 1;
+                if active.len() < MAX_LEASES {
+                    active.push(LeaseSummary {
+                        lease_id: bound_field(&lease.lease_id),
+                        task_id: bound_field(&lease.task_id),
+                        worker_id: bound_field(&lease.worker_id),
+                        generation: lease.generation,
+                        expires_at_ms: lease.expires_at_ms,
+                    });
+                }
+            }
+            "expired" => totals.expired += 1,
+            _ => totals.released += 1,
+        }
+    }
+    (totals, active)
+}
+
 /// Fully collected, bounded HUD state.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct HudSnapshot {
@@ -340,10 +454,23 @@ pub struct HudSnapshot {
     pub worktrees: Vec<WorktreeSummary>,
     /// Most recent agent runs, oldest first, capped by [`MAX_AGENT_RUNS`].
     pub agent_runs: Vec<AgentRunSummary>,
+    /// Registered workers in worker-ID order (P4-M010).
+    pub workers: Vec<WorkerSummary>,
+    /// Lease totals by effective state.
+    pub lease_totals: LeaseTotals,
+    /// Active leases in lease-ID order, capped at [`MAX_LEASES`].
+    pub leases: Vec<LeaseSummary>,
+    /// The observation time used for lease states and expiry (wall-clock ms).
+    pub observed_at_ms: u64,
 }
 
 /// Collects all required sources without creating or modifying project files.
 pub fn collect(root: impl AsRef<Path>) -> Result<HudSnapshot, HudError> {
+    collect_at(root, agentforge_operator::leases::now_ms())
+}
+
+/// [`collect`] at a fixed observation time, which decides lease states and expiry (P4-M010).
+pub fn collect_at(root: impl AsRef<Path>, now_ms: u64) -> Result<HudSnapshot, HudError> {
     let root = root.as_ref();
     let intake = agentforge_intake::load(root)
         .map_err(|error| HudError::Source(HudDiagnostic::new("intake", intake_message(&error))))?;
@@ -405,6 +532,14 @@ pub fn collect(root: impl AsRef<Path>) -> Result<HudSnapshot, HudError> {
         recent_events,
     };
     let agent_runs = agent_runs(records.iter().map(|record| record.event()));
+    let remote = |error: agentforge_operator::OperatorError| {
+        HudError::Source(HudDiagnostic::new("remote-workers", error.to_string()))
+    };
+    let workers = worker_summaries(
+        &list_workers(root, now_ms).map_err(remote)?,
+        records.iter().map(|record| record.event()),
+    );
+    let (lease_totals, leases) = lease_summaries(&list_leases(root, now_ms).map_err(remote)?);
 
     let manager = WorktreeManager::new(root)
         .map_err(|error| HudError::Source(HudDiagnostic::new("worktree", error.to_string())))?;
@@ -430,6 +565,10 @@ pub fn collect(root: impl AsRef<Path>) -> Result<HudSnapshot, HudError> {
         audit: audit_summary,
         worktrees,
         agent_runs,
+        workers,
+        lease_totals,
+        leases,
+        observed_at_ms: now_ms,
     })
 }
 
@@ -471,6 +610,45 @@ pub fn render(snapshot: &HudSnapshot) -> String {
     }
     for run in &snapshot.agent_runs {
         let _ = writeln!(output, "  - {}", agent_run_line(run));
+    }
+    let _ = writeln!(output, "workers:");
+    if snapshot.workers.is_empty() {
+        let _ = writeln!(output, "  - none");
+    }
+    for worker in &snapshot.workers {
+        let last_seen = match (worker.last_seen_ms, &worker.last_action) {
+            (Some(at), Some(action)) => format!("{}({action})", utc_timestamp(at)),
+            _ => "never".to_owned(),
+        };
+        let _ = writeln!(
+            output,
+            "  - {} platform={} leases={}/{} last-seen={last_seen}",
+            worker.worker_id, worker.platform, worker.active_leases, worker.max_leases
+        );
+    }
+    let totals = snapshot.lease_totals;
+    let _ = writeln!(
+        output,
+        "leases: active={} expired={} released={}",
+        totals.active, totals.expired, totals.released
+    );
+    for lease in &snapshot.leases {
+        let _ = writeln!(
+            output,
+            "  - {} task={} worker={} gen={} expires-in={}s",
+            lease.lease_id,
+            lease.task_id,
+            lease.worker_id,
+            lease.generation,
+            lease.expires_at_ms.saturating_sub(snapshot.observed_at_ms) / 1_000
+        );
+    }
+    if totals.active > snapshot.leases.len() {
+        let _ = writeln!(
+            output,
+            "  - ... {} more active",
+            totals.active - snapshot.leases.len()
+        );
     }
     let _ = writeln!(output, "worktrees: {}", snapshot.worktrees.len());
     for worktree in &snapshot.worktrees {
@@ -604,8 +782,9 @@ fn _worktree_message(error: &WorktreeError) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        AuditSummary, HudSnapshot, MAX_AGENT_RUNS, ProjectSummary, TaskSummary, WatchCommand,
-        WatchConfig, WorktreeSummary, agent_runs, parse_watch_command, render,
+        AuditSummary, HudSnapshot, LeaseTotals, MAX_AGENT_RUNS, MAX_LEASES, ProjectSummary,
+        TaskSummary, WatchCommand, WatchConfig, WorktreeSummary, agent_runs, lease_summaries,
+        parse_watch_command, render, worker_summaries,
     };
     use agentforge_audit::{AuditEvent, AuditEventKind};
     use std::path::PathBuf;
@@ -663,7 +842,152 @@ mod tests {
                 operation: None,
             }],
             agent_runs: Vec::new(),
+            workers: Vec::new(),
+            lease_totals: LeaseTotals::default(),
+            leases: Vec::new(),
+            observed_at_ms: 0,
         }
+    }
+
+    fn worker_view(id: &str, active_leases: usize) -> agentforge_operator::leases::WorkerView {
+        use agentforge_core::remote::{RemoteWorkerDescriptor, RemoteWorkerId, WorkerCapability};
+        agentforge_operator::leases::WorkerView {
+            descriptor: RemoteWorkerDescriptor::new(
+                RemoteWorkerId::parse(id).expect("id"),
+                "linux-x86_64",
+                vec![WorkerCapability::parse("rust").expect("capability")],
+                2,
+            )
+            .expect("descriptor"),
+            active_leases,
+        }
+    }
+
+    fn lease_view(
+        id: &str,
+        state: &str,
+        expires_at_ms: u64,
+    ) -> agentforge_operator::leases::LeaseView {
+        agentforge_operator::leases::LeaseView {
+            lease_id: id.to_owned(),
+            task_id: format!("{id}-task"),
+            worker_id: "remote-a".to_owned(),
+            generation: 3,
+            issued_at_ms: 0,
+            expires_at_ms,
+            state: state.to_owned(),
+        }
+    }
+
+    #[test]
+    fn workers_show_capacity_and_last_sighting_by_their_own_events() {
+        let at = 1_790_315_054_000;
+        let lease = |sequence, actor: &str, action: &str, timestamp| {
+            AuditEvent::new(
+                sequence,
+                format!("lease-{sequence}"),
+                AuditEventKind::LeaseRecorded,
+                actor,
+                timestamp,
+            )
+            .with_field("action", action)
+            .with_field("worker_id", "remote-a")
+        };
+        let events = [
+            lease(1, "operator", "granted", at),
+            lease(2, "worker:remote-a", "claimed", at + 1_000),
+            lease(3, "worker:remote-a", "renewed", at + 61_000),
+            // An operator grant names the worker but is not a sighting of it.
+            lease(4, "operator", "granted", at + 90_000),
+            // Legacy events without a time are not sightings.
+            lease(5, "worker:remote-b", "claimed", 1),
+            AuditEvent::new(
+                6,
+                "s-6",
+                AuditEventKind::AgentStarted,
+                "worker:remote-c",
+                at,
+            ),
+        ];
+        let workers = worker_summaries(
+            &[
+                worker_view("remote-a", 1),
+                worker_view("remote-b", 0),
+                worker_view("remote-c", 0),
+            ],
+            &events,
+        );
+        assert_eq!(workers[0].last_seen_ms, Some(at + 61_000));
+        assert_eq!(workers[0].last_action.as_deref(), Some("renewed"));
+        assert_eq!(workers[1].last_seen_ms, None, "untimestamped");
+        assert_eq!(workers[2].last_action.as_deref(), Some("AgentStarted"));
+
+        let mut value = snapshot();
+        value.workers = workers;
+        let rendered = render(&value);
+        assert!(
+            rendered.contains(
+                "workers:\n  - remote-a platform=linux-x86_64 leases=1/2 \
+                 last-seen=2026-09-25T05:45:15Z(renewed)\n  - remote-b platform=linux-x86_64 \
+                 leases=0/2 last-seen=never\n"
+            ),
+            "{rendered}"
+        );
+    }
+
+    #[test]
+    fn leases_show_totals_and_active_expiry() {
+        let now = 1_790_315_054_000;
+        let (totals, active) = lease_summaries(&[
+            lease_view("L1", "active", now + 90_500),
+            lease_view("L2", "expired", now - 1),
+            lease_view("L3", "released", now),
+            lease_view("L4", "released", now),
+        ]);
+        assert_eq!(
+            totals,
+            LeaseTotals {
+                active: 1,
+                expired: 1,
+                released: 2
+            }
+        );
+        let mut value = snapshot();
+        value.lease_totals = totals;
+        value.leases = active;
+        value.observed_at_ms = now;
+        let rendered = render(&value);
+        assert!(
+            rendered.contains(
+                "leases: active=1 expired=1 released=2\n  - L1 task=L1-task worker=remote-a gen=3 \
+                 expires-in=90s\n"
+            ),
+            "{rendered}"
+        );
+    }
+
+    #[test]
+    fn lease_listing_is_capped_and_says_so() {
+        let views = (0..MAX_LEASES + 3)
+            .map(|index| lease_view(&format!("L{index:02}"), "active", 5_000))
+            .collect::<Vec<_>>();
+        let (totals, active) = lease_summaries(&views);
+        assert_eq!(totals.active, MAX_LEASES + 3);
+        assert_eq!(active.len(), MAX_LEASES);
+        let mut value = snapshot();
+        value.lease_totals = totals;
+        value.leases = active;
+        assert!(render(&value).contains("  - ... 3 more active\n"));
+    }
+
+    #[test]
+    fn an_empty_project_shows_no_workers_or_leases() {
+        let rendered = render(&snapshot());
+        assert!(
+            rendered
+                .contains("workers:\n  - none\nleases: active=0 expired=0 released=0\nworktrees:"),
+            "{rendered}"
+        );
     }
 
     #[test]

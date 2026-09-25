@@ -760,6 +760,22 @@ fn a_remote_worker_runs_its_task_and_the_result_lands_through_review() {
     );
     assert!(integrated.status.success(), "{integrated:?}");
     assert_eq!(git_out(&root, &["rev-parse", "HEAD"]), head);
+    // The worker archived its attempt under the lease, freeing the task's names (finding 17).
+    assert_eq!(
+        git_out(
+            &clone,
+            &[
+                "for-each-ref",
+                "--format=%(refname)",
+                "refs/heads/agentforge"
+            ]
+        ),
+        "refs/heads/agentforge/remote/P4-M008-T0001.L1"
+    );
+    assert_eq!(
+        git_out(&clone, &["rev-parse", "agentforge/remote/P4-M008-T0001.L1"]),
+        head
+    );
     drop(server);
     let _ = fs::remove_dir_all(clone.parent().expect("host"));
     fs::remove_dir_all(root).expect("cleanup");
@@ -789,6 +805,98 @@ fn a_remote_worker_that_writes_out_of_bounds_sends_nothing() {
         &["for-each-ref", "refs/heads/agentforge", "refs/agentforge"],
     );
     assert_eq!(refs, "", "nothing reached the coordinator");
+
+    // Leased again to the same host, the task fails for the same reason, not on the first
+    // attempt's leftovers (finding 17). Each attempt is archived under its own lease.
+    let granted = forge(
+        &root,
+        &[
+            "lease",
+            "grant",
+            root_text,
+            "P4-M008-T0001",
+            "--actor",
+            "op",
+        ],
+    );
+    assert!(granted.status.success(), "{granted:?}");
+    let again = text(&remote_run(&root, &clone, &endpoint, &secret));
+    assert!(
+        again.contains("agentforge-fixture-output.txt is outside the task's allowed paths"),
+        "{again}"
+    );
+    assert!(!again.contains("already exists"), "{again}");
+    assert_eq!(
+        git_out(
+            &clone,
+            &[
+                "for-each-ref",
+                "--format=%(refname)",
+                "refs/heads/agentforge"
+            ]
+        ),
+        "refs/heads/agentforge/remote/P4-M008-T0001.L1\n\
+         refs/heads/agentforge/remote/P4-M008-T0001.L2"
+    );
+    for lease in ["P4-M008-T0001.L1", "P4-M008-T0001.L2"] {
+        let kept = clone.join(".forge/remote-abandoned").join(lease);
+        assert!(
+            kept.join("agentforge-fixture-output.txt").is_file(),
+            "the dirty attempt is kept for inspection at {}",
+            kept.display()
+        );
+    }
+    assert!(!clone.join(".forge/worktrees/P4-M008-T0001").exists());
+
+    // A worker killed mid-task leaves a dirty worktree on the task's names. The next claim
+    // archives it as `<lease>.stale` before starting (finding 17).
+    let managed = clone.join(".forge/worktrees/P4-M008-T0001");
+    git_out(
+        &clone,
+        &[
+            "worktree",
+            "add",
+            "-q",
+            "-b",
+            "agentforge/task/P4-M008-T0001",
+            managed.to_str().expect("path"),
+            "HEAD",
+        ],
+    );
+    fs::write(managed.join("killed.txt"), "interrupted work\n").expect("leftover");
+    let granted = forge(
+        &root,
+        &[
+            "lease",
+            "grant",
+            root_text,
+            "P4-M008-T0001",
+            "--actor",
+            "op",
+        ],
+    );
+    assert!(granted.status.success(), "{granted:?}");
+    let third = text(&remote_run(&root, &clone, &endpoint, &secret));
+    assert!(
+        third.contains("agentforge-fixture-output.txt is outside the task's allowed paths"),
+        "{third}"
+    );
+    let stale = clone.join(".forge/remote-abandoned/P4-M008-T0001.L3.stale");
+    assert!(stale.join("killed.txt").is_file(), "{third}");
+    assert!(
+        git_out(
+            &clone,
+            &[
+                "for-each-ref",
+                "--format=%(refname)",
+                "refs/heads/agentforge"
+            ]
+        )
+        .ends_with(
+            "refs/heads/agentforge/remote/P4-M008-T0001.L3\n\
+             refs/heads/agentforge/remote/P4-M008-T0001.L3.stale"
+        )
+    );
     drop(server);
     let _ = fs::remove_dir_all(clone.parent().expect("host"));
     fs::remove_dir_all(root).expect("cleanup");

@@ -10,6 +10,7 @@ publish = false
 agentforge-audit = { path = "../agentforge-audit" }
 agentforge-core = { path = "../agentforge-core" }
 agentforge-intake = { path = "../agentforge-intake" }
+agentforge-operator = { path = "../agentforge-operator" }
 agentforge-state = { path = "../agentforge-state" }
 agentforge-worktree = { path = "../agentforge-worktree" }
 

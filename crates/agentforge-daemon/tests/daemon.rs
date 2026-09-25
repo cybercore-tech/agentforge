@@ -422,3 +422,113 @@ fn forged_serves_the_worker_api_from_its_configuration() {
     ));
     fs::remove_dir_all(root).expect("cleanup");
 }
+
+/// Finding 16 (P4-M010 Amendment 1): a daemon started by `start_with_program` outlives its
+/// starter's stderr pipe. Its log lines must never kill the lease sweep or a worker API connection.
+#[test]
+fn a_spawned_daemon_keeps_working_after_its_starter_is_gone() {
+    use agentforge_audit::AuditStore as _;
+    use agentforge_daemon::worker_api::{ClientError, WorkerClient};
+    use agentforge_operator::leases::{grant_lease, now_ms};
+    use agentforge_state::TaskStore;
+    let _lifecycle_guard = daemon_lifecycle_guard();
+    let root = temporary_repo();
+    let mut task = agentforge_core::agent::AgentTask::new(
+        "P4-M010-T0001",
+        "P4-M010",
+        agentforge_core::agent::AgentRole::Implementer,
+        "sweep after the starter exits",
+    );
+    task.allowed_paths = vec!["a.txt".into()];
+    agentforge_state::FileTaskStore::for_project_root(&root)
+        .save(&agentforge_core::task::TaskGraph::from_tasks([task]).expect("graph"))
+        .expect("task snapshot");
+    fs::create_dir_all(root.join(".forge/workers")).expect("workers");
+    fs::write(
+        root.join(".forge/workers/remote-a.conf"),
+        "platform=linux-x86_64\ncapability=rust\nmax_leases=1\n",
+    )
+    .expect("worker");
+    let secret_path = agentforge_operator::secrets::worker_secret_path(&root, "remote-a");
+    fs::write(&secret_path, format!("{}\n", "c".repeat(64))).expect("secret");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&secret_path, fs::Permissions::from_mode(0o600)).expect("chmod");
+    }
+    let port = std::net::TcpListener::bind("127.0.0.1:0")
+        .expect("probe")
+        .local_addr()
+        .expect("addr")
+        .port();
+    fs::write(
+        root.join(".forge/worker-api.conf"),
+        format!("bind=127.0.0.1:{port}\n"),
+    )
+    .expect("conf");
+
+    // `start_with_program` returns once the daemon answers; whatever it used to capture startup
+    // errors is gone after that, exactly as when `forge daemon start` exits.
+    match start_with_program(&root, DEFAULT_BIND, env!("CARGO_BIN_EXE_forged")) {
+        Ok(_) => {}
+        Err(DaemonError::Execution(message)) if message.contains("Operation not permitted") => {
+            fs::remove_dir_all(root).expect("cleanup");
+            return;
+        }
+        Err(error) => panic!("spawn daemon: {error}"),
+    }
+
+    // A refused worker gets an answer, not a dropped connection: the refusal is logged first.
+    let client = WorkerClient::new(&format!("127.0.0.1:{port}"), "remote-a", &"x".repeat(64))
+        .expect("client");
+    let refused = client.claim();
+
+    // Two consecutive expiries: the sweep logs after the first and must still run for the second.
+    let task_id = agentforge_core::task::TaskId::parse("P4-M010-T0001").expect("task");
+    let expired = |root: &Path| {
+        let path = root.join(".forge/audit.log");
+        if !path.exists() {
+            return 0;
+        }
+        agentforge_audit::FileAuditStore::open(path)
+            .expect("audit")
+            .records()
+            .iter()
+            .filter(|record| {
+                record.event().fields().get("action").map(String::as_str) == Some("expired")
+            })
+            .count()
+    };
+    let mut recorded = Vec::new();
+    for round in 1..=2 {
+        grant_lease(&root, &task_id, Some("remote-a"), 1, now_ms(), "op").expect("grant");
+        // The sweep runs every 5 s; allow a generous margin on slow CI runners.
+        let deadline = Instant::now() + Duration::from_secs(20);
+        while expired(&root) < round && Instant::now() < deadline {
+            thread::sleep(Duration::from_millis(100));
+        }
+        recorded.push(expired(&root));
+    }
+    let log = fs::read_to_string(root.join(".forge/daemon/forged.log")).unwrap_or_default();
+    stop(&root).expect("cooperative stop");
+
+    assert_eq!(
+        refused.expect_err("wrong secret"),
+        ClientError::Refused("unauthorized".into())
+    );
+    assert_eq!(recorded, [1, 2], "the sweep survived its own log line");
+    assert!(
+        log.contains("forged: worker API listening on 127.0.0.1:"),
+        "{log}"
+    );
+    assert!(
+        log.contains("refused an unauthenticated CLAIM request"),
+        "{log}"
+    );
+    assert_eq!(
+        log.matches("forged: expired 1 lease(s)").count(),
+        2,
+        "{log}"
+    );
+    fs::remove_dir_all(root).expect("cleanup");
+}

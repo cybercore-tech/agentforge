@@ -48,6 +48,7 @@ dependencies = [
  "agentforge-audit",
  "agentforge-core",
  "agentforge-intake",
+ "agentforge-operator",
  "agentforge-state",
  "agentforge-worktree",
 ]

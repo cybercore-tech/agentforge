@@ -5,7 +5,8 @@ the validated project name, mission, and guideline version; task lifecycle count
 record counts and bounded recent activity; and verified managed worktree health.
 
 The command reads `.forge/blueprint.conf`, `.forge/guidelines.md`,
-`.forge/state/tasks.snapshot`, `.forge/audit.log`, and Git worktree metadata through existing
+`.forge/state/tasks.snapshot`, `.forge/audit.log`, the remote-worker profiles and lease snapshot
+(P4-M010), and Git worktree metadata through existing
 crate boundaries. It never creates `.forge` files, changes task state, launches an agent, or
 mutates Git. Missing or corrupt sources fail closed with a source-labelled diagnostic. A missing
 task snapshot is reported as unavailable rather than replaced with an empty graph.
@@ -40,6 +41,31 @@ agent_runs:
 
 With no recorded runs the section reads `  - none`. The HUD shows evidence paths only and never
 reads log contents; each field value is limited to one line of 256 characters.
+
+## Workers and leases
+
+Since P4-M010 two sections follow `agent_runs`:
+
+```text
+workers:
+  - live-1 platform=linux-x86_64 leases=1/1 last-seen=2026-09-25T07:51:26Z(renewed)
+  - remote-2 platform=linux-x86_64 leases=0/2 last-seen=never
+leases: active=1 expired=4 released=5
+  - P4-M010-T0002.L9 task=P4-M010-T0002 worker=live-1 gen=9 expires-in=842s
+```
+
+- `workers:` lists every registered worker (`.forge/workers/<id>.conf`) in ID order: its platform
+  and its active leases against its capacity. `last-seen` is the newest timestamped audit event the
+  worker itself caused (actor `worker:<id>`): a claim, renewal, release, or a same-host run, with
+  the lease action or event kind in parentheses. An operator grant names a worker but is not a
+  sighting, so a worker that has never claimed shows `never`. A worker whose `last-seen` stops
+  moving while it holds an active lease has probably lost its channel or its process.
+- `leases:` totals every lease by effective state at the observation time. An active lease past
+  its expiry counts as `expired` even before the daemon's sweep records it. Active leases are
+  listed, at most 16 (then `... N more active`), with the seconds left before expiry.
+
+With no workers the section reads `  - none`. Both sections read `.forge/state/remote-leases.snapshot`
+and the worker profiles without taking the lease lock or creating either file.
 
 ## Watch mode
 

@@ -321,9 +321,18 @@ fn worker_remote_run_command(arguments: &[String], doctor_only: bool) -> ExitCod
         repo: std::path::PathBuf::from(repo),
         once,
         poll,
+        max_backoff: agentforge_daemon::worker_api::MAX_UNREACHABLE_BACKOFF,
     };
     let mut announced_idle = false;
     let result = run_remote_worker(&client, &adapter, &run_options, |report| match report {
+        RemoteReport::Unreachable { error, retry_in } => {
+            announced_idle = false;
+            eprintln!(
+                "coordinator unreachable: {error}; retrying in {}s",
+                retry_in.as_secs_f64()
+            );
+        }
+        RemoteReport::Reconnected => println!("worker {worker}: coordinator reachable again"),
         RemoteReport::Idle => {
             if !announced_idle {
                 println!("worker {worker}: no claimable leases");
@@ -356,6 +365,9 @@ fn worker_remote_run_command(arguments: &[String], doctor_only: bool) -> ExitCod
             println!("imported state={} gates={}", imported.state, imported.gates)
         }
         RemoteReport::Abandoned(reason) => eprintln!("abandoned: {reason}"),
+        RemoteReport::ArchiveFailed(error) => {
+            eprintln!("warning: could not archive the attempt: {error}");
+        }
     });
     match result {
         Ok(summary) => {
@@ -439,7 +451,7 @@ fn worker_remote_command(arguments: &[String]) -> ExitCode {
         Some(Err(_)) => return usage("--ttl-ms is not a number"),
     };
     let result = match (action, lease) {
-        ("claim", None) => client.claim().and_then(|claim| {
+        ("claim", None) => client.claim().map_err(String::from).and_then(|claim| {
             let Some(claim) = claim else {
                 println!("no claimable leases for worker {worker}");
                 return Ok(());

@@ -79,6 +79,13 @@ fn hud_renders_sources_without_mutating_the_project() {
     assert!(stdout.contains("audit_records: 0"));
     assert!(stdout.contains("worktrees: 0"));
     assert!(stdout.contains("agent_runs:\n  - none\n"), "{stdout}");
+    assert!(
+        stdout.contains("workers:\n  - none\nleases: active=0 expired=0 released=0\n"),
+        "{stdout}"
+    );
+    // Reading leases never creates the lease snapshot or its lock (P4-M010).
+    assert!(!root.join(".forge/state/remote-leases.snapshot").exists());
+    assert!(!root.join(".forge/state/remote-leases.lock").exists());
     let after = fs::read_dir(&root)
         .expect("root entries")
         .map(|entry| entry.expect("entry").file_name())
@@ -212,5 +219,96 @@ fn hud_watch_rejects_non_numeric_interval() {
     );
     assert_eq!(output.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&output.stderr).contains("numeric value"));
+    fs::remove_dir_all(root).expect("cleanup");
+}
+
+/// Every file under `.forge`, with its contents, to prove the HUD changed nothing.
+fn forge_tree(root: &Path) -> Vec<(PathBuf, Vec<u8>)> {
+    let mut files = Vec::new();
+    let mut pending = vec![root.join(".forge")];
+    while let Some(directory) = pending.pop() {
+        for entry in fs::read_dir(&directory).expect("directory") {
+            let path = entry.expect("entry").path();
+            if path.is_dir() {
+                pending.push(path);
+            } else {
+                let contents = fs::read(&path).expect("file");
+                files.push((path, contents));
+            }
+        }
+    }
+    files.sort();
+    files
+}
+
+#[test]
+fn hud_shows_registered_workers_and_active_leases() {
+    let root = temporary_root();
+    let root_text = root.to_str().expect("root");
+    assert!(forge(&root, &["init", root_text]).status.success());
+    let created = forge(
+        &root,
+        &[
+            "task",
+            "create",
+            root_text,
+            "P4-M010-T0001",
+            "P4-M010",
+            "implementer",
+            "leased work",
+        ],
+    );
+    assert!(created.status.success(), "{created:?}");
+    fs::create_dir_all(root.join(".forge/workers")).expect("workers");
+    for worker in ["remote-a", "remote-b"] {
+        fs::write(
+            root.join(format!(".forge/workers/{worker}.conf")),
+            "platform=linux-x86_64\ncapability=rust\nmax_leases=2\n",
+        )
+        .expect("worker profile");
+    }
+    let granted = forge(
+        &root,
+        &[
+            "lease",
+            "grant",
+            root_text,
+            "P4-M010-T0001",
+            "--worker",
+            "remote-a",
+            "--actor",
+            "op",
+        ],
+    );
+    assert!(granted.status.success(), "{granted:?}");
+    git(&root, &["init", "-q"]);
+    git(
+        &root,
+        &["config", "user.email", "agentforge@example.invalid"],
+    );
+    git(&root, &["config", "user.name", "AgentForge Test"]);
+    fs::write(root.join(".gitignore"), ".forge/\n").expect("gitignore");
+    git(&root, &["add", ".gitignore"]);
+    git(&root, &["commit", "-qm", "fixture"]);
+    let before = forge_tree(&root);
+
+    let output = forge(&root, &["hud", root_text]);
+    assert!(output.status.success(), "{output:?}");
+    let stdout = String::from_utf8(output.stdout).expect("UTF-8 HUD");
+    assert!(
+        stdout.contains(
+            "workers:\n  - remote-a platform=linux-x86_64 leases=1/2 last-seen=never\n  \
+             - remote-b platform=linux-x86_64 leases=0/2 last-seen=never\n"
+        ),
+        "an operator grant is not a sighting of the worker:\n{stdout}"
+    );
+    assert!(
+        stdout.contains(
+            "leases: active=1 expired=0 released=0\n  - P4-M010-T0001.L1 task=P4-M010-T0001 \
+             worker=remote-a gen=1 expires-in="
+        ),
+        "{stdout}"
+    );
+    assert_eq!(before, forge_tree(&root), "the HUD is read-only");
     fs::remove_dir_all(root).expect("cleanup");
 }

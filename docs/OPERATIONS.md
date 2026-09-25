@@ -178,7 +178,10 @@ claim|renew|release` is the client (P4-M007; recipe in `docs/REMOTE_WORKERS.md`)
 runs claimed tasks on the worker host and returns a git bundle. `forge worker remote doctor` checks a
 worker host (clone, identity, hooks, profile paths, secret, and an authenticated `PING`), and `run`
 refuses to start while any check fails (P4-M009). The coordinator imports it only at
-the verified exact SHA with in-bounds paths, and runs gates locally (P4-M008).
+the verified exact SHA with in-bounds paths, and runs gates locally (P4-M008). A running worker
+retries an unreachable coordinator with capped backoff and stops on a refusal; the
+`contrib/systemd/agentforge-worker@.service` template supervises one worker per unit, and `forge
+hud` shows workers (capacity, last seen) and active leases (P4-M010).
 
 ## Recovery procedures
 
@@ -198,6 +201,10 @@ the verified exact SHA with in-bounds paths, and runs gates locally (P4-M008).
 | `worker remote` cannot reach the endpoint, or the connection resets | Check that the GhostPort client is running and connected (`ghostport status`), the link ID matches a link that peer is allowed, and `forged` shows `worker API listening`. Repeated bad handshakes from one address are rate-limited by GhostPort for a while. |
 | `worker remote run refused: N worker-host check(s) failed` | Run `forge worker remote doctor` with the same options. Each `fail` line has a `fix:`: install hooks, set the clone's Git identity, rewrite profile paths for this host, fix the secret file, or bring up the GhostPort client. |
 | `worker remote run` reports `abandoned: remote result rejected: ...` | The coordinator refused the import (SHA mismatch, ancestry, out-of-bounds path, bad bundle, or a stale claim). Nothing was written; the lease is released and the task stays `pending`. Fix the cause, then grant again. |
+| `worker remote run` prints `coordinator unreachable: ...; retrying in <n>s` | The coordinator is down or the tunnel dropped. Nothing to do on the worker; it resumes by itself (`coordinator reachable again`). Check `forge daemon status` and the GhostPort client on each end. |
+| `worker remote run failed: unauthorized` and the unit restarts every 30 s | The worker's secret no longer matches (for example after a rotation). Copy the coordinator's new secret to the worker host (mode 600); the next restart passes the doctor. |
+| `forge hud` shows a worker holding an active lease with an old `last-seen` | The worker stopped renewing: check its unit (`systemctl --user status agentforge-worker@<id>`) and journal. The lease expires by itself; release it early with `forge lease release`. |
+| You need to know what a background `forged` did | Read `.forge/daemon/forged.log`: the worker API address, lease expiries, dispatch grants, refused worker requests, and sweep errors (P4-M010). |
 | `worker remote run` says the base commit is not in the clone | Fetch the coordinator's commits into the worker's clone (shared origin), then grant again. |
 | A worker was stopped mid-run | Its lease expires on its own (or run `forge lease expire`). The task stays `running` with its evidence: review it, or `forge task cancel` and create a new attempt. |
 | `lease state is locked by another operation` | Another lease command or the daemon sweep is running; retry. If the lock outlived a crash and no `forge` or `forged` process runs for the project, remove `.forge/state/remote-leases.lock`. |

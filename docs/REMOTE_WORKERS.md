@@ -367,3 +367,53 @@ Each check prints `ok`, `warn`, or `fail`, with a fix: `repo`, `git-identity`, `
 `PING`, so it proves the credentials without claiming anything. **`forge worker remote run` runs the
 same checks first and refuses to start on any `fail`,** so a missing hook can no longer silently skip
 the agent's gate. After each task, the runner also reports how many times it renewed the lease.
+
+## Running a worker unattended
+
+Since P4-M010 `forge worker remote run` keeps running through a coordinator outage. When the worker
+API cannot be reached (the coordinator restarted, or the GhostPort tunnel dropped), it prints
+`coordinator unreachable: <error>; retrying in <n>s` and retries. The delay starts at the poll
+interval (2 s), doubles per failure, and is capped at 60 s. When the coordinator answers again it
+prints `coordinator reachable again` and carries on. A **refusal** is different: `unauthorized` or
+any other error answer from the coordinator ends the process with exit 1, so a rotated secret or
+an unregistered worker is never retried silently. `--once` still returns on the first failure.
+
+On Linux, run one worker per systemd user unit with the tracked template:
+
+```bash
+install -Dm644 contrib/systemd/agentforge-worker@.service \
+  ~/.config/systemd/user/agentforge-worker@.service
+install -Dm600 contrib/systemd/worker.env.example ~/.config/agentforge/worker-remote-1.env
+$EDITOR ~/.config/agentforge/worker-remote-1.env    # endpoint, secret file, clone, profile
+systemctl --user daemon-reload
+systemctl --user enable --now agentforge-worker@remote-1
+journalctl --user -u agentforge-worker@remote-1 -f
+```
+
+The instance name is the worker ID. The unit runs the doctor first (through `worker remote run`), so
+a misconfigured host exits and systemd retries every 30 s (`Restart=on-failure`) until it is fixed.
+It has no sandboxing directives: the worker runs git, ssh, and the agent as the user. `ExecStart`
+assumes `forge` in `~/.cargo/bin`; use `systemctl --user edit` to point it elsewhere. Set `PATH` in
+the env file if the agent or git need more than the user manager's minimal `PATH`. To run workers
+after logout, enable lingering (`loginctl enable-linger`). On other platforms, run the same command
+under your service manager; the retry behaviour is in the command itself.
+
+Verified live on one host (P4-M010): a worker started from the unit survived a coordinator
+stop/start in the same process (retries at 2, 4, and 8 s, then `reachable again`), then claimed,
+ran, and had its result imported. After a secret rotation it stopped on `unauthorized`, and systemd
+brought it back once the new secret was installed.
+
+Stopping a worker during a task abandons that attempt; its lease expires or is released by the
+coordinator.
+
+### What a worker keeps in its clone
+
+The task's names in the worker's clone are only used during an attempt. When an attempt ends, the
+worker retires a clean worktree, moves a dirty one (for example an out-of-bounds change it refused
+to send) to `.forge/remote-abandoned/<lease-id>`, and renames the task branch to
+`agentforge/remote/<lease-id>`. Leftovers of an attempt that never finished (the worker was stopped
+mid-task) are archived the same way as `<lease-id>.stale` before the next claim of that task starts.
+Every attempt keeps its exact history, and a task can be leased to the same host again. Before
+P4-M010, the kept task branch made every later attempt on that host fail with `managed task branch
+already exists` (dogfooding finding 17). Delete old `agentforge/remote/*` branches and
+`.forge/remote-abandoned/` entries when you no longer need them.

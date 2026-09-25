@@ -1,0 +1,44 @@
+# AgentForge remote worker, one instance per worker ID (P4-M010).
+#
+# Install (Linux, systemd user manager):
+#   install -Dm644 contrib/systemd/agentforge-worker@.service \
+#     ~/.config/systemd/user/agentforge-worker@.service
+#   install -Dm600 contrib/systemd/worker.env.example ~/.config/agentforge/worker-<id>.env
+#   # edit the env file, then:
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now agentforge-worker@<id>
+#   journalctl --user -u agentforge-worker@<id> -f
+#
+# `forge worker remote run` runs the worker-host doctor first and refuses to start on a failing
+# check, so a misconfigured host exits and is retried every RestartSec until it is fixed. While
+# running, an unreachable coordinator (a coordinator restart or a dropped GhostPort tunnel) is
+# retried inside the process with capped backoff; a refusal such as `unauthorized` exits.
+#
+# No sandboxing directives: the worker runs git, ssh (for fetch), and the agent with the user's
+# own environment and files. See docs/REMOTE_WORKERS.md.
+
+[Unit]
+Description=AgentForge remote worker %i
+Documentation=https://github.com/cybercore-tech/agentforge/blob/main/docs/REMOTE_WORKERS.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/agentforge/worker-%i.env
+# forge installed with `cargo install`; override with `systemctl --user edit` if it lives elsewhere.
+ExecStart=%h/.cargo/bin/forge worker remote run \
+  --endpoint ${AGENTFORGE_ENDPOINT} \
+  --worker %i \
+  --secret-file ${AGENTFORGE_SECRET_FILE} \
+  --repo ${AGENTFORGE_REPO} \
+  --profile ${AGENTFORGE_PROFILE}
+Restart=on-failure
+RestartSec=30
+# SIGTERM reaches the worker first, then the rest of the unit (the agent) after the timeout. A task
+# interrupted this way is abandoned; its lease expires or is released by the coordinator.
+KillMode=mixed
+TimeoutStopSec=30
+
+[Install]
+WantedBy=default.target

@@ -155,7 +155,18 @@ pub fn start_with_program(
         Err(DaemonError::NotRunning) => {}
         Err(error) => return Err(error),
     }
-    let mut child = spawn_daemon(program.as_ref(), root, bind)?;
+    // forged's stderr goes to its log file, not to a pipe that closes when this process exits
+    // (finding 16). Startup errors are read back from what the log gained during startup.
+    let log_file = log_path(root);
+    if let Some(directory) = log_file.parent() {
+        fs::create_dir_all(directory)?;
+    }
+    let log = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_file)?;
+    let log_start = log.metadata()?.len();
+    let mut child = spawn_daemon(program.as_ref(), root, bind, &log)?;
     let deadline = Instant::now() + START_TIMEOUT;
     loop {
         match status(root) {
@@ -167,8 +178,7 @@ pub fn start_with_program(
             }
         }
         if let Some(status) = child.try_wait()? {
-            let output = child.wait_with_output()?;
-            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_owned();
+            let stderr = startup_log(&log_file, log_start);
             return Err(DaemonError::Execution(format!(
                 "forged exited during startup with {status}: {stderr}"
             )));
@@ -201,7 +211,24 @@ fn terminate_owned_child(child: &mut Child) {
     let _ = child.wait();
 }
 
-fn spawn_daemon(program: &OsStr, root: &Path, bind: SocketAddr) -> Result<Child, DaemonError> {
+/// What the daemon log gained since `start` (bounded), for a startup failure message.
+fn startup_log(path: &Path, start: u64) -> String {
+    const MAX_STARTUP_LOG_BYTES: u64 = 16 * 1024;
+    let Ok(mut file) = File::open(path) else {
+        return String::new();
+    };
+    let mut bytes = Vec::new();
+    let _ = io::Seek::seek(&mut file, io::SeekFrom::Start(start));
+    let _ = file.take(MAX_STARTUP_LOG_BYTES).read_to_end(&mut bytes);
+    String::from_utf8_lossy(&bytes).trim().to_owned()
+}
+
+fn spawn_daemon(
+    program: &OsStr,
+    root: &Path,
+    bind: SocketAddr,
+    log: &File,
+) -> Result<Child, DaemonError> {
     let deadline = Instant::now() + START_TIMEOUT;
     loop {
         match Command::new(program)
@@ -212,7 +239,7 @@ fn spawn_daemon(program: &OsStr, root: &Path, bind: SocketAddr) -> Result<Child,
             .arg(bind.to_string())
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::piped())
+            .stderr(Stdio::from(log.try_clone()?))
             .spawn()
         {
             Ok(child) => return Ok(child),
@@ -439,6 +466,24 @@ fn removal_complete(path: &Path) -> Result<bool, DaemonError> {
     }
 }
 
+/// Where `forge daemon start` sends `forged`'s log (P4-M010, finding 16).
+pub const LOG_FILE: &str = "forged.log";
+
+/// Writes one `forged` log line to stderr, ignoring write failures.
+///
+/// `eprintln!` panics when stderr is gone (for example a pipe whose reader exited), which killed
+/// the thread that logged: the lease sweep and worker API connections (finding 16). Logging must
+/// never be able to stop the daemon's work.
+pub(crate) fn log(message: fmt::Arguments<'_>) {
+    let _ = writeln!(io::stderr().lock(), "forged: {message}");
+}
+
+/// The daemon log file for a project.
+#[must_use]
+pub fn log_path(root: impl AsRef<Path>) -> PathBuf {
+    root.as_ref().join(DAEMON_DIR).join(LOG_FILE)
+}
+
 fn daemon_paths(root: &Path) -> (PathBuf, PathBuf) {
     let directory = root.join(DAEMON_DIR);
     (directory.join(ENDPOINT_FILE), directory.join(LOCK_FILE))
@@ -599,10 +644,10 @@ fn sweep_leases_once(root: &Path, slot: &ExecutionSlot) {
                 .map(|lease| lease.lease_id.as_str())
                 .collect::<Vec<_>>()
                 .join(",");
-            eprintln!("forged: expired {} lease(s): {ids}", expired.len());
+            log(format_args!("expired {} lease(s): {ids}", expired.len()));
         }
         Ok(_) => {}
-        Err(error) => eprintln!("forged: lease sweep failed: {error}"),
+        Err(error) => log(format_args!("lease sweep failed: {error}")),
     }
     // Opt-in automatic dispatch (P4-M006) runs after expiry, in the same idle-only slot.
     if has_policy {
@@ -614,13 +659,13 @@ fn sweep_leases_once(root: &Path, slot: &ExecutionSlot) {
                     .map(|lease| format!("{}->{}", lease.task_id, lease.worker_id))
                     .collect::<Vec<_>>()
                     .join(",");
-                eprintln!(
-                    "forged: dispatched {} task(s): {grants}",
+                log(format_args!(
+                    "dispatched {} task(s): {grants}",
                     pass.granted.len()
-                );
+                ));
             }
             Ok(_) => {}
-            Err(error) => eprintln!("forged: dispatch failed: {error}"),
+            Err(error) => log(format_args!("dispatch failed: {error}")),
         }
     }
 }
@@ -694,7 +739,7 @@ impl Server {
                 match worker_api::WorkerApiServer::start_with_slot(&root, bind, Arc::clone(&active))
                 {
                     Ok(server) => {
-                        eprintln!("forged: worker API listening on {}", server.address);
+                        log(format_args!("worker API listening on {}", server.address));
                         Some(server)
                     }
                     Err(error) => {

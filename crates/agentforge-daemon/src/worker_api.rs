@@ -17,6 +17,7 @@ use agentforge_operator::leases::{
 };
 use agentforge_operator::secrets::{load_worker_secret, secrets_match};
 use agentforge_operator::worker::next_claimable;
+use std::fmt;
 use std::fs;
 use std::io::{self, Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
@@ -36,6 +37,9 @@ const IO_TIMEOUT: Duration = Duration::from_secs(5);
 /// How long a worker waits for the coordinator to import a result (gates run there).
 const IMPORT_TIMEOUT: Duration = Duration::from_secs(60 * 60);
 /// Fixed delay before answering an unauthenticated request.
+/// The longest a supervised worker waits between attempts to reach an unreachable coordinator
+/// (P4-M010).
+pub const MAX_UNREACHABLE_BACKOFF: Duration = Duration::from_secs(60);
 const UNAUTHORIZED_DELAY: Duration = Duration::from_millis(200);
 
 /// Reads `.forge/worker-api.conf`. `Ok(None)` means the worker API is off.
@@ -125,7 +129,7 @@ impl WorkerApiServer {
                         thread::sleep(Duration::from_millis(25));
                     }
                     Err(error) => {
-                        eprintln!("forged: worker API accept failed: {error}");
+                        crate::log(format_args!("worker API accept failed: {error}"));
                         thread::sleep(Duration::from_millis(100));
                     }
                 }
@@ -182,7 +186,9 @@ fn respond(root: &Path, slot: &ExecutionSlot, line: &str, stream: &mut TcpStream
     }
     let (verb, worker, secret, arguments) = (fields[1], fields[2], fields[3], &fields[4..]);
     if !authenticated(root, worker, secret) {
-        eprintln!("forged: worker API refused an unauthenticated {verb} request");
+        crate::log(format_args!(
+            "worker API refused an unauthenticated {verb} request"
+        ));
         thread::sleep(UNAUTHORIZED_DELAY);
         return Response::line("ERR\tunauthorized".into());
     }
@@ -502,6 +508,38 @@ pub struct RemoteClaim {
     pub window_ms: u64,
 }
 
+/// Why a worker API request failed (P4-M010).
+///
+/// Only socket-level failures are [`ClientError::Unreachable`]; a supervised worker retries those.
+/// A coordinator refusal is never retried silently.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ClientError {
+    /// The worker API could not be reached, or the connection failed mid-request.
+    Unreachable(String),
+    /// The coordinator answered with an error, for example `unauthorized`.
+    Refused(String),
+    /// The coordinator's answer was malformed.
+    Protocol(String),
+}
+
+impl fmt::Display for ClientError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Unreachable(message) | Self::Refused(message) | Self::Protocol(message) => {
+                formatter.write_str(message)
+            }
+        }
+    }
+}
+
+impl std::error::Error for ClientError {}
+
+impl From<ClientError> for String {
+    fn from(error: ClientError) -> Self {
+        error.to_string()
+    }
+}
+
 /// Client for the worker API. It only connects to loopback endpoints: the plaintext protocol
 /// must travel through a GhostPort tunnel, whose local listener is on loopback.
 #[derive(Clone, Debug)]
@@ -535,7 +573,8 @@ impl WorkerClient {
     }
 
     /// Claims the worker's next claimable lease. `Ok(None)` means nothing to claim.
-    pub fn claim(&self) -> Result<Option<RemoteClaim>, String> {
+    pub fn claim(&self) -> Result<Option<RemoteClaim>, ClientError> {
+        let protocol = |message: &str| ClientError::Protocol(message.to_owned());
         let (fields, mut stream) = self.request("CLAIM", &[])?;
         match fields.as_slice() {
             [ok, none] if ok == "OK" && none == "NONE" => Ok(None),
@@ -554,22 +593,22 @@ impl WorkerClient {
                     .parse::<usize>()
                     .ok()
                     .filter(|length| *length <= MAX_TASK_PROMPT_BYTES)
-                    .ok_or("contract length is invalid")?;
+                    .ok_or_else(|| protocol("contract length is invalid"))?;
                 let mut contract = vec![0_u8; length];
-                stream
-                    .read_exact(&mut contract)
-                    .map_err(|error| format!("contract read failed: {error}"))?;
+                stream.read_exact(&mut contract).map_err(|error| {
+                    ClientError::Unreachable(format!("contract read failed: {error}"))
+                })?;
                 Ok(Some(RemoteClaim {
                     lease_id: lease.clone(),
-                    generation: generation.parse().map_err(|_| "bad generation")?,
-                    expires_at_ms: expires.parse().map_err(|_| "bad expiry")?,
+                    generation: generation.parse().map_err(|_| protocol("bad generation"))?,
+                    expires_at_ms: expires.parse().map_err(|_| protocol("bad expiry"))?,
                     task_id: task.clone(),
                     base_commit: base.clone(),
                     contract,
-                    window_ms: window.parse().map_err(|_| "bad lease window")?,
+                    window_ms: window.parse().map_err(|_| protocol("bad lease window"))?,
                 }))
             }
-            _ => Err(error_of(&fields)),
+            _ => Err(classify_response(&fields)),
         }
     }
 
@@ -648,7 +687,11 @@ impl WorkerClient {
         }
     }
 
-    fn request(&self, verb: &str, arguments: &[&str]) -> Result<(Vec<String>, TcpStream), String> {
+    fn request(
+        &self,
+        verb: &str,
+        arguments: &[&str],
+    ) -> Result<(Vec<String>, TcpStream), ClientError> {
         self.request_with_body(verb, arguments, &[], IO_TIMEOUT)
     }
 
@@ -658,19 +701,27 @@ impl WorkerClient {
         arguments: &[&str],
         body: &[u8],
         read_timeout: Duration,
-    ) -> Result<(Vec<String>, TcpStream), String> {
+    ) -> Result<(Vec<String>, TcpStream), ClientError> {
         if arguments
             .iter()
             .any(|argument| argument.contains(['\t', '\n']))
         {
-            return Err("arguments must not contain tabs or newlines".into());
+            return Err(ClientError::Protocol(
+                "arguments must not contain tabs or newlines".into(),
+            ));
         }
-        let mut stream = TcpStream::connect_timeout(&self.endpoint, IO_TIMEOUT)
-            .map_err(|error| format!("cannot reach worker API at {}: {error}", self.endpoint))?;
+        let unreachable = |message: String| ClientError::Unreachable(message);
+        let mut stream =
+            TcpStream::connect_timeout(&self.endpoint, IO_TIMEOUT).map_err(|error| {
+                unreachable(format!(
+                    "cannot reach worker API at {}: {error}",
+                    self.endpoint
+                ))
+            })?;
         stream
             .set_read_timeout(Some(read_timeout))
             .and_then(|()| stream.set_write_timeout(Some(IO_TIMEOUT)))
-            .map_err(|error| error.to_string())?;
+            .map_err(|error| unreachable(error.to_string()))?;
         let mut line = format!(
             "{WORKER_PROTOCOL}\t{verb}\t{}\t{}",
             self.worker_id, self.secret
@@ -683,21 +734,33 @@ impl WorkerClient {
         stream
             .write_all(line.as_bytes())
             .and_then(|()| stream.write_all(body))
-            .map_err(|error| format!("request failed: {error}"))?;
-        let response = read_line(&mut stream, MAX_RESPONSE_LINE_BYTES)
-            .map_err(|error| format!("response failed: {error}"))?;
+            .map_err(|error| unreachable(format!("request failed: {error}")))?;
+        let response = read_line(&mut stream, MAX_RESPONSE_LINE_BYTES).map_err(|error| {
+            let message = format!("response failed: {error}");
+            if error.kind() == io::ErrorKind::InvalidData {
+                ClientError::Protocol(message)
+            } else {
+                unreachable(message)
+            }
+        })?;
         let mut fields = response.split('\t').map(str::to_owned);
         if fields.next().as_deref() != Some(WORKER_PROTOCOL) {
-            return Err("unexpected protocol in response".into());
+            return Err(ClientError::Protocol(
+                "unexpected protocol in response".into(),
+            ));
         }
         Ok((fields.collect(), stream))
     }
 }
 
 fn error_of(fields: &[String]) -> String {
+    classify_response(fields).into()
+}
+
+fn classify_response(fields: &[String]) -> ClientError {
     match fields {
-        [err, message] if err == "ERR" => message.clone(),
-        _ => format!("unexpected response: {}", fields.join(" ")),
+        [err, message] if err == "ERR" => ClientError::Refused(message.clone()),
+        _ => ClientError::Protocol(format!("unexpected response: {}", fields.join(" "))),
     }
 }
 
@@ -725,6 +788,9 @@ pub struct RemoteWorkerOptions {
     pub once: bool,
     /// Wait between polls when nothing is claimable, and between `BUSY` retries.
     pub poll: Duration,
+    /// Cap for the retry delay while the coordinator is unreachable. The delay starts at `poll`
+    /// and doubles per consecutive failure (P4-M010); [`MAX_UNREACHABLE_BACKOFF`] by default.
+    pub max_backoff: Duration,
 }
 
 /// Progress reported by [`run_remote_worker`].
@@ -732,6 +798,15 @@ pub struct RemoteWorkerOptions {
 pub enum RemoteReport<'a> {
     /// Nothing to claim right now.
     Idle,
+    /// The coordinator could not be reached; the worker retries after `retry_in` (P4-M010).
+    Unreachable {
+        /// The transport failure.
+        error: &'a str,
+        /// Delay before the next attempt.
+        retry_in: Duration,
+    },
+    /// The coordinator answered again after being unreachable.
+    Reconnected,
     /// A lease was claimed.
     Claimed(&'a RemoteClaim),
     /// The agent finished.
@@ -756,6 +831,9 @@ pub enum RemoteReport<'a> {
     Imported(&'a ImportedResult),
     /// The result was rejected or could not be produced; the lease was released.
     Abandoned(&'a str),
+    /// The finished attempt could not be archived off the task's names, so the next claim of the
+    /// same task on this host may fail until it is cleaned up (finding 17).
+    ArchiveFailed(&'a str),
 }
 
 /// Totals for one [`run_remote_worker`] call.
@@ -779,8 +857,31 @@ pub fn run_remote_worker<A: agentforge_adapter::AgentAdapter>(
     mut report: impl FnMut(RemoteReport<'_>),
 ) -> Result<RemoteSummary, String> {
     let mut summary = RemoteSummary::default();
+    let mut backoff = None::<Duration>;
     loop {
-        let Some(claim) = client.claim()? else {
+        let claimed = match client.claim() {
+            Ok(claimed) => {
+                if backoff.take().is_some() {
+                    report(RemoteReport::Reconnected);
+                }
+                claimed
+            }
+            // A coordinator restart or a dropped tunnel is survivable; a refusal is not (P4-M010).
+            Err(ClientError::Unreachable(error)) if !options.once => {
+                let retry_in = backoff
+                    .map_or(options.poll, |previous| previous.saturating_mul(2))
+                    .min(options.max_backoff.max(options.poll));
+                backoff = Some(retry_in);
+                report(RemoteReport::Unreachable {
+                    error: &error,
+                    retry_in,
+                });
+                thread::sleep(retry_in);
+                continue;
+            }
+            Err(error) => return Err(error.into()),
+        };
+        let Some(claim) = claimed else {
             report(RemoteReport::Idle);
             if options.once {
                 return Ok(summary);
@@ -838,6 +939,15 @@ fn run_claim<A: agentforge_adapter::AgentAdapter>(
         .map_err(|error| error.to_string())?;
     let manager =
         agentforge_worktree::WorktreeManager::new(repo).map_err(|error| error.to_string())?;
+    // Leftovers of an attempt that never finished here (the worker was stopped or killed mid-task)
+    // would block this claim; archive them first (finding 17).
+    archive_attempt(
+        &manager,
+        repo,
+        &task_id,
+        &format!("{}.stale", claim.lease_id),
+    )
+    .map_err(|error| format!("cannot archive a previous attempt: {error}"))?;
     let worktree = manager
         .create(&agentforge_worktree::WorktreeSpec::new(
             task_id.clone(),
@@ -938,9 +1048,66 @@ fn run_claim<A: agentforge_adapter::AgentAdapter>(
         renewed,
         failures: &failures,
     });
-    // A committed or untouched worktree is clean and can be retired; the branch is kept.
-    let _ = manager.retire(&task_id);
+    if let Err(error) = archive_attempt(&manager, repo, &task_id, &claim.lease_id) {
+        report(RemoteReport::ArchiveFailed(&error));
+    }
     outcome
+}
+
+/// Moves one attempt off the task's names so the task can be leased to this host again
+/// (finding 17). A clean worktree is retired; one that cannot be (dirty) is moved to
+/// `.forge/remote-abandoned/<name>`. The task branch becomes `agentforge/remote/<name>`. Names come
+/// from unique lease IDs, so every attempt keeps its exact history. Does nothing when the task's
+/// names are free.
+fn archive_attempt(
+    manager: &agentforge_worktree::WorktreeManager,
+    repo: &Path,
+    task_id: &agentforge_core::task::TaskId,
+    name: &str,
+) -> Result<(), String> {
+    if let Some(status) = manager
+        .inspect(task_id)
+        .map_err(|error| error.to_string())?
+    {
+        if manager.retire(task_id).is_err() {
+            let kept = repo.join(".forge/remote-abandoned").join(name);
+            if let Some(parent) = kept.parent() {
+                fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+            }
+            run_git(
+                repo,
+                &[
+                    "worktree",
+                    "move",
+                    &status.path().to_string_lossy(),
+                    &kept.to_string_lossy(),
+                ],
+            )?;
+        }
+    }
+    let branch = format!("agentforge/task/{task_id}");
+    if run_git(
+        repo,
+        &[
+            "show-ref",
+            "--verify",
+            "--quiet",
+            &format!("refs/heads/{branch}"),
+        ],
+    )
+    .is_ok()
+    {
+        run_git(
+            repo,
+            &[
+                "branch",
+                "-m",
+                &branch,
+                &format!("agentforge/remote/{name}"),
+            ],
+        )?;
+    }
+    Ok(())
 }
 
 /// Paths changed in a worktree (tracked and untracked), from `git status`.

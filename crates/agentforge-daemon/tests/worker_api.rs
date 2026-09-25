@@ -4,7 +4,9 @@ use agentforge_adapter::parse_task_prompt;
 use agentforge_audit::{AuditEventKind, AuditStore, FileAuditStore};
 use agentforge_core::agent::{AgentRole, AgentTask, Capability};
 use agentforge_core::task::{TaskGraph, TaskId};
-use agentforge_daemon::worker_api::{WorkerApiServer, WorkerClient, load_worker_api_bind};
+use agentforge_daemon::worker_api::{
+    ClientError, WorkerApiServer, WorkerClient, load_worker_api_bind,
+};
 use agentforge_operator::leases::{grant_lease, list_leases, now_ms};
 use agentforge_operator::secrets::enroll_worker;
 use agentforge_state::{FileTaskStore, TaskStore};
@@ -187,7 +189,12 @@ fn bad_credentials_and_other_workers_leases_change_nothing() {
     ] {
         let client = WorkerClient::new(&endpoint, worker, secret).expect("client");
         let error = client.claim().expect_err("refused");
-        assert_eq!(error, "unauthorized", "{worker}");
+        // A refusal, never "unreachable": a supervised worker must not retry it (P4-M010).
+        assert_eq!(
+            error,
+            ClientError::Refused("unauthorized".into()),
+            "{worker}"
+        );
     }
     // remote-b is authenticated but may not touch remote-a's lease.
     let other = WorkerClient::new(&endpoint, "remote-b", &secret_b).expect("client");
@@ -299,8 +306,9 @@ fn claim_refuses_unapproved_tasks_and_reports_the_lease_window() {
         WorkerClient::new(&server.address.to_string(), "remote-a", &secret_a).expect("client");
     let error = client.claim().expect_err("unapproved");
     assert!(
-        error.contains("needs approval activate_implementation_plan"),
-        "{error}"
+        matches!(&error, ClientError::Refused(message)
+            if message.contains("needs approval activate_implementation_plan")),
+        "{error:?}"
     );
 
     agentforge_operator::approve_task(
@@ -498,4 +506,156 @@ fn the_worker_host_doctor_finds_each_setup_problem() {
     drop(server);
     let _ = fs::remove_dir_all(&host);
     fs::remove_dir_all(root).expect("cleanup");
+}
+
+/// A local port with nothing listening on it (bound once, then released).
+fn free_port() -> std::net::SocketAddr {
+    std::net::TcpListener::bind("127.0.0.1:0")
+        .expect("probe")
+        .local_addr()
+        .expect("address")
+}
+
+#[test]
+fn a_closed_port_is_unreachable_not_refused() {
+    let address = free_port();
+    let client =
+        WorkerClient::new(&address.to_string(), "remote-a", &"a".repeat(64)).expect("client");
+    let error = client.claim().expect_err("nothing listens");
+    assert!(
+        matches!(&error, ClientError::Unreachable(message)
+            if message.starts_with("cannot reach worker API")),
+        "{error:?}"
+    );
+    // Other client methods keep their String errors with the same text.
+    let text: String = client.ping().expect_err("nothing listens");
+    assert_eq!(text, error.to_string());
+}
+
+#[test]
+fn a_remote_worker_rides_out_an_outage_and_stops_on_a_refusal() {
+    use agentforge_daemon::worker_api::{RemoteReport, RemoteWorkerOptions, run_remote_worker};
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    let (root, secret_a, _) = project();
+    let address = free_port();
+    let client = WorkerClient::new(&address.to_string(), "remote-a", &secret_a).expect("client");
+    let adapter = agentforge_adapter::ProcessAdapter::new(
+        agentforge_adapter::ProcessAdapterConfig::new("never-runs", root.join("no-agent")),
+    )
+    .expect("adapter");
+    let options = RemoteWorkerOptions {
+        repo: root.clone(),
+        once: false,
+        poll: Duration::from_millis(20),
+        max_backoff: Duration::from_millis(80),
+    };
+    let (events, received) = mpsc::channel::<String>();
+    let runner = std::thread::spawn(move || {
+        run_remote_worker(&client, &adapter, &options, |report| {
+            let line = match report {
+                RemoteReport::Unreachable { retry_in, .. } => {
+                    format!("unreachable:{}", retry_in.as_millis())
+                }
+                RemoteReport::Reconnected => "reconnected".into(),
+                RemoteReport::Idle => "idle".into(),
+                other => format!("{other:?}"),
+            };
+            let _ = events.send(line);
+        })
+    });
+
+    // Coordinator down: the worker keeps retrying, doubling the delay up to the cap.
+    let delays: Vec<String> = (0..5)
+        .map(|_| {
+            received
+                .recv_timeout(Duration::from_secs(10))
+                .expect("report")
+        })
+        .collect();
+    assert_eq!(
+        delays,
+        [
+            "unreachable:20",
+            "unreachable:40",
+            "unreachable:80",
+            "unreachable:80",
+            "unreachable:80"
+        ]
+    );
+    assert!(!runner.is_finished(), "an outage must not end the worker");
+
+    // Coordinator back on the same port: the worker reconnects and polls.
+    let server = WorkerApiServer::start(&root, address).expect("server on the same port");
+    let mut seen = Vec::new();
+    while !seen.iter().any(|line| line == "idle") {
+        seen.push(
+            received
+                .recv_timeout(Duration::from_secs(10))
+                .expect("report"),
+        );
+    }
+    let reconnected = seen
+        .iter()
+        .position(|line| line == "reconnected")
+        .expect("reconnected is reported");
+    assert!(
+        seen[..reconnected]
+            .iter()
+            .all(|line| line.starts_with("unreachable:")),
+        "{seen:?}"
+    );
+
+    // A refusal is not retried: an unapproved lease ends the worker with the coordinator's reason.
+    let mut gated = task();
+    gated.required_approvals =
+        vec![agentforge_core::agent::ApprovalBoundary::ActivateImplementationPlan];
+    FileTaskStore::for_project_root(&root)
+        .save(&TaskGraph::from_tasks([gated]).expect("graph"))
+        .expect("snapshot");
+    grant_lease(
+        &root,
+        &TaskId::parse("P4-M007-T0001").expect("id"),
+        Some("remote-a"),
+        60_000,
+        now_ms(),
+        "op",
+    )
+    .expect("grant");
+    let error = runner
+        .join()
+        .expect("runner thread")
+        .expect_err("a refusal ends the worker");
+    assert!(
+        error.contains("needs approval activate_implementation_plan"),
+        "{error}"
+    );
+    drop(server);
+    fs::remove_dir_all(root).expect("cleanup");
+}
+
+#[test]
+fn a_run_once_worker_still_returns_the_outage() {
+    use agentforge_daemon::worker_api::{RemoteWorkerOptions, run_remote_worker};
+    use std::time::Duration;
+
+    let address = free_port();
+    let client =
+        WorkerClient::new(&address.to_string(), "remote-a", &"a".repeat(64)).expect("client");
+    let adapter = agentforge_adapter::ProcessAdapter::new(
+        agentforge_adapter::ProcessAdapterConfig::new("never-runs", std::env::temp_dir()),
+    )
+    .expect("adapter");
+    let options = RemoteWorkerOptions {
+        repo: std::env::temp_dir(),
+        once: true,
+        poll: Duration::from_millis(20),
+        max_backoff: Duration::from_millis(80),
+    };
+    let mut reports = 0;
+    let error = run_remote_worker(&client, &adapter, &options, |_| reports += 1)
+        .expect_err("--once does not retry");
+    assert!(error.starts_with("cannot reach worker API"), "{error}");
+    assert_eq!(reports, 0);
 }
