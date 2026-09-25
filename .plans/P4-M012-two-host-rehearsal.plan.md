@@ -99,6 +99,7 @@ None in the workspace. The rehearsal uses Docker and the `archlinux` image.
 - Amendment 1: `scripts/worker-host-setup`
 - Amendment 2: `crates/agentforge-daemon/src/worker_api.rs`, `crates/agentforge-cli/src/main.rs`,
   `crates/agentforge-cli/tests/*.rs`, `docs/DAEMON.md`
+- Amendment 3: `crates/agentforge-operator/src/leases.rs`, `crates/agentforge-operator/tests/*.rs`
 - closure records: `docs/MILESTONES.md`, `CHANGELOG.md`, `README.md`, `PROJECT_STATE.md`,
   `AGENT_HANDOFF.md`
 
@@ -204,3 +205,25 @@ imported, and the coordinator does hold the import.
 The rehearsal now uses GhostPort `v0.1.2` from its published release (checksum-verified) instead of
 the host's older build. Docs: REMOTE_WORKERS (GhostPort ≥ 0.1.2 is required for sustained workers,
 and the corrected limiter note), DAEMON, and DOGFOODING (findings 18 and 19).
+
+## Amendment 3 (2026-09-25)
+
+With GhostPort fixed, a full rehearsal passed every check. The next run (the `--break-heal`
+check-the-checks run) failed **scenario 2** for a different reason (dogfooding finding 20). The
+worker claimed its 6 s lease late: the doctor preflight and the claim needed several GhostPort
+handshakes over a 170 ms, lossy link. It then scheduled its first renewal a third of the window
+after claiming. But the lease's expiry is counted from the **grant**, so the lease had already
+expired (`lease renewal failed: lease is expired`), and the coordinator rejected the finished work
+("lease claim ... does not match an active lease"). Classification: semantic, the lease model since
+P4-M004 and P4-M007. The same happens in production to any worker that claims late in a lease's
+life, for example after an outage or a slow start.
+
+Fix: a successful claim restarts the lease window. `claim_lease_as` extends the expiry to `now +
+(expires_at - issued_at)`, through `LeaseBook::renew`'s existing rules, in the same locked
+transaction, and the `claimed` audit event records the new expiry. A claim is proof that the worker
+is alive. The worker's renewal schedule (every third of the window after claiming) then matches
+the coordinator's clock again.
+
+Test (operator): a lease granted with a 6 s window and claimed 5 s later expires 6 s after the
+claim, not after the grant. The rehearsal must pass repeatedly after this (two consecutive passing
+runs, then the `--break-heal` run failing only scenario 3).
