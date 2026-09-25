@@ -89,6 +89,11 @@ timeout_ms=3600000
 max_output_bytes=8388608
 ```
 
+For tasks that hold `use_mcp_tools`, the bridge also gives Claude Code the AgentForge MCP
+task-tool gateway (P3-M005). Add `argument=--forge` and `argument=/absolute/path/to/forge` to the
+profile, because the cleared environment has no useful `PATH`; see
+[MCP_GATEWAY.md](MCP_GATEWAY.md#using-it-with-the-claude-code-bridge).
+
 Add `argument=--model` and `argument=<model>` to pin a model. Use `--dry-run` (reads a prompt on
 stdin and prints the instructions) to preview what the agent will be told, and `--self-test` (also
 run in CI) to check the decoder and path rules. In a linked worktree the bridge also gives the

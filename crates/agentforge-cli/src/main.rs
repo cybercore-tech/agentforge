@@ -62,6 +62,7 @@ fn main() -> ExitCode {
         Some("daemon") => daemon_command(args.collect()),
         Some("worktree") => worktree_command(args.collect()),
         Some("hud") => hud_command(args.collect()),
+        Some("mcp") => mcp_command(args.collect()),
         Some(other) => {
             eprintln!("unknown command: {other}");
             print_usage();
@@ -76,7 +77,7 @@ fn main() -> ExitCode {
 
 fn print_usage() {
     println!(
-        "usage: forge <version|doctor|status|init <root>|intake <root> [--task] [--input-file <path>]|blueprint validate <root>|task create|inspect|launch|launch-batch|diff|approve|integrate|accept|cancel|retry ...|agent list|validate|inspect <root> [<profile>]|gate list <root>|worker list|run ...|lease list|grant|renew|release|expire ...|ci observe <root> <repository> <workflow> <sha> [--task <task-id>]|run <root> <task-id> <absolute-executable> [--interactive] [--pty]|run <root> <task-id> --profile <profile> [--interactive] [--pty]|daemon start|restart|status|run|launch|stop ...|worktree create|inspect|list|retire ...|hud <root> [--watch [--interval-ms <milliseconds>]]>"
+        "usage: forge <version|doctor|status|init <root>|intake <root> [--task] [--input-file <path>]|blueprint validate <root>|task create|inspect|launch|launch-batch|diff|approve|integrate|accept|cancel|retry ...|agent list|validate|inspect <root> [<profile>]|gate list <root>|worker list|run ...|lease list|grant|renew|release|expire ...|ci observe <root> <repository> <workflow> <sha> [--task <task-id>]|run <root> <task-id> <absolute-executable> [--interactive] [--pty]|run <root> <task-id> --profile <profile> [--interactive] [--pty]|daemon start|restart|status|run|launch|stop ...|worktree create|inspect|list|retire ...|hud <root> [--watch [--interval-ms <milliseconds>]]|mcp serve --contract <file> --worktree <dir> [--root <project>]>"
     );
 }
 
@@ -2817,6 +2818,64 @@ fn run_command(arguments: Vec<String>) -> ExitCode {
         }
         Err(error) => {
             eprintln!("task run failed: {error}");
+            ExitCode::from(1)
+        }
+    }
+}
+
+const MCP_USAGE: &str =
+    "usage: forge mcp serve --contract <file> --worktree <dir> [--root <project>]";
+
+/// `forge mcp serve`: the stdio MCP task-tool gateway (P3-M005). stdout carries only protocol
+/// messages, so every diagnostic goes to stderr.
+fn mcp_command(arguments: Vec<String>) -> ExitCode {
+    let usage = |reason: &str| {
+        eprintln!("{MCP_USAGE}: {reason}");
+        ExitCode::from(2)
+    };
+    let Some((subcommand, rest)) = arguments.split_first() else {
+        return usage("missing subcommand");
+    };
+    if subcommand != "serve" {
+        return usage(&format!("unknown subcommand {subcommand}"));
+    }
+    let mut options = std::collections::BTreeMap::new();
+    let mut index = 0;
+    while index < rest.len() {
+        let flag = rest[index].as_str();
+        if !matches!(flag, "--contract" | "--worktree" | "--root") {
+            return usage(&format!("unexpected argument {flag}"));
+        }
+        let Some(value) = rest.get(index + 1) else {
+            return usage(&format!("{flag} needs a value"));
+        };
+        if options.insert(flag, value.clone()).is_some() {
+            return usage(&format!("repeated {flag}"));
+        }
+        index += 2;
+    }
+    let (Some(contract), Some(worktree)) = (options.get("--contract"), options.get("--worktree"))
+    else {
+        return usage("--contract and --worktree are required");
+    };
+    let task = match agentforge_mcp::load_contract(contract) {
+        Ok(task) => task,
+        Err(error) => {
+            eprintln!("forge mcp serve: {error}");
+            return ExitCode::from(2);
+        }
+    };
+    if !Path::new(worktree).is_dir() {
+        eprintln!("forge mcp serve: worktree {worktree} is not a directory");
+        return ExitCode::from(2);
+    }
+    let root = options.get("--root").map(std::path::PathBuf::from);
+    let mut gateway = agentforge_mcp::Gateway::new(task, worktree, root);
+    let stdin = io::stdin();
+    match gateway.serve(stdin.lock(), io::stdout().lock()) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("forge mcp serve: {error}");
             ExitCode::from(1)
         }
     }

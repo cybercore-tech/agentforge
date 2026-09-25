@@ -12,8 +12,14 @@ writes an `agentforge-task-prompt-v1` document to stdin. The bridge:
 Exit codes: 0 committed, 2 invalid input or configuration, 3 no changes, 4 path violation,
 5 commit or pre-commit gate failure; any other code is Claude Code's own exit status.
 
+For a task that holds the `use_mcp_tools` capability, the bridge also gives Claude Code the
+AgentForge MCP task-tool gateway (`forge mcp serve`, P3-M005): task_contract, check_changes, and
+run_gate, each checked against the task's capabilities and recorded in the project's audit log.
+
 Options:
   --claude PATH   Claude Code executable (default: `claude` on PATH)
+  --forge PATH    forge executable for the MCP gateway (default: `forge` on PATH; required, by
+                  either route, for tasks with use_mcp_tools)
   --model NAME    model to request (default: Claude Code's configured default)
   --dry-run       print the instructions and command, run nothing
   --self-test     check the prompt decoder and path rules, then exit
@@ -22,6 +28,7 @@ Options:
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -211,7 +218,46 @@ def bullets(values, empty="none"):
     return "\n".join(f"- {value}" for value in values) if values else f"- {empty}"
 
 
-def instructions(task, message_file):
+class BridgeError(ValueError):
+    pass
+
+
+def mcp_arguments(task, forge, scratch, worktree, root):
+    """Claude Code arguments and allowed tools for the MCP gateway, or none for tasks without
+    use_mcp_tools. `scratch` must already hold the contract as `contract.txt`."""
+    if "use_mcp_tools" not in task["capabilities"]:
+        return [], []
+    if not forge:
+        raise BridgeError(
+            "the task holds use_mcp_tools but no forge executable was found; pass --forge PATH "
+            "(profiles run with a cleared environment)"
+        )
+    serve = ["mcp", "serve", "--contract", str(Path(scratch) / "contract.txt"), "--worktree", str(worktree)]
+    if root:
+        serve += ["--root", str(root)]
+    config = Path(scratch) / "mcp.json"
+    config.write_text(
+        json.dumps({"mcpServers": {"agentforge": {"type": "stdio", "command": str(forge), "args": serve}}}, indent=2),
+        encoding="utf-8",
+    )
+    return ["--mcp-config", str(config), "--strict-mcp-config"], ["mcp__agentforge"]
+
+
+def project_root():
+    """The AgentForge project that owns this worktree, when it has task state (so tool calls are
+    audited there); None for a remote worker's clone, which has none."""
+    result = subprocess.run(
+        ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return None
+    root = Path(result.stdout.strip()).parent
+    return root if (root / ".forge" / "state" / "tasks.snapshot").is_file() else None
+
+
+def instructions(task, message_file, mcp=False):
     return f"""You are the implementer for AgentForge task {task['task_id']} (milestone {task['milestone_id']}, role {task['primary_role']}).
 You are running headless inside this task's isolated Git worktree. The current directory is the repository root.
 
@@ -252,7 +298,11 @@ You are running headless inside this task's isolated Git worktree. The current d
    changed, why, and the evidence (tests added, gate results). Do not include Co-Authored-By
    trailers.
 7. Finish with a short plain-text summary of what you changed and how you verified it.
-"""
+""" + ("""8. You have AgentForge's task tools (the `agentforge` MCP server): `task_contract` shows exactly
+   what this task may change, `check_changes` judges your current changes against it, and
+   `run_gate` runs one of the task's required gates. Call `check_changes` before you finish and fix
+   anything it reports outside the task's scope. Every call is recorded.
+""" if mcp else "")
 
 
 def fallback_message(task, paths):
@@ -327,6 +377,26 @@ def self_test():
         "crates/example/secret/key"
     ]
     assert "P9-M001-T0001" in instructions(sample, Path("/tmp/msg"))
+    assert "check_changes" not in instructions(sample, Path("/tmp/msg"))
+    assert "check_changes" in instructions(sample, Path("/tmp/msg"), mcp=True)
+    with tempfile.TemporaryDirectory() as scratch:
+        assert mcp_arguments(sample, None, scratch, "/wt", None) == ([], []), "no use_mcp_tools, no gateway"
+        gated = dict(sample, capabilities=sample["capabilities"] + ["use_mcp_tools"])
+        try:
+            mcp_arguments(gated, None, scratch, "/wt", None)
+            raise AssertionError("use_mcp_tools without forge must refuse")
+        except BridgeError:
+            pass
+        args, tools = mcp_arguments(gated, "/bin/forge", scratch, "/wt", "/project")
+        assert args[0] == "--mcp-config" and args[2] == "--strict-mcp-config" and tools == ["mcp__agentforge"]
+        server = json.loads(Path(args[1]).read_text())["mcpServers"]["agentforge"]
+        assert server["command"] == "/bin/forge"
+        assert server["args"] == [
+            "mcp", "serve", "--contract", str(Path(scratch) / "contract.txt"),
+            "--worktree", "/wt", "--root", "/project",
+        ], server["args"]
+        args, _ = mcp_arguments(gated, "/bin/forge", scratch, "/wt", None)
+        assert "--root" not in json.loads(Path(args[1]).read_text())["mcpServers"]["agentforge"]["args"]
     common = "/repo/.git"
     assert worktree_target_dir(common, common, "/target") is None, "main checkout keeps its target"
     assert (
@@ -341,6 +411,7 @@ def self_test():
 def main():
     parser = argparse.ArgumentParser(add_help=True, description="Run Claude Code as an AgentForge agent.")
     parser.add_argument("--claude", default="claude")
+    parser.add_argument("--forge")
     parser.add_argument("--model")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--self-test", action="store_true")
@@ -349,7 +420,8 @@ def main():
         return self_test()
 
     try:
-        task = decode_prompt(sys.stdin.buffer.read())
+        raw_prompt = sys.stdin.buffer.read()
+        task = decode_prompt(raw_prompt)
     except (PromptError, UnicodeDecodeError) as error:
         print(f"claude-code-bridge: invalid task prompt: {error}", file=sys.stderr)
         return 2
@@ -359,14 +431,24 @@ def main():
 
     with tempfile.TemporaryDirectory(prefix="agentforge-bridge-") as scratch:
         message_file = Path(scratch) / "COMMIT_MSG"
+        (Path(scratch) / "contract.txt").write_bytes(raw_prompt)
+        try:
+            mcp_args, mcp_tools = mcp_arguments(
+                task, arguments.forge or shutil.which("forge"), scratch, Path.cwd(), project_root()
+            )
+        except BridgeError as error:
+            print(f"claude-code-bridge: {error}", file=sys.stderr)
+            return 2
         command = [
             arguments.claude,
             "-p",
-            instructions(task, message_file),
+            instructions(task, message_file, mcp=bool(mcp_args)),
+            *mcp_args,
             "--permission-mode",
             "acceptEdits",
             "--allowedTools",
             *ALLOWED_TOOLS,
+            *mcp_tools,
             "--disallowedTools",
             *DISALLOWED_TOOLS,
             "--add-dir",

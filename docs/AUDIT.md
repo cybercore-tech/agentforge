@@ -32,3 +32,10 @@ Every event records **when it happened**, in wall-clock milliseconds since the U
 
 The HUD shows `at=YYYY-MM-DDTHH:MM:SSZ` (UTC) on recent events and `duration=<seconds>s` on agent
 runs (see HUD.md).
+
+## Tool calls (P3-M005)
+
+`ToolInvoked` (code 13) records each call an agent makes to the MCP task-tool gateway, allowed or
+denied, with actor `mcp:<task-id>` and the fields `tool`, `decision`, `channel=mcp`, `reason`, and
+`outcome` (see [MCP_GATEWAY.md](MCP_GATEWAY.md#audit)). An older `forge` that does not know code 13
+fails closed on a log that contains it, as it did for `LeaseRecorded` (code 12).

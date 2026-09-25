@@ -183,6 +183,11 @@ retries an unreachable coordinator with capped backoff and stops on a refusal; t
 `contrib/systemd/agentforge-worker@.service` template supervises one worker per unit, and `forge
 hud` shows workers (capacity, last seen) and active leases (P4-M010).
 
+`forge mcp serve --contract <file> --worktree <dir> [--root <project>]` is the MCP task-tool
+gateway an agent's MCP client starts (P3-M005). The Claude Code bridge wires it in for tasks that
+hold `use_mcp_tools`. Its tools (`task_contract`, `check_changes`, `run_gate`) are checked against
+the task's capabilities and recorded as `ToolInvoked` audit events (`docs/MCP_GATEWAY.md`).
+
 ## Recovery procedures
 
 | Symptom | Cause and fix |
@@ -201,6 +206,9 @@ hud` shows workers (capacity, last seen) and active leases (P4-M010).
 | `worker remote` cannot reach the endpoint, or the connection resets | Check that the GhostPort client is running and connected (`ghostport status`), the link ID matches a link that peer is allowed, and `forged` shows `worker API listening`. Repeated bad handshakes from one address are rate-limited by GhostPort for a while. |
 | `worker remote run refused: N worker-host check(s) failed` | Run `forge worker remote doctor` with the same options. Each `fail` line has a `fix:`: install hooks, set the clone's Git identity, rewrite profile paths for this host, fix the secret file, or bring up the GhostPort client. |
 | `worker remote run` reports `abandoned: remote result rejected: ...` | The coordinator refused the import (SHA mismatch, ancestry, out-of-bounds path, bad bundle, or a stale claim). Nothing was written; the lease is released and the task stays `pending`. Fix the cause, then grant again. |
+| The bridge exits 2 with "the task holds use_mcp_tools but no forge executable was found" | Add `argument=--forge` and `argument=/absolute/path/to/forge` to the bridge's agent profile (profiles run with a cleared environment). |
+| An agent's MCP call fails with `-32602 tool ... is not available to this task` | The task lacks the capability that tool needs (`use_mcp_tools` plus `read_repository` or `run_local_commands`), or `run_gate` has no project root or required gates. The refusal is recorded as `ToolInvoked decision=denied`. See `docs/MCP_GATEWAY.md`. |
+| An MCP call fails with `-32603 cannot record the call` | The gateway's `--root` has no task state, or the audit log cannot be opened. Nothing ran. Point `--root` at the initialized project, or omit it (calls are then logged to stderr only). |
 | `worker remote run` prints `coordinator unreachable: ...; retrying in <n>s` | The coordinator is down or the tunnel dropped. Nothing to do on the worker; it resumes by itself (`coordinator reachable again`). Check `forge daemon status` and the GhostPort client on each end. |
 | `worker remote run failed: unauthorized` and the unit restarts every 30 s | The worker's secret no longer matches (for example after a rotation). Copy the coordinator's new secret to the worker host (mode 600); the next restart passes the doctor. |
 | `forge hud` shows a worker holding an active lease with an old `last-seen` | The worker stopped renewing: check its unit (`systemctl --user status agentforge-worker@<id>`) and journal. The lease expires by itself; release it early with `forge lease release`. |

@@ -520,7 +520,7 @@ Clippy, tests, and documentation tests. Do not bypass hooks or validation with `
 - [Blueprint and intake](docs/BLUEPRINT.md)
 - [Task contract](docs/TASK_CONTRACT.md) and [task state](docs/TASK_STATE.md)
 - [Agent roles](docs/AGENT_ROLES.md) and [agent adapters](docs/AGENT_ADAPTERS.md)
-- [Policy and capabilities](docs/POLICY.md)
+- [Policy and capabilities](docs/POLICY.md) and the [MCP task-tool gateway](docs/MCP_GATEWAY.md)
 - [Worktree isolation](docs/WORKTREE_ISOLATION.md)
 - [Orchestration loop](docs/ORCHESTRATION.md) and the
   [single-agent vertical slice](docs/VERTICAL_SLICE.md)

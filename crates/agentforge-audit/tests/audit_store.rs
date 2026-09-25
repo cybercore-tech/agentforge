@@ -101,6 +101,25 @@ fn lease_event_kind_round_trips_as_versioned_evidence() {
 }
 
 #[test]
+fn tool_event_kind_round_trips_as_versioned_evidence() {
+    let path = path();
+    let mut store = FileAuditStore::open(&path).unwrap();
+    store
+        .append(
+            event(1, AuditEventKind::ToolInvoked)
+                .with_field("tool", "check_changes")
+                .with_field("decision", "allowed"),
+        )
+        .unwrap();
+    drop(store);
+    let store = FileAuditStore::open(&path).unwrap();
+    let recorded = store.records()[0].event();
+    assert_eq!(recorded.kind(), AuditEventKind::ToolInvoked);
+    assert_eq!(recorded.fields()["tool"], "check_changes");
+    fs::remove_file(path).unwrap();
+}
+
+#[test]
 fn integration_event_kind_round_trips_as_versioned_evidence() {
     let path = path();
     let mut store = FileAuditStore::open(&path).unwrap();

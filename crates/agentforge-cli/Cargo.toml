@@ -27,6 +27,7 @@ agentforge-ci = { path = "../agentforge-ci", version = "0.2.0" }
 agentforge-daemon = { path = "../agentforge-daemon", version = "0.2.0" }
 agentforge-gate = { path = "../agentforge-gate", version = "0.2.0" }
 agentforge-intake = { path = "../agentforge-intake", version = "0.2.0" }
+agentforge-mcp = { path = "../agentforge-mcp", version = "0.2.0" }
 agentforge-hud = { path = "../agentforge-hud", version = "0.2.0" }
 agentforge-orchestrator = { path = "../agentforge-orchestrator", version = "0.2.0" }
 agentforge-operator = { path = "../agentforge-operator", version = "0.2.0" }
