@@ -75,9 +75,10 @@ created as an explicit release decision below, starts a release.
    git push origin v0.2.0
    ```
 
-6. Verify the four build jobs, checksums, and generated GitHub release before announcing it:
-   download `SHA256SUMS` and one archive, run `sha256sum -c --ignore-missing SHA256SUMS`, and check
-   that the extracted `forge version` prints the release version.
+6. Check the run before announcing the release. Since P5-M003, the publish step downloads every
+   uploaded asset back and fails unless the asset names equal the selected files, each asset is
+   byte-identical, and `SHA256SUMS` passes `sha256sum -c`. Still download one archive yourself and
+   check that the extracted `forge version` prints the release version.
 
 Tag the exact commit that passed CI and the packaging dry run. Never move a published release tag;
 fixes ship as a new patch release.
@@ -106,11 +107,38 @@ Then fix the workflow for the next release. Two releases were published this way
   create dist/*` failed on a directory. The recovery above already removed those directories, but
   the P5-M001 workflow fix did not.
 
-The workflow also supports manual dispatch for packaging validation. Since P5-M002 a manual run
-executes the **whole publish job except the upload**. It downloads the artifacts, selects only the
-release files (four archives and their `.sha256` files), checks each checksum, requires exactly
-four archives, writes `SHA256SUMS`, and verifies it. A packaging dry run therefore catches publish
-defects before a tag does. Only `gh release create` is tag-only.
+If the upload succeeded but its verification failed, the release already exists. Do not move the
+tag: compare the release's assets with the run's artifacts, and replace the wrong assets (`gh release
+upload vX.Y.Z <file> --clobber`) from those artifacts.
+
+### Upload rehearsal (manual dispatch)
+
+A manually dispatched `AgentForge Release` run is a full rehearsal. It builds and packages all four
+targets, selects the release files, and checks their checksums, as a tag run does. It then uploads
+them through the same `gh release create` into a **draft** release named
+`rehearsal-<run id>-<attempt>` (`scripts/publish-release rehearse`). A draft creates no tag and is
+visible only to maintainers. The rehearsal verifies the uploaded assets exactly as a tag run does,
+then deletes the draft, even when verification fails, and fails if a tag with the draft's name
+exists afterwards. Run one before tagging a release after any change to the release workflow:
+
+```bash
+gh workflow run release.yml -R cybercore-tech/agentforge --ref main
+```
+
+Before P5-M003, the upload was tag-only, and it failed on both real tags (`v0.1.0` and `v0.2.0`)
+after the fixes to everything else had passed their dry runs.
+
+If a rehearsal run is cancelled between upload and deletion, a `rehearsal-*` draft remains. Delete
+it by hand; it has no tag:
+
+```bash
+gh release list -R cybercore-tech/agentforge | grep rehearsal-
+gh release delete rehearsal-<run id>-<attempt> -R cybercore-tech/agentforge --yes
+```
+
+`scripts/publish-release --self-test` (run in CI) checks both modes against a fake `gh`: a missing,
+corrupted, or stale-checksum asset fails verification, a failed rehearsal still deletes its draft,
+and a staging directory is refused before anything is uploaded.
 
 ## Support expectations
 

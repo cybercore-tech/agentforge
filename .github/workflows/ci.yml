@@ -48,6 +48,9 @@ jobs:
       - name: Self-test milestone tagger
         run: ./scripts/tag-milestone --self-test
 
+      - name: Self-test release publisher
+        run: ./scripts/publish-release --self-test
+
   stable-code:
     name: Stable code gate
     timeout-minutes: 30

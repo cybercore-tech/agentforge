@@ -79,14 +79,22 @@ jobs:
           if-no-files-found: error
 
   publish:
-    # Runs on tags (publishes) and on manual dispatch (dry run), so every packaging dry run also
-    # exercises the full publish preparation; only the final upload is tag-only (P5-M002).
+    # Runs on tags (publishes) and on manual dispatch (rehearsal). A rehearsal uploads the same
+    # files through the same `gh release create` into a draft release, which creates no tag,
+    # verifies every asset, and deletes the draft, so the upload is proven without a release
+    # (P5-M003). Tag runs verify their published assets the same way.
     name: Publish GitHub release
     needs: build
     runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
+      # Checked out first: checkout cleans the workspace. It provides scripts/publish-release only.
+      - name: Check out publish script
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref }}
+
       - name: Download packaged artifacts
         uses: actions/download-artifact@v4
         with:
@@ -115,9 +123,14 @@ jobs:
           echo "release files:"
           ls -l
 
-      - name: Publish release
+      - name: Publish release and verify the uploaded assets
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
-        # The publish job has no checkout, so gh needs the repository explicitly.
-        run: gh release create "${GITHUB_REF_NAME}" release/* --repo "${GITHUB_REPOSITORY}" --verify-tag --generate-notes --title "AgentForge ${GITHUB_REF_NAME}"
+        run: ./scripts/publish-release tag "${GITHUB_REF_NAME}" release
+
+      - name: Rehearse the upload to a draft release, verify, and delete it
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./scripts/publish-release rehearse "rehearsal-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" "${GITHUB_SHA}" release

@@ -27,7 +27,7 @@ git push "https://x-access-token:$(gh auth token -u cybercore-tech)@github.com/c
 | --- | --- | --- | --- |
 | AgentForge CI | `.github/workflows/ci.yml` | push to `main`, pull requests, manual dispatch | Seven jobs (below); every job has `timeout-minutes` |
 | AgentForge Pages | `.github/workflows/pages.yml` | push to `main`, manual dispatch | Generates `site/updates.json`, validates the static site, deploys `site/` to Pages |
-| AgentForge Release | `.github/workflows/release.yml` | tags `v*.*.*`, manual dispatch | Verifies the tag matches the workspace version, builds `forge`/`forged` for four targets, and publishes checksummed archives. A manual run is a dry run of everything except the upload (P5-M002) |
+| AgentForge Release | `.github/workflows/release.yml` | tags `v*.*.*`, manual dispatch | Verifies the tag matches the workspace version, builds `forge`/`forged` for four targets, publishes checksummed archives, and verifies every uploaded asset. A manual run is an upload rehearsal: it uploads to a draft release (no tag), verifies it, and deletes it (P5-M003) |
 
 CI jobs:
 
@@ -190,6 +190,7 @@ the verified exact SHA with in-bounds paths, and runs gates locally (P4-M008).
 | Bridge exit 4 (path violation) or 5 (commit/gate failure) | Nothing was committed. Inspect the worktree and the evidence logs. |
 | `daemon is busy` | One daemon execution at a time; wait or check `forge daemon status` ([`DAEMON.md`](DAEMON.md)). |
 | A release run built every target but **Publish GitHub release** failed | Do not move the tag. Publish from that run's artifacts with the procedure in [`RELEASE.md`](RELEASE.md#if-the-publish-job-fails), then fix the workflow. |
+| A release rehearsal was cancelled and left a `rehearsal-*` draft | Delete the draft by hand (`gh release delete rehearsal-<run>-<attempt> --yes`); it has no tag ([`RELEASE.md`](RELEASE.md#upload-rehearsal-manual-dispatch)). |
 | `task integrate` says the merge was approved for another commit, or is not bound to a reviewed commit | The task branch moved after approval, or the approval predates P1-M008. Review `forge task diff` again, then `forge task approve ... merge_protected_branch` binds the current head. |
 | A launch says a task "is leased to worker ..." or "overlaps task ... leased to worker ..." | Release the lease (`forge lease release`) or wait for it to expire, then launch. `forge lease list` shows who holds what. |
 | A task is never dispatched automatically | Check `forge lease dispatch . --actor <you>`: it lists each skipped task with its reason (milestone not listed, approval missing, overlap, or "already had a lease"). Tasks that had a lease are dispatched only once; grant them manually. |
