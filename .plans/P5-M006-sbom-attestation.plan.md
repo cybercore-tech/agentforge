@@ -1,6 +1,6 @@
 # Plan: P5-M006 — SBOM attestation for releases (agent-built)
 
-Status: Draft
+Status: Approved
 Milestone: P5-M006
 Created: 2026-09-25
 Owner: AgentForge project
