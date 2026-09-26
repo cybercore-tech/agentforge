@@ -81,6 +81,7 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 | P3-M003 | complete | Cybercore connector release hardening | The connector has provenance-aware CLI output, supported-platform CI, inspected packaging, license/support policy, and a tag-gated checksummed release workflow without cloud deployment side effects. |
 | P3-M004 | complete | Mission Control production-readiness foundations | Fail-closed environment preflight, disposable migration/API/live-event smoke, negative-path coverage, and an explicitly gated staging dry-run workflow exist without production mutation. |
 | P3-M005 | complete | MCP task-tool gateway | `forge mcp serve` gives an agent task tools (contract, change check, required gates) under its capability policy, every call audited as `ToolInvoked`; the Claude Code bridge wires it for `use_mcp_tools` tasks, verified with a real session. |
+| P3-M006 | complete | External MCP servers behind the gateway | Declared stdio MCP servers are fronted by the gateway: only mapped tools the task's capabilities allow are visible, calls are forwarded unchanged and audited, and misbehaving upstreams are contained; verified with the real server-everything and a Claude Code session. |
 
 ## Phase 4 — remote workers and distributed execution
 

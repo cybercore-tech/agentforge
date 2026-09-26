@@ -586,6 +586,8 @@ paths and restored reliable CI:
   agent-run durations;
 - **P5-M003** the release upload is rehearsed on every manual release run (upload to a draft
   release, verify every asset, delete it), so publish defects surface before a tag;
+- **P3-M006** external MCP servers behind the gateway: declared, capability-mapped, and audited,
+  with unmapped tools invisible;
 - **P5-M007** release
   [`v0.3.1`](https://github.com/cybercore-tech/agentforge/releases/tag/v0.3.1): the first with an
   attested SBOM, and the remote-worker fixes from the two-host rehearsal;
@@ -620,7 +622,7 @@ Candidate next milestones, each still requiring its own approved plan:
 
 - a two-machine remote-worker run over a real network (P4);
 - external MCP servers behind the gateway's capability map (P3);
-- external MCP servers behind the gateway's capability map (P3), and the real two-machine run (P4).
+- remote (HTTP) MCP servers behind the gateway (P3), and the real two-machine run (P4).
 
 ## Contributing 🤝
 

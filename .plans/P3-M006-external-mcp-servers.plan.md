@@ -1,6 +1,6 @@
 # Plan: P3-M006 — External MCP servers behind the gateway
 
-Status: Approved
+Status: Complete
 Milestone: P3-M006
 Created: 2026-09-25
 Owner: AgentForge project
@@ -161,8 +161,35 @@ at closure.
 
 ## Acceptance criteria
 
-- [ ] Declared external MCP servers are fronted by the gateway, with only mapped, permitted tools
+- [x] Declared external MCP servers are fronted by the gateway, with only mapped, permitted tools
       visible and callable, and every call audited.
-- [ ] Misbehaving upstreams (error, timeout, crash, failure to start) are contained.
-- [ ] A real third-party MCP server works through the gateway, and a Claude Code session uses it.
-- [ ] ADR, docs; CI evidence; closed and tagged correctly.
+- [x] Misbehaving upstreams (error, timeout, crash, failure to start) are contained.
+- [x] A real third-party MCP server works through the gateway, and a Claude Code session uses it.
+- [x] ADR, docs; CI evidence; closed and tagged correctly.
+
+## Completion record
+
+Implementation commit: `3939aff`; `de0f0f7` (portable config test paths)
+CI run: `36212771840` (push on `3939aff`: the Windows job failed on test paths, see Notes);
+`36213033086` (push on `de0f0f7`: one stable-gate flake in an unrelated audit test, see Notes) and
+`36213252213` (dispatched repeat on `de0f0f7`)
+CI result: green on all seven jobs in `36213252213`; Windows (including the upstream tests) green
+from `de0f0f7` on
+Completed: 2026-09-25
+Notes:
+- **Real server:** `forge mcp serve` fronted `@modelcontextprotocol/server-everything` (2026.8.31,
+  protocol 2025-06-18) with `echo` and `get-sum` mapped. Only those two were listed. `get-sum`
+  returned "The sum of 19 and 23 is 42". The unmapped `get-env` was refused as unknown. All the
+  calls were audited. A Claude Code session then called `everything__get-sum` through the gateway
+  ("The sum of 1234 and 5678 is 6912", `ToolInvoked` #7).
+- **Tests bite:** the first fixture neither required its `ping` to be answered nor refused requests
+  before `initialize`, so a mutant without server-request handling passed all 7 upstream tests. With
+  the fixture corrected, that mutant fails 6 of 7.
+- **Deviation:** the plan's CLI-level fixture test could not reach the fixture binary, because Cargo
+  exposes a crate's binaries only to that crate's own tests. The CLI path was proven instead by the
+  real-server run above (local, not in CI).
+- **CI 1:** the config unit tests used `/bin/x`, which is not absolute on Windows. Classified
+  semantic/test and fixed in `de0f0f7`; the product rule is unchanged.
+- **CI 2:** `concurrent_writers_keep_one_verified_chain` (P0-M013) failed once on the Linux stable
+  gate: one of four writers gave up after the 5 s append-lock wait. It is unrelated to this change,
+  passed on the repeat and 5/5 locally, and is recorded as **dogfooding finding 23 (open)**.

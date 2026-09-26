@@ -15,13 +15,21 @@ agent-built milestones, Phase 4 remote-worker wiring, the P3 tool gateway, and P
 
 ## Active milestone
 
-No active milestone. P5-M007 — release v0.3.1 — is complete.
+No active milestone. P3-M006 — external MCP servers behind the gateway — is complete.
 `v0.3.1` (P5-M007) is the latest release, and every completed milestone is tagged `milestone/<ID>`.
 
 ## Known issues
 
-- No dogfooding findings are open (21 and 22 were resolved in P2-M035).
+- Dogfooding finding 23 is open: the audit append lock is unfair and can starve a writer under
+  heavy contention (seen once in CI).
 - Findings 19 and 20 are released in `v0.3.1`; `v0.3.0` workers still have them.
+
+## P3-M006 completion evidence
+
+- Approved plan: `.plans/P3-M006-external-mcp-servers.plan.md`.
+- Implementation commits: `3939aff` and `de0f0f7`. CI `36213252213` is green on all seven jobs.
+- Verified with the real `server-everything` (only mapped tools; `get-env` refused) and a Claude
+  Code session calling an external tool through the gateway.
 
 ## P5-M007 completion evidence
 

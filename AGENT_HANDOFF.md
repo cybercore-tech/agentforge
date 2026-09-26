@@ -2,7 +2,10 @@
 
 ## Repository state
 
-- Active milestone: none. P5-M007 is complete: **`v0.3.1` is published** (tag on `899d3d1`), the
+- Active milestone: none. P3-M006 is complete (`3939aff`, `de0f0f7`): external MCP servers go in
+  `.forge/mcp/<server>.conf` with `tool.<name>=<capability>` lines (unmapped means invisible); see
+  `docs/MCP_GATEWAY.md`. Finding 23 (the audit lock can starve a writer) is open.
+- P5-M007 is complete: **`v0.3.1` is published** (tag on `899d3d1`), the
   first release with an attested SBOM and the remote-worker fixes. `scripts/rehearse-two-hosts`
   now defaults to it.
 - P2-M035 is complete (`7ba86dc`): findings 21 and 22 are resolved. Task

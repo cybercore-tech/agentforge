@@ -6,6 +6,13 @@ All notable AgentForge changes are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- The MCP task-tool gateway can front external MCP servers declared in `.forge/mcp/<server>.conf`.
+  Only tools mapped to a capability are exposed, as `<server>__<tool>`; calls are checked by the
+  policy engine, forwarded unchanged, and audited, and a failing server is contained (P3-M006,
+  ADR-0055).
+
 ## [0.3.1] - 2026-09-25
 
 The first release with an **attested SBOM**: `agentforge-0.3.1.cdx.json` lists everything built into

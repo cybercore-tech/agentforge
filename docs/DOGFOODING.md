@@ -181,6 +181,13 @@ gates, review, accept, integrate. This file is the run log and the list of frict
     `scripts/publish-release --self-test`). It reported this honestly, and the operator ran them in
     review. **Resolved in P2-M035:** for a task holding `run_local_commands`, the bridge allows
     `./<path>`, `python3 <path>`, and `bash <path>` for each of the task's allowed paths.
+23. **The audit append lock can starve a writer.** Seen once in CI (`36213033086`, during P3-M006):
+    in P0-M013's `concurrent_writers_keep_one_verified_chain` (4 threads, 25 appends each), one
+    writer gave up after the 5 s `APPEND_LOCK_WAIT`. The lock is a polled lock file (a retry every
+    2 ms, not fair), and each append re-verifies the growing log and fsyncs. On a slow runner, one
+    thread can keep losing the race for the whole budget. It passed on the repeat and 5/5 locally,
+    and normal use has far less contention. A fair wait (for example an OS file lock) or a budget
+    tied to progress would remove it. **Open.**
 
 
 ## P1-M007 run log (2026-09-24)
