@@ -183,7 +183,8 @@ retries an unreachable coordinator with capped backoff and stops on a refusal; t
 `contrib/systemd/agentforge-worker@.service` template supervises one worker per unit, and `forge
 hud` shows workers (capacity, last seen) and active leases (P4-M010). `scripts/worker-bundle` (on the
 coordinator) and `scripts/worker-host-setup` (on the worker host) set up a worker in two commands
-(P4-M011).
+(P4-M011). `scripts/rehearse-two-hosts` rehearses the two-machine run in two containers with
+network chaos (P4-M012; see REMOTE_WORKERS.md).
 
 `forge mcp serve --contract <file> --worktree <dir> [--root <project>]` is the MCP task-tool
 gateway an agent's MCP client starts (P3-M005). The Claude Code bridge wires it in for tasks that
@@ -215,6 +216,9 @@ the task's capabilities and recorded as `ToolInvoked` audit events (`docs/MCP_GA
 | `worker-host-setup` fails with "missing prerequisites" | Install what it lists (`forge` from the project with `cargo install --path crates/agentforge-cli`, GhostPort, Claude Code) or pass `--forge`/`--claude`/`--agent-executable`. |
 | `worker-host-setup` ends with `doctor fail endpoint` | Expected on the first run: add the printed `[[peers]]` entry to the coordinator's GhostPort server, start both GhostPort ends, and run the script again. |
 | `worker-bundle` says a profile or `worker-api.conf` "already" differs | It never changes them. Pass the existing settings (`--api-port`, the profile options), or edit the file yourself. |
+| `worker remote run` prints `result upload failed: ...; retrying in <n>s` | The finished result is being re-sent after a transport failure; nothing to do (P4-M012). If it gives up after 10 attempts, the claim is abandoned as before. |
+| `worker remote run` says the first upload "may already have been imported" | An answer was lost and the retry was refused. Check `forge task inspect . <task>` on the coordinator: the task is usually imported and awaiting review. |
+| Remote requests fail with `Connection reset by peer`, and the coordinator's GhostPort logs `too many recent handshake attempts` | GhostPort older than v0.1.2 throttles busy workers. Upgrade GhostPort on the coordinator (see REMOTE_WORKERS.md). |
 | `worker remote run` prints `coordinator unreachable: ...; retrying in <n>s` | The coordinator is down or the tunnel dropped. Nothing to do on the worker; it resumes by itself (`coordinator reachable again`). Check `forge daemon status` and the GhostPort client on each end. |
 | `worker remote run failed: unauthorized` and the unit restarts every 30 s | The worker's secret no longer matches (for example after a rotation). Copy the coordinator's new secret to the worker host (mode 600); the next restart passes the doctor. |
 | `forge hud` shows a worker holding an active lease with an old `last-seen` | The worker stopped renewing: check its unit (`systemctl --user status agentforge-worker@<id>`) and journal. The lease expires by itself; release it early with `forge lease release`. |

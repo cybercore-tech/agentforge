@@ -362,6 +362,15 @@ fn worker_remote_run_command(arguments: &[String], doctor_only: bool) -> ExitCod
             }
         }
         RemoteReport::Busy(holder) => println!("coordinator busy ({holder}); retrying"),
+        RemoteReport::ResultRetry {
+            error,
+            retry_in,
+            attempt,
+        } => eprintln!(
+            "result upload failed: {error}; retrying in {}s (attempt {attempt} of {})",
+            retry_in.as_secs_f64(),
+            agentforge_daemon::worker_api::MAX_RESULT_RETRIES
+        ),
         RemoteReport::Imported(imported) => {
             println!("imported state={} gates={}", imported.state, imported.gates)
         }

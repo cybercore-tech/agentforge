@@ -40,6 +40,9 @@ const IMPORT_TIMEOUT: Duration = Duration::from_secs(60 * 60);
 /// The longest a supervised worker waits between attempts to reach an unreachable coordinator
 /// (P4-M010).
 pub const MAX_UNREACHABLE_BACKOFF: Duration = Duration::from_secs(60);
+/// How many times a worker retries a result upload that failed in transit before giving up; the
+/// lease keeps being renewed meanwhile (P4-M012, finding 19).
+pub const MAX_RESULT_RETRIES: u32 = 10;
 const UNAUTHORIZED_DELAY: Duration = Duration::from_millis(200);
 
 /// Reads `.forge/worker-api.conf`. `Ok(None)` means the worker API is off.
@@ -276,11 +279,17 @@ fn claim(root: &Path, worker: &str) -> Response {
             &[("channel", "remote"), ("base_commit", base.as_str())],
         )
         .map_err(|error| error.to_string())?;
+        // The claim restarted the lease window (finding 20); report the expiry it set.
+        let expires_at_ms = agentforge_operator::leases::list_leases(root, now)
+            .map_err(|error| error.to_string())?
+            .into_iter()
+            .find(|view| view.lease_id == claim.lease_id.as_str())
+            .map_or(lease.expires_at_ms(), |view| view.expires_at_ms);
         let header = format!(
             "OK\tCLAIMED\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
             claim.lease_id.as_str(),
             claim.generation,
-            lease.expires_at_ms(),
+            expires_at_ms,
             lease.task_id(),
             base,
             document.len(),
@@ -653,7 +662,7 @@ impl WorkerClient {
         stdout: &[u8],
         stderr: &[u8],
         bundle: &[u8],
-    ) -> Result<Result<ImportedResult, String>, String> {
+    ) -> Result<Result<ImportedResult, String>, ClientError> {
         let exit = exit_code.map_or_else(|| "none".to_owned(), |code| code.to_string());
         let lengths = [stdout.len(), stderr.len(), bundle.len()].map(|length| length.to_string());
         let mut body = Vec::with_capacity(stdout.len() + stderr.len() + bundle.len());
@@ -683,7 +692,7 @@ impl WorkerClient {
                 }))
             }
             [busy, holder] if busy == "BUSY" => Ok(Err(holder.clone())),
-            _ => Err(error_of(&fields)),
+            _ => Err(classify_response(&fields)),
         }
     }
 
@@ -827,6 +836,15 @@ pub enum RemoteReport<'a> {
     },
     /// The coordinator was busy; the worker retries.
     Busy(&'a str),
+    /// A result upload failed in transit; the worker retries it (P4-M012, finding 19).
+    ResultRetry {
+        /// The transport failure.
+        error: &'a str,
+        /// Delay before the next attempt.
+        retry_in: Duration,
+        /// This retry's number, from 1.
+        attempt: u32,
+    },
     /// The coordinator imported the result.
     Imported(&'a ImportedResult),
     /// The result was rejected or could not be produced; the lease was released.
@@ -1021,6 +1039,10 @@ fn run_claim<A: agentforge_adapter::AgentAdapter>(
                 .to_vec()
         };
         let (stdout, stderr) = (bound(execution.stdout()), bound(execution.stderr()));
+        // Finished work is never abandoned for a lost connection: a transport failure is retried
+        // with capped backoff while the lease keeps being renewed (finding 19).
+        let mut attempt = 0_u32;
+        let mut backoff = None::<Duration>;
         loop {
             match client.result(
                 &claim.lease_id,
@@ -1031,15 +1053,37 @@ fn run_claim<A: agentforge_adapter::AgentAdapter>(
                 &stdout,
                 &stderr,
                 &bundle,
-            )? {
-                Ok(imported) => {
+            ) {
+                Ok(Ok(imported)) => {
                     report(RemoteReport::Imported(&imported));
                     return Ok(true);
                 }
-                Err(holder) => {
+                Ok(Err(holder)) => {
                     report(RemoteReport::Busy(&holder));
                     thread::sleep(options.poll);
                 }
+                Err(ClientError::Unreachable(error)) if attempt < MAX_RESULT_RETRIES => {
+                    attempt += 1;
+                    let retry_in = backoff
+                        .map_or(options.poll, |previous| previous.saturating_mul(2))
+                        .min(options.max_backoff.max(options.poll));
+                    backoff = Some(retry_in);
+                    report(RemoteReport::ResultRetry {
+                        error: &error,
+                        retry_in,
+                        attempt,
+                    });
+                    thread::sleep(retry_in);
+                }
+                // A refusal after a lost answer can mean the first upload was imported.
+                Err(ClientError::Refused(reason)) if attempt > 0 => {
+                    return Err(format!(
+                        "the coordinator refused the retried result ({reason}); the first \
+                         upload may already have been imported: check `forge task inspect` on \
+                         the coordinator"
+                    ));
+                }
+                Err(error) => return Err(error.into()),
             }
         }
     })();

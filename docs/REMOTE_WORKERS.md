@@ -35,6 +35,11 @@ expired -> later grant with a higher task generation
 
 The state machine enforces one active lease per task, worker concurrency limits, owner and
 generation checks for renewal/release, bounded lease windows, and deterministic lease ordering.
+
+A **claim restarts the lease window** (since P4-M012): the expiry becomes the claim time plus the
+lease's original window, so a worker that claims late, after an outage or a slow start, still has
+a whole window before its first renewal. Before this, expiry counted from the grant, and a late
+claim could lose its lease before the first renewal (dogfooding finding 20).
 It never starts a process, creates a worktree, writes a task snapshot, or sends a network request.
 
 ## Durable lease state and restart recovery
@@ -297,9 +302,15 @@ current expiry. Expiry is judged on the coordinator's clock.
 **Rotating a secret:** delete `.forge/workers/<id>.secret`, run `forge worker enroll` again, and
 update the worker host.
 
-**Rate limiting (GhostPort v0.1.1):** GhostPort limits repeated failed handshakes *per source
-address*, not per pinned peer. Failed attempts from one address (for example a shared NAT) can
-briefly block a legitimate worker behind the same address. Retry after a short wait.
+**Use GhostPort v0.1.2 or later.** Every tunnelled connection is a new GhostPort handshake, and an
+AgentForge worker opens one per request (polls every 2 s, renewals, results). GhostPort's per-IP
+handshake limiter (10 a minute) counted *successful* handshakes too up to v0.1.1, so any worker
+over it was cut off within about 20 seconds ("data: rejected ... (too many recent handshake
+attempts)" on the coordinator, and "Connection reset by peer" on the worker). The P4-M012
+rehearsal found this (dogfooding finding 18), and it was fixed in GhostPort v0.1.2: authenticated
+handshakes no longer count, only failed ones do. Failed attempts are still counted *per source
+address*, so an attacker behind the same NAT as a worker can briefly block it; retry after a short
+wait.
 
 ## Running tasks remotely
 
@@ -465,3 +476,38 @@ Every attempt keeps its exact history, and a task can be leased to the same host
 P4-M010, the kept task branch made every later attempt on that host fail with `managed task branch
 already exists` (dogfooding finding 17). Delete old `agentforge/remote/*` branches and
 `.forge/remote-abandoned/` entries when you no longer need them.
+
+## Two-host rehearsal (containers and network chaos)
+
+Until real second machines are available, `scripts/rehearse-two-hosts` (P4-M012) rehearses the
+two-machine run on one Docker host. It uses two clean Arch Linux containers, a coordinator and a
+worker host, with separate filesystems, users, and network namespaces, joined only by their own
+bridge network, and real GhostPort between them.
+
+```bash
+scripts/rehearse-two-hosts            # released v0.3.0 (checksum + attestation verified)
+scripts/rehearse-two-hosts --forge-archive <archive.tar.gz>   # a build under test
+```
+
+The worker host is set up only by `worker-bundle` and `worker-host-setup`, with the bundle copied
+across. GhostPort v0.1.2 comes from its release, checksum-verified. The rehearsal then checks:
+
+1. a clean remote run, imported at the worker's exact commit;
+2. a run under `tc netem` on the worker's interface (150 ms ± 50 ms delay and 5% loss, confirmed by
+   measured RTT), with lease renewals across the bad link;
+3. a 30 s partition (100% loss) while idle: the worker retries, recovers in the same process, and
+   claims and imports new work.
+
+It prints PASS/FAIL per check with a transcript, removes its containers and network, and exits
+non-zero on any failure. `--keep` leaves the containers for inspection. `--break-heal` leaves the
+partition in place to show the checks bite: only scenario 3's recovery checks fail.
+
+Building it found four real defects, each fixed with a test:
+- `worker-host-setup` depended on `cmp`, which is missing on a clean host;
+- GhostPort's limiter throttled authenticated peers (finding 18, fixed in GhostPort v0.1.2);
+- a worker abandoned finished work when its result upload failed in transit (finding 19; `RESULT`
+  is now retried, and a refused retry is reported as possibly imported);
+- leases expired from their grant, not their claim (finding 20).
+
+It is a rehearsal, not a substitute for different hardware and kernels: the real two-machine run
+is still planned.

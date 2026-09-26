@@ -4,8 +4,8 @@ use agentforge_audit::{AuditEventKind, AuditStore, FileAuditStore};
 use agentforge_core::agent::{AgentRole, AgentTask};
 use agentforge_core::task::{TaskGraph, TaskId, TaskState};
 use agentforge_operator::leases::{
-    LEASE_LOCK_RELATIVE_PATH, expire_leases, grant_lease, list_leases, list_workers, load_workers,
-    local_run_conflict, release_lease, renew_lease, try_expire_leases,
+    LEASE_LOCK_RELATIVE_PATH, claim_lease, expire_leases, grant_lease, list_leases, list_workers,
+    load_workers, local_run_conflict, release_lease, renew_lease, try_expire_leases,
 };
 use agentforge_operator::transition_task;
 use agentforge_state::{FileTaskStore, TaskStore};
@@ -326,5 +326,33 @@ fn local_runs_are_refused_for_leased_and_overlapping_tasks() {
         None,
         "a lease past its expiry no longer blocks local runs"
     );
+    fs::remove_dir_all(root).expect("cleanup");
+}
+
+/// Finding 20 (P4-M012 Amendment 3): a lease's expiry counted from the grant, so a worker that
+/// claimed late (after a slow start or an outage) lost the lease before its first renewal. A claim
+/// restarts the window.
+#[test]
+fn a_claim_restarts_the_lease_window() {
+    let root = fixture();
+    grant_lease(&root, &id("P4-M004-T0001"), Some("w-a"), 6_000, 1_000, "op").expect("grant");
+    // Claimed 5 s into a 6 s window: the worker gets the whole window from now.
+    claim_lease(&root, "P4-M004-T0001.L1", "w-a", 6_000).expect("claim");
+    let lease = &list_leases(&root, 6_000).expect("list")[0];
+    assert_eq!(lease.expires_at_ms, 12_000, "now + the original 6 s window");
+    assert_eq!(lease.state, "active");
+    // Still active where the grant-based expiry (7 000) would have ended it.
+    assert_eq!(list_leases(&root, 8_000).expect("list")[0].state, "active");
+    // The claimed event records the new expiry.
+    let audit = FileAuditStore::open(root.join(".forge/audit.log")).expect("audit");
+    let claimed = audit
+        .records()
+        .iter()
+        .map(|record| record.event())
+        .find(|event| event.fields().get("action").map(String::as_str) == Some("claimed"))
+        .expect("claimed event");
+    assert_eq!(claimed.fields()["expires_at_ms"], "12000");
+    // A renewal still has to extend it.
+    assert!(renew_lease(&root, "P4-M004-T0001.L1", 1_000, 7_000, "w-a").is_err());
     fs::remove_dir_all(root).expect("cleanup");
 }

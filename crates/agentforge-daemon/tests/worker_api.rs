@@ -137,6 +137,11 @@ fn an_enrolled_worker_claims_renews_and_releases_its_lease() {
     .expect("grant");
     let claim = client.claim().expect("claim").expect("claimed");
     assert_eq!(claim.lease_id, "P4-M007-T0001.L1");
+    // The claim restarted the window, and the answer reports that expiry (finding 20).
+    assert_eq!(
+        claim.expires_at_ms,
+        list_leases(&root, now_ms()).expect("list")[0].expires_at_ms
+    );
     assert_eq!(claim.task_id, "P4-M007-T0001");
     assert_eq!(claim.generation, 1);
     assert_eq!(claim.base_commit, git(&root, &["rev-parse", "HEAD"]));
@@ -352,7 +357,10 @@ fn result_is_owner_only_and_bounded() {
             b"",
         )
         .expect_err("not owner");
-    assert!(error.contains("belongs to worker remote-a"), "{error}");
+    assert!(
+        matches!(&error, ClientError::Refused(message) if message.contains("belongs to worker remote-a")),
+        "{error:?}"
+    );
 
     // An oversize declared body is refused before it is read.
     let mut raw = std::net::TcpStream::connect(server.address).expect("connect");

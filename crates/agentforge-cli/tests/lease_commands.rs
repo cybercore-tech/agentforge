@@ -980,3 +980,117 @@ fn the_doctor_reports_the_host_and_run_refuses_a_failing_one() {
     let _ = fs::remove_dir_all(clone.parent().expect("host"));
     fs::remove_dir_all(root).expect("cleanup");
 }
+
+/// How the fault-injecting proxy treats the first `RESULT` request (P4-M012, finding 19).
+#[derive(Clone, Copy)]
+enum LoseResult {
+    /// The request never reaches the coordinator.
+    Request,
+    /// The coordinator imports it, but its answer never reaches the worker.
+    Response,
+}
+
+/// A loopback TCP proxy to `target` that forwards every connection, except that it loses the
+/// first `RESULT` as `mode` says. Returns the proxy's address.
+fn result_losing_proxy(target: String, mode: LoseResult) -> String {
+    use std::io::{Read, Write};
+    use std::sync::atomic::{AtomicBool, Ordering};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("proxy");
+    let address = listener.local_addr().expect("address").to_string();
+    let lost = std::sync::Arc::new(AtomicBool::new(false));
+    std::thread::spawn(move || {
+        for client in listener.incoming() {
+            let Ok(mut client) = client else { continue };
+            let target = target.clone();
+            let lost = std::sync::Arc::clone(&lost);
+            std::thread::spawn(move || {
+                // The request line (and any body) arrives first; read what is there.
+                client
+                    .set_read_timeout(Some(std::time::Duration::from_millis(300)))
+                    .ok();
+                let mut request = Vec::new();
+                let mut buffer = [0_u8; 65_536];
+                loop {
+                    match client.read(&mut buffer) {
+                        Ok(0) => break,
+                        Ok(n) => request.extend_from_slice(&buffer[..n]),
+                        Err(_) => break,
+                    }
+                }
+                let is_result = String::from_utf8_lossy(&request).contains("\tRESULT\t");
+                let lose_now = is_result && !lost.swap(true, Ordering::SeqCst);
+                if lose_now && matches!(mode, LoseResult::Request) {
+                    return; // dropped: the coordinator never sees it
+                }
+                let Ok(mut server) = std::net::TcpStream::connect(&target) else {
+                    return;
+                };
+                if server.write_all(&request).is_err() {
+                    return;
+                }
+                let mut response = Vec::new();
+                let _ = server.read_to_end(&mut response);
+                if lose_now {
+                    return; // imported, but the answer is lost
+                }
+                let _ = client.write_all(&response);
+            });
+        }
+    });
+    address
+}
+
+#[cfg(unix)]
+#[test]
+fn a_lost_result_upload_is_retried_and_imported() {
+    let (root, clone, endpoint, secret, server) = remote_setup("agentforge-fixture-output.txt");
+    let proxy = result_losing_proxy(endpoint, LoseResult::Request);
+    let ran = remote_run(&root, &clone, &proxy, &secret);
+    let output = text(&ran);
+    assert!(ran.status.success(), "{output}");
+    assert!(output.contains("result upload failed"), "{output}");
+    assert!(output.contains("retrying in"), "{output}");
+    assert!(
+        output.contains("claimed=1 imported=1 abandoned=0"),
+        "{output}"
+    );
+    let head = output
+        .lines()
+        .find_map(|line| line.strip_prefix("result head="))
+        .expect("head")
+        .to_owned();
+    assert_eq!(
+        git_out(&root, &["rev-parse", "agentforge/task/P4-M008-T0001"]),
+        head,
+        "the finished work was kept, not abandoned"
+    );
+    drop(server);
+    let _ = fs::remove_dir_all(clone.parent().expect("host"));
+    fs::remove_dir_all(root).expect("cleanup");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_lost_result_answer_is_reported_as_possibly_imported() {
+    let (root, clone, endpoint, secret, server) = remote_setup("agentforge-fixture-output.txt");
+    let proxy = result_losing_proxy(endpoint, LoseResult::Response);
+    let ran = remote_run(&root, &clone, &proxy, &secret);
+    let output = text(&ran);
+    assert!(
+        output.contains("may already have been imported"),
+        "the worker must not claim the work was lost:\n{output}"
+    );
+    let head = output
+        .lines()
+        .find_map(|line| line.strip_prefix("result head="))
+        .expect("head")
+        .to_owned();
+    assert_eq!(
+        git_out(&root, &["rev-parse", "agentforge/task/P4-M008-T0001"]),
+        head,
+        "the coordinator did import it"
+    );
+    drop(server);
+    let _ = fs::remove_dir_all(clone.parent().expect("host"));
+    fs::remove_dir_all(root).expect("cleanup");
+}

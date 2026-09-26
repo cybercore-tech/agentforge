@@ -1,0 +1,277 @@
+#!/usr/bin/env bash
+# Two-host remote-worker rehearsal in containers, with network chaos (P4-M012).
+#
+# Usage:
+#   scripts/rehearse-two-hosts [--keep] [--forge-archive <tar.gz>] [--ghostport <binary>]
+#
+# Runs a coordinator and a worker host as two clean Arch Linux containers on their own Docker bridge
+# network, joined by real GhostPort. The worker host is set up only by scripts/worker-bundle and
+# scripts/worker-host-setup. Then it checks:
+#   1. a clean remote run, imported at the worker's exact commit;
+#   2. a run under tc netem (150 ms +/- 50 ms delay, 5% loss) on the worker's interface, with lease
+#      renewals;
+#   3. a partition while idle (100% loss): the worker retries, recovers in the same process, and
+#      claims new work.
+# forge/forged come from the published v0.3.0 release archive, verified on the host with
+# sha256sum and gh attestation verify, unless --forge-archive gives one. ghostport comes from the
+# published GhostPort v0.1.2 release, checksum-verified (it must include the handshake-limiter fix,
+# AgentForge finding 18), unless --ghostport gives a binary.
+#
+# Prints PASS/FAIL per check, keeps a transcript, removes its containers and network (unless
+# --keep), and exits non-zero on any failure. Only Docker objects named agentforge-rehearsal-* and
+# a scratch directory are created on the host.
+#
+# --break-heal (for checking the checks) leaves the partition in place, so scenario 3 must fail.
+
+set -euo pipefail
+
+here="$(cd "$(dirname "$0")/.." && pwd)"
+keep=0 archive="" ghostport_bin="" break_heal=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --keep) keep=1; shift ;;
+    --break-heal) break_heal=1; shift ;;
+    --forge-archive) archive="$2"; shift 2 ;;
+    --ghostport) ghostport_bin="$2"; shift 2 ;;
+    *) sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
+  esac
+done
+
+prefix=agentforge-rehearsal
+coord="$prefix-coordinator"
+worker="$prefix-worker"
+network="$prefix-net"
+image="$prefix:local"
+work="$(mktemp -d "${TMPDIR:-/tmp}/$prefix.XXXXXX")"
+transcript="$work/transcript.log"
+failures=0
+
+log() { printf '%s\n' "$*" | tee -a "$transcript"; }
+pass() { log "PASS $*"; }
+fail() { log "FAIL $*"; failures=$((failures + 1)); }
+check() { local name="$1"; shift; if "$@"; then pass "$name"; else fail "$name"; fi; }
+die() { log "ABORT $*"; exit 1; }
+
+cleanup() {
+  local status=$?
+  if [ "$keep" = 0 ]; then
+    docker rm -f "$coord" "$worker" > /dev/null 2>&1 || true
+    docker network rm "$network" > /dev/null 2>&1 || true
+  else
+    log "kept: containers $coord $worker, network $network"
+  fi
+  log "transcript: $transcript"
+  exit "$status"
+}
+trap cleanup EXIT
+
+# Runs a command in a container as a user, appending everything to the transcript.
+on() {
+  local container="$1" user="$2"
+  shift 2
+  docker exec -u "$user" -w "/home/$user" "$container" bash -c "$*" 2>&1 | tee -a "$transcript"
+  return "${PIPESTATUS[0]}"
+}
+
+command -v docker > /dev/null || die "docker is required"
+log "rehearsal work directory: $work"
+if [ -z "$ghostport_bin" ]; then
+  (cd "$work" && gh release download v0.1.2 -R cybercore-tech/ghostport \
+    -p 'ghostport-x86_64-unknown-linux-gnu.tar.gz*') >> "$transcript" 2>&1 \
+    || die "cannot download GhostPort v0.1.2"
+  check "GhostPort v0.1.2 archive checksum" bash -c "cd '$work' && \
+    sha256sum --quiet -c ghostport-x86_64-unknown-linux-gnu.tar.gz.sha256"
+  mkdir -p "$work/ghostport" && tar xzf "$work/ghostport-x86_64-unknown-linux-gnu.tar.gz" \
+    -C "$work/ghostport"
+  ghostport_bin="$(find "$work/ghostport" -type f -name ghostport | head -1)"
+fi
+[ -x "$ghostport_bin" ] || die "ghostport not found; pass --ghostport <binary>"
+ghostport_bin="$(readlink -f "$ghostport_bin")"   # docker cp copies a symlink as a link
+
+# 0. The release archive, verified before it is trusted.
+if [ -z "$archive" ]; then
+  (cd "$work" && gh release download v0.3.0 -R cybercore-tech/agentforge \
+    -p SHA256SUMS -p '*x86_64-unknown-linux-gnu.tar.gz') >> "$transcript" 2>&1 \
+    || die "cannot download the v0.3.0 release"
+  archive="$work/agentforge-0.3.0-x86_64-unknown-linux-gnu.tar.gz"
+  check "release archive checksum" \
+    bash -c "cd '$work' && sha256sum --quiet -c --ignore-missing SHA256SUMS"
+  check "release archive attestation" gh attestation verify "$archive" -R cybercore-tech/agentforge \
+    --signer-workflow cybercore-tech/agentforge/.github/workflows/release.yml
+fi
+[ -f "$archive" ] || die "no archive: $archive"
+
+# 1. Image, network, and the two hosts.
+docker build -q -t "$image" "$here/contrib/rehearsal" >> "$transcript" 2>&1 || die "image build failed"
+docker rm -f "$coord" "$worker" > /dev/null 2>&1 || true
+docker network rm "$network" > /dev/null 2>&1 || true
+docker network create "$network" > /dev/null
+docker run -d --name "$coord" --hostname coordinator --network "$network" "$image" \
+  sleep infinity > /dev/null
+docker run -d --name "$worker" --hostname worker-host --network "$network" --cap-add NET_ADMIN \
+  "$image" sleep infinity > /dev/null
+coord_ip="$(docker inspect -f "{{(index .NetworkSettings.Networks \"$network\").IPAddress}}" "$coord")"
+log "coordinator at $coord_ip"
+for host in "$coord" "$worker"; do
+  docker cp "$archive" "$host:/tmp/agentforge.tar.gz"
+  docker cp "$ghostport_bin" "$host:/usr/local/bin/ghostport"
+  docker cp "$here/scripts/worker-bundle" "$host:/usr/local/bin/worker-bundle"
+  docker cp "$here/scripts/worker-host-setup" "$host:/usr/local/bin/worker-host-setup"
+  docker exec "$host" bash -c 'cd /tmp && tar xzf agentforge.tar.gz \
+    && install -m755 agentforge-*/forge agentforge-*/forged /usr/local/bin/'
+done
+installed="$(docker exec "$worker" forge version)"
+check "forge from the release on the worker host reports 0.3.0 ($installed)" \
+  test "$installed" = "AgentForge 0.3.0"
+
+# 2. The coordinator: project, tasks, forged, git origin, GhostPort key, worker bundle.
+on "$coord" coord '
+  set -e
+  git config --global user.name Coordinator && git config --global user.email c@example.invalid
+  git init -q -b main project && cd project
+  printf ".forge/\n" > .gitignore && echo "# two-host rehearsal" > README.md
+  git add . && git commit -qm init
+  forge init . > /dev/null
+  for task in 1 2 3; do
+    forge task create . P4-M012-T000$task P4-M012 implementer "rehearsal task $task" \
+      --allowed rehearsal.txt --capability run_local_commands > /dev/null
+  done
+  ghostport keygen --out ~/.config/ghostport/server.key > /dev/null
+  worker-bundle . remote-1 --origin git://'"$coord_ip"'/project --server '"$coord_ip"' \
+    --control-port 19200 --data-port 19201 --server-key ~/.config/ghostport/server.key.pub \
+    --api-port 47420 --tunnel-port 47500 --out ~/worker-remote-1.bundle > ~/bundle.log
+  forge daemon start ~/project
+' > /dev/null || die "coordinator setup failed"
+docker exec -d -u coord "$coord" git daemon --reuseaddr --base-path=/home/coord --export-all \
+  /home/coord/project
+
+# 3. The operator copies the bundle to the worker host.
+docker cp "$coord:/home/coord/worker-remote-1.bundle" "$work/bundle"
+docker cp "$work/bundle" "$worker:/home/worker/worker-remote-1.bundle"
+docker exec "$worker" chown -R worker:worker /home/worker/worker-remote-1.bundle
+
+# 4. The worker host: first setup (the tunnel is not up yet).
+setup='worker-host-setup ~/worker-remote-1.bundle --repo ~/src/project --profile rehearsal \
+  --agent-executable /usr/local/bin/rehearsal-agent --git-name "Remote Worker" \
+  --git-email w@example.invalid'
+first="$(on "$worker" worker "$setup" || true)"
+failed_checks="$(printf '%s\n' "$first" | grep -c '^doctor fail' || true)"
+check "first setup fails only the endpoint check" \
+  bash -c "[ '$failed_checks' = 1 ] && printf '%s' \"\$0\" | grep -q '^doctor fail endpoint'" "$first"
+worker_key="$(printf '%s\n' "$first" | sed -n 's/^public_key = "\(.*\)"$/\1/p')"
+[ -n "$worker_key" ] || die "setup printed no worker key"
+
+# The coordinator's GhostPort server, from the two printed snippets.
+on "$coord" coord "cat > ~/.config/ghostport/server.toml <<TOML
+role = \"server\"
+private_key_path = \"/home/coord/.config/ghostport/server.key\"
+listen_control = \"0.0.0.0:19200\"
+listen_data = \"0.0.0.0:19201\"
+
+[[peers]]
+name = \"remote-1-host\"
+public_key = \"$worker_key\"
+links = [\"agentforge-remote-1\"]
+
+[[links]]
+id = \"agentforge-remote-1\"
+mode = \"forward\"
+target = \"127.0.0.1:47420\"
+TOML
+ghostport check ~/.config/ghostport/server.toml > /dev/null" > /dev/null || die "server config invalid"
+docker exec -d -u coord "$coord" bash -c \
+  'ghostport run ~/.config/ghostport/server.toml > ~/ghostport-server.log 2>&1'
+sleep 1
+docker exec -d -u worker "$worker" bash -c \
+  'ghostport run ~/.config/ghostport/agentforge-remote-1.toml > ~/ghostport-client.log 2>&1'
+sleep 3
+second="$(on "$worker" worker "$setup" || true)"
+check "second setup passes the doctor through the tunnel" \
+  bash -c "printf '%s' \"\$0\" | grep -q 'remote-1 doctor: 0 failing'" "$second"
+check "second setup changes nothing" \
+  bash -c "! printf '%s' \"\$0\" | grep -qE '^worker-host-setup: (wrote|cloned|installed|generated)'" "$second"
+
+run_once='set -a; . ~/.config/agentforge/worker-remote-1.env; set +a
+forge worker remote run --endpoint "$AGENTFORGE_ENDPOINT" --worker remote-1 \
+  --secret-file "$AGENTFORGE_SECRET_FILE" --repo "$AGENTFORGE_REPO" \
+  --profile "$AGENTFORGE_PROFILE" --once'
+grant() { on "$coord" coord "forge lease grant ~/project $1 --worker remote-1 --ttl-ms $2 --actor op" > /dev/null; }
+accept() { on "$coord" coord "forge task accept ~/project $1 --actor op" > /dev/null; }
+coord_head() { docker exec -u coord "$coord" git -C /home/coord/project rev-parse "agentforge/task/$1" 2>/dev/null; }
+rtt() { docker exec "$worker" ping -c 5 -q "$coord_ip" | sed -n 's|.* = [0-9.]*/\([0-9.]*\)/.*|\1|p'; }
+
+# Scenario 1: a clean run.
+grant P4-M012-T0001 60000
+out="$(on "$worker" worker "$run_once" || true)"
+head="$(printf '%s\n' "$out" | sed -n 's/^result head=//p')"
+check "scenario 1: imported" bash -c "printf '%s' \"\$0\" | grep -q 'claimed=1 imported=1'" "$out"
+check "scenario 1: coordinator holds the worker's exact commit" \
+  test -n "$head" -a "$head" = "$(coord_head P4-M012-T0001)"
+# The operator reviews and accepts it; an accepted task no longer holds its paths.
+accept P4-M012-T0001
+
+# Scenario 2: a bad network, with renewals across it.
+before="$(rtt)"
+docker exec "$worker" tc qdisc add dev eth0 root netem delay 150ms 50ms loss 5%
+after="$(rtt)"
+log "RTT to the coordinator: ${before} ms before netem, ${after} ms under netem"
+check "scenario 2: the chaos is real (RTT rose by at least 100 ms)" \
+  awk -v a="$after" -v b="$before" 'BEGIN { exit !(a - b >= 100) }'
+grant P4-M012-T0002 6000
+out="$(on "$worker" worker "$run_once" || true)"
+renewed="$(printf '%s\n' "$out" | sed -n 's/^lease renewed \([0-9]*\) time(s).*/\1/p')"
+check "scenario 2: imported under delay and loss" \
+  bash -c "printf '%s' \"\$0\" | grep -q 'claimed=1 imported=1'" "$out"
+check "scenario 2: the lease was renewed across the bad link (${renewed:-0} times)" \
+  test "${renewed:-0}" -ge 1
+docker exec "$worker" tc qdisc del dev eth0 root
+accept P4-M012-T0002
+
+# Scenario 3: a partition while the worker idles.
+docker exec -d -u worker "$worker" bash -c "${run_once% --once} > ~/supervised.log 2>&1"
+sleep 5
+pid_before="$(docker exec "$worker" pgrep -x forge | head -1)"
+docker exec "$worker" tc qdisc add dev eth0 root netem loss 100%
+log "partition: 100% loss for 30 s"
+sleep 30
+if [ "$break_heal" = 0 ]; then
+  docker exec "$worker" tc qdisc del dev eth0 root
+  log "partition healed"
+fi
+grant P4-M012-T0003 60000
+imported=0
+for _ in $(seq 1 60); do
+  if docker exec -u worker "$worker" grep -q '^imported ' /home/worker/supervised.log 2>/dev/null; then
+    imported=1
+    break
+  fi
+  sleep 2
+done
+supervised="$(docker exec -u worker "$worker" cat /home/worker/supervised.log)"
+printf '%s\n' "$supervised" >> "$transcript"
+pid_after="$(docker exec "$worker" pgrep -x forge | head -1 || true)"
+unreachable="$(printf '%s\n' "$supervised" | grep -c 'coordinator unreachable' || true)"
+check "scenario 3: the worker retried during the partition ($unreachable reports)" \
+  test "$unreachable" -ge 2
+check "scenario 3: the worker recovered" \
+  bash -c "printf '%s' \"\$0\" | grep -q 'coordinator reachable again'" "$supervised"
+check "scenario 3: work claimed and imported after the partition" test "$imported" = 1
+check "scenario 3: one worker process throughout (pid $pid_before)" \
+  test -n "$pid_before" -a "$pid_before" = "$pid_after"
+
+# The coordinator's view.
+on "$coord" coord 'forge hud ~/project | sed -n "/^workers:/,/^worktrees/p"; tail -5 ~/project/.forge/daemon/forged.log' \
+  > /dev/null || true
+
+if [ "$keep" = 0 ]; then
+  docker rm -f "$coord" "$worker" > /dev/null 2>&1 || true
+  docker network rm "$network" > /dev/null 2>&1 || true
+  left="$(docker ps -a --filter "name=$prefix" -q; docker network ls --filter "name=$prefix" -q)"
+  check "cleanup: no rehearsal containers or networks left" test -z "$left"
+fi
+if [ "$failures" -eq 0 ]; then
+  log "rehearsal passed"
+else
+  log "rehearsal FAILED: $failures check(s)"
+  exit 1
+fi

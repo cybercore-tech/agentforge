@@ -336,7 +336,9 @@ fn require_owner(
 ///
 /// Verifies under the lease lock that the lease is active, owned by `worker_id`, and that its task
 /// is still `pending`, then records `LeaseRecorded` with `action=claimed` (actor
-/// `worker:<worker-id>`). The lease book itself does not change.
+/// `worker:<worker-id>`). The claim restarts the lease window: the expiry becomes `now` plus the
+/// lease's original window, so a worker that claims late still gets a whole window before its
+/// first renewal (P4-M012, finding 20).
 pub fn claim_lease(
     root: impl AsRef<Path>,
     lease_id: &str,
@@ -390,6 +392,16 @@ pub fn claim_lease_as(
             state.as_str()
         )));
     }
+    // A claim proves the worker is alive: restart the window from now (finding 20).
+    let window = lease.expires_at_ms().saturating_sub(lease.issued_at_ms());
+    let restarted = now.saturating_add(window);
+    let lease = if restarted > lease.expires_at_ms() {
+        book.renew(&lease_id, &owner, generation, now, restarted)
+            .map_err(|error| OperatorError::new(error.to_string()))?
+            .clone()
+    } else {
+        lease
+    };
     commit_fields(root, &book, &[(&lease, "claimed")], &actor, fields)?;
     Ok(LeaseClaim {
         lease_id,

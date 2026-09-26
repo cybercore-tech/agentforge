@@ -168,7 +168,8 @@ if [ "$dry_run" = 0 ]; then
 fi
 
 # 4. The secret (content never printed).
-if [ -f "$secret_path" ] && cmp -s "$bundle/secret" "$secret_path"; then
+# Compared in the shell: a clean host may lack cmp (diffutils) (P4-M012 Amendment 1).
+if [ -f "$secret_path" ] && [ "$(cat "$bundle/secret")" = "$(cat "$secret_path")" ]; then
   say "unchanged: $secret_path"
   run chmod 600 "$secret_path"
 elif [ "$dry_run" = 1 ]; then

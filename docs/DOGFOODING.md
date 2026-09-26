@@ -150,6 +150,24 @@ gates, review, accept, integrate. This file is the run log and the list of frict
     worktree in `.forge/remote-abandoned/<lease-id>`), and leftovers of an interrupted attempt are
     archived as `<lease-id>.stale` before the next claim. Tested through the real worker loop,
     including a simulated kill mid-task.
+18. **GhostPort throttled a legitimate worker.** Found by the P4-M012 container rehearsal: the
+    coordinator's GhostPort logged `data: rejected ... (too many recent handshake attempts)`. Its
+    per-IP limiter (10 a minute) counted successful handshakes, and a worker opens one tunnelled
+    connection per request, so any worker over GhostPort was cut off within about 20 seconds. This
+    was confirmed on a clean link (authenticated `PING`s 11 and 12 were rejected) and was never
+    seen before because the earlier live runs were short or bypassed GhostPort. **Resolved in
+    GhostPort v0.1.2** (`ebd7639`, with the operator's approval): authenticated handshakes are
+    forgiven, and failures still count. It has a real-daemon regression test.
+19. **A worker abandoned finished work on one lost connection.** Found by the same run: with the
+    result committed, a `RESULT` upload that failed in transit ended the claim as "abandoned", so
+    the work would have been redone. **Resolved in P4-M012:** transport failures are retried with
+    capped backoff (up to 10 times) while the lease is renewed. A retry refused after a lost answer
+    is reported as "may already have been imported". Both cases are tested through a
+    fault-injecting proxy.
+20. **Leases expired from the grant, not the claim.** Found by a later rehearsal run: a worker that
+    claimed a 6 s lease late (slow handshakes on a lossy link) lost it before its first renewal,
+    and its finished work was refused. **Resolved in P4-M012:** a claim restarts the window, and
+    `CLAIM` reports the new expiry.
 
 
 ## P1-M007 run log (2026-09-24)
@@ -204,3 +222,18 @@ agent. Findings 16 and 17 came from the first pass; the second pass ran the fixe
 | Lease sweep | two consecutive 1 s leases expired, both logged in `forged.log`; `forged` kept 3 threads |
 | Refusal | after a secret rotation: `worker remote run failed: unauthorized`, exit 1; systemd restarted it (`NRestarts=1`) once the new secret was installed, and the doctor passed |
 | HUD | `live-1 platform=linux-x86_64 leases=0/1 last-seen=...(released)` and `leases: active=0 expired=4 released=5` |
+
+## P4-M012 two-host container rehearsal (2026-09-25)
+
+Two clean Arch containers on their own bridge network, real GhostPort, and the worker set up only by
+the P4-M011 scripts. Runs, in order:
+
+| Run | Result | What it showed |
+| --- | --- | --- |
+| 1 | abort | the rehearsal copied the host's `ghostport` symlink (script bug, fixed) |
+| 2 | 1 FAIL, then stop | `worker-host-setup` not idempotent without `cmp` (Amendment 1); scenario 2's grant correctly refused because task 1 still awaited review (the rehearsal now accepts) |
+| 3–4 | scenario 2 FAIL | finished work abandoned: GhostPort limiter (finding 18) and no `RESULT` retry (finding 19) |
+| 5 | all 20 PASS | released v0.3.0 with GhostPort v0.1.2 |
+| 6 | scenario 2 FAIL | lease expired from the grant (finding 20) |
+| 7, 8 | all 15 PASS | this tree's build (findings 19 and 20 fixed): imported under ~150–160 ms of delay and 5% loss with 4 renewals; recovered from a 30 s partition in one process |
+| 9 | exactly 2 FAIL | `--break-heal`: only scenario 3's recovery checks fail, as designed |

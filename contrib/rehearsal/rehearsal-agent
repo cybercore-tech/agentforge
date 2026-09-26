@@ -1,0 +1,5 @@
+#!/bin/sh
+# Rehearsal agent (P4-M012): works long enough for lease renewals, then writes the task's file in
+# the worktree it was started in. AgentForge runs agents with a cleared environment.
+sleep 8
+printf 'written by the rehearsal agent on %s\n' "$(cat /etc/hostname)" > rehearsal.txt
