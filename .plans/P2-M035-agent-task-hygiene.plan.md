@@ -1,6 +1,6 @@
 # Plan: P2-M035 — Agent task hygiene: integrable tasks, runnable scripts
 
-Status: Draft
+Status: Approved
 Milestone: P2-M035
 Created: 2026-09-25
 Owner: AgentForge project
