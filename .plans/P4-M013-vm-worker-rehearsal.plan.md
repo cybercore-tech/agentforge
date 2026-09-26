@@ -1,6 +1,6 @@
 # Plan: P4-M013 — VM worker rehearsal: a real second kernel
 
-Status: Draft
+Status: Approved
 Milestone: P4-M013
 Created: 2026-09-25
 Owner: AgentForge project
