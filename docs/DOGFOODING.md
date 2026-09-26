@@ -172,14 +172,15 @@ gates, review, accept, integrate. This file is the run log and the list of frict
     created `P5-M006-T0001` with `--approval merge_protected_branch` but without the
     `merge_protected_branch` capability. Accept and approve succeeded, and `forge task integrate`
     then refused ("task lacks merge_protected_branch capability"), correctly, with no way to amend
-    the contract. `task create` should refuse (or warn about) an approval boundary whose capability
-    the task lacks. **Open.**
+    the contract. **Resolved in P2-M035:** task creation refuses a `merge_protected_branch` or
+    `deploy_production` approval without its capability, and names the flag to add. Stored tasks
+    still load.
 22. **The agent cannot run the project's own scripts.** Found by the same run: the Claude Code
     bridge's tool allow-list permits `cargo`, `./scripts/gate.sh`, and some `git` commands, so the
     agent could not execute the self-tests it wrote (`scripts/sbom-merge --self-test`,
     `scripts/publish-release --self-test`). It reported this honestly, and the operator ran them in
-    review. Options include allowing the task's own allowed script paths, or offering them as gates
-    through `run_gate`. **Open.**
+    review. **Resolved in P2-M035:** for a task holding `run_local_commands`, the bridge allows
+    `./<path>`, `python3 <path>`, and `bash <path>` for each of the task's allowed paths.
 
 
 ## P1-M007 run log (2026-09-24)

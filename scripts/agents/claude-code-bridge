@@ -222,6 +222,24 @@ class BridgeError(ValueError):
     pass
 
 
+def script_tools(task):
+    """Tools that let a task holding run_local_commands execute files in its own allowed paths,
+    such as the self-tests it writes (P2-M035, finding 22). This grants nothing new: with
+    run_local_commands the agent already runs arbitrary code through cargo. Paths with spaces are
+    skipped, since tool patterns are space-separated."""
+    if "run_local_commands" not in task["capabilities"]:
+        return []
+    tools = []
+    for path in task["allowed_paths"]:
+        path = path.strip().rstrip("/")
+        while path.startswith("./"):
+            path = path[2:]
+        if not path or " " in path:
+            continue
+        tools += [f"Bash(./{path})", f"Bash(./{path} *)", f"Bash(python3 {path} *)", f"Bash(bash {path} *)"]
+    return tools
+
+
 def mcp_arguments(task, forge, scratch, worktree, root):
     """Claude Code arguments and allowed tools for the MCP gateway, or none for tasks without
     use_mcp_tools. `scratch` must already hold the contract as `contract.txt`."""
@@ -257,7 +275,7 @@ def project_root():
     return root if (root / ".forge" / "state" / "tasks.snapshot").is_file() else None
 
 
-def instructions(task, message_file, mcp=False):
+def instructions(task, message_file, mcp=False, scripts=False):
     return f"""You are the implementer for AgentForge task {task['task_id']} (milestone {task['milestone_id']}, role {task['primary_role']}).
 You are running headless inside this task's isolated Git worktree. The current directory is the repository root.
 
@@ -298,7 +316,9 @@ You are running headless inside this task's isolated Git worktree. The current d
    changed, why, and the evidence (tests added, gate results). Do not include Co-Authored-By
    trailers.
 7. Finish with a short plain-text summary of what you changed and how you verified it.
-""" + ("""8. You have AgentForge's task tools (the `agentforge` MCP server): `task_contract` shows exactly
+""" + ("""- You may run files inside your allowed paths directly (for example `./scripts/x --self-test`, or
+  `python3 scripts/x`), so run the tests you write for scripts, not only cargo tests.
+""" if scripts else "") + ("""8. You have AgentForge's task tools (the `agentforge` MCP server): `task_contract` shows exactly
    what this task may change, `check_changes` judges your current changes against it, and
    `run_gate` runs one of the task's required gates. Call `check_changes` before you finish and fix
    anything it reports outside the task's scope. Every call is recorded.
@@ -378,6 +398,20 @@ def self_test():
     ]
     assert "P9-M001-T0001" in instructions(sample, Path("/tmp/msg"))
     assert "check_changes" not in instructions(sample, Path("/tmp/msg"))
+    # Finding 22: a run_local_commands task may run files in its own allowed paths, and only those.
+    scripted = dict(
+        sample, allowed_paths=["scripts/tool", "./docs/X.md", "has space/x", "crates/example/", ".github/ci.yml"]
+    )
+    tools = script_tools(scripted)
+    assert "Bash(./scripts/tool *)" in tools and "Bash(python3 scripts/tool *)" in tools, tools
+    assert "Bash(./scripts/tool)" in tools and "Bash(bash scripts/tool *)" in tools, tools
+    assert "Bash(./docs/X.md *)" in tools and "Bash(./crates/example *)" in tools, tools
+    assert "Bash(./.github/ci.yml *)" in tools, "a leading dot is part of the path: " + str(tools)
+    assert not any("has space" in tool for tool in tools), tools
+    assert not any("secret" in tool or "README" in tool for tool in tools), tools
+    assert script_tools(dict(scripted, capabilities=["write_owned_paths"])) == [], "needs run_local_commands"
+    assert "run files inside your allowed paths" in instructions(scripted, Path("/tmp/msg"), scripts=True)
+    assert "run files inside your allowed paths" not in instructions(scripted, Path("/tmp/msg"))
     assert "check_changes" in instructions(sample, Path("/tmp/msg"), mcp=True)
     with tempfile.TemporaryDirectory() as scratch:
         assert mcp_arguments(sample, None, scratch, "/wt", None) == ([], []), "no use_mcp_tools, no gateway"
@@ -442,12 +476,13 @@ def main():
         command = [
             arguments.claude,
             "-p",
-            instructions(task, message_file, mcp=bool(mcp_args)),
+            instructions(task, message_file, mcp=bool(mcp_args), scripts=bool(script_tools(task))),
             *mcp_args,
             "--permission-mode",
             "acceptEdits",
             "--allowedTools",
             *ALLOWED_TOOLS,
+            *script_tools(task),
             *mcp_tools,
             "--disallowedTools",
             *DISALLOWED_TOOLS,

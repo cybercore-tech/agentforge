@@ -342,3 +342,61 @@ fn guided_intake_rejects_invalid_or_oversized_input_files_before_mutation() {
     assert!(!root.join(".forge").exists());
     fs::remove_dir_all(root).expect("cleanup");
 }
+
+/// Finding 21 (P2-M035): a task that requires merge approval but lacks the merge capability can
+/// be approved but never integrated, so creating one is refused with the fix.
+#[test]
+fn task_create_refuses_an_approval_the_task_can_never_use() {
+    let root = temporary_root();
+    let root_text = root.to_str().expect("root");
+    assert!(forge(&root, &["init", root_text]).status.success());
+    let refused = forge(
+        &root,
+        &[
+            "task",
+            "create",
+            root_text,
+            "P2-M035-T0001",
+            "P2-M035",
+            "implementer",
+            "never integrable",
+            "--capability",
+            "write_owned_paths",
+            "--approval",
+            "merge_protected_branch",
+        ],
+    );
+    assert_eq!(refused.status.code(), Some(1), "{refused:?}");
+    let stderr = String::from_utf8_lossy(&refused.stderr);
+    assert!(
+        stderr.contains("add --capability merge_protected_branch"),
+        "{stderr}"
+    );
+    let snapshot = FileTaskStore::for_project_root(&root).load().expect("load");
+    assert!(
+        snapshot.is_none_or(|graph| graph
+            .get(&TaskId::parse("P2-M035-T0001").expect("id"))
+            .is_none()),
+        "nothing was created"
+    );
+    let created = forge(
+        &root,
+        &[
+            "task",
+            "create",
+            root_text,
+            "P2-M035-T0001",
+            "P2-M035",
+            "implementer",
+            "integrable",
+            "--capability",
+            "write_owned_paths",
+            "--capability",
+            "merge_protected_branch",
+            "--approval",
+            "merge_protected_branch",
+        ],
+    );
+    assert!(created.status.success(), "{created:?}");
+    fs::remove_dir_all(root).expect("cleanup");
+}

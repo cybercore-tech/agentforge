@@ -172,6 +172,21 @@ impl ApprovalBoundary {
             Self::MergeProtectedBranch | Self::PublishRelease | Self::DeployProduction
         )
     }
+
+    /// The capability a task needs so this approval can ever be used, if any (P2-M035).
+    ///
+    /// A task that requires `merge_protected_branch` approval but lacks the
+    /// `merge_protected_branch` capability can be approved but never integrated (dogfooding
+    /// finding 21); task creation refuses that combination. `publish_release` has no matching
+    /// capability, and pre-execution boundaries are approvals only.
+    #[must_use]
+    pub const fn exercised_by(self) -> Option<Capability> {
+        match self {
+            Self::MergeProtectedBranch => Some(Capability::MergeProtectedBranch),
+            Self::DeployProduction => Some(Capability::DeployProduction),
+            _ => None,
+        }
+    }
 }
 
 /// Outcome reported by one agent-task execution.
@@ -429,6 +444,30 @@ mod tests {
         AGENT_CONTRACT_VERSION, AgentResult, AgentRole, AgentTask, ApprovalBoundary, Capability,
         TaskContractError, TaskOutcome,
     };
+
+    #[test]
+    fn only_exercised_approvals_name_a_capability() {
+        use ApprovalBoundary as A;
+        let expected = [
+            (A::ActivateImplementationPlan, None),
+            (A::ExpandTaskScope, None),
+            (A::ChangeDependencies, None),
+            (A::ElevateCapability, None),
+            (A::AccessSecrets, None),
+            (A::DestructiveDataMigration, None),
+            (A::IrreversibleExternalChange, None),
+            (
+                A::MergeProtectedBranch,
+                Some(Capability::MergeProtectedBranch),
+            ),
+            (A::PublishRelease, None),
+            (A::DeployProduction, Some(Capability::DeployProduction)),
+            (A::ChangeGovernanceRules, None),
+        ];
+        for (boundary, capability) in expected {
+            assert_eq!(boundary.exercised_by(), capability, "{boundary:?}");
+        }
+    }
 
     #[test]
     fn canonical_roles_have_stable_identities() {

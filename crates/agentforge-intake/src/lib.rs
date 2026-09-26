@@ -435,6 +435,20 @@ pub fn build_task(
     task.evidence_requirements = draft.evidence_requirements.clone();
     task.validate()
         .map_err(|error| IntakeError::Task(error.to_string()))?;
+    // An approval the task can never use is a mistake best caught now (P2-M035, finding 21).
+    for approval in &task.required_approvals {
+        if let Some(capability) = approval.exercised_by() {
+            if !task.has_capability(capability) {
+                return Err(IntakeError::Task(format!(
+                    "approval {} needs capability {}, or the task can be approved but never \
+                     carried out; add --capability {}",
+                    approval.as_str(),
+                    capability.as_str(),
+                    capability.as_str()
+                )));
+            }
+        }
+    }
     Ok(task)
 }
 
@@ -948,6 +962,42 @@ mod tests {
             approvals: Vec::new(),
             gates: gates.iter().map(|gate| (*gate).to_owned()).collect(),
         }
+    }
+
+    #[test]
+    fn approvals_need_the_capability_that_exercises_them() {
+        let root = temporary_root();
+        for (approval, capability) in [
+            (
+                ApprovalBoundary::MergeProtectedBranch,
+                Capability::MergeProtectedBranch,
+            ),
+            (
+                ApprovalBoundary::DeployProduction,
+                Capability::DeployProduction,
+            ),
+        ] {
+            let mut draft = TaskDraft::new("T1", AgentRole::Implementer, "edit");
+            draft.required_approvals = vec![approval];
+            draft.capabilities = vec![Capability::ReadRepository];
+            let error = build_task(&draft, &gate_blueprint(&[]), &root).expect_err("refused");
+            assert!(
+                error
+                    .to_string()
+                    .contains(&format!("add --capability {}", capability.as_str())),
+                "{error}"
+            );
+            draft.capabilities.push(capability);
+            assert!(build_task(&draft, &gate_blueprint(&[]), &root).is_ok());
+        }
+        // Approvals with no exercising capability are unaffected.
+        let mut draft = TaskDraft::new("T1", AgentRole::Implementer, "edit");
+        draft.required_approvals = vec![
+            ApprovalBoundary::PublishRelease,
+            ApprovalBoundary::ActivateImplementationPlan,
+        ];
+        assert!(build_task(&draft, &gate_blueprint(&[]), &root).is_ok());
+        fs::remove_dir_all(root).expect("cleanup");
     }
 
     #[test]

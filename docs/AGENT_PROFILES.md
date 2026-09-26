@@ -89,6 +89,13 @@ timeout_ms=3600000
 max_output_bytes=8388608
 ```
 
+For tasks that hold `run_local_commands`, the bridge also lets Claude Code run files inside the
+task's own allowed paths: `./<path>`, `python3 <path>`, and `bash <path>`, with any arguments
+(P2-M035). An agent can then run the self-tests of scripts it writes; before, only `cargo`,
+`./scripts/gate.sh`, and a few `git` commands were allowed (dogfooding finding 22). This grants
+nothing new, since with `run_local_commands` the agent already runs arbitrary code through `cargo`.
+Files outside the allowed paths stay off limits, and paths containing spaces are skipped.
+
 For tasks that hold `use_mcp_tools`, the bridge also gives Claude Code the AgentForge MCP
 task-tool gateway (P3-M005). Add `argument=--forge` and `argument=/absolute/path/to/forge` to the
 profile, because the cleared environment has no useful `PATH`; see

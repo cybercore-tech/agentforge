@@ -65,3 +65,18 @@ Contracts carry an explicit version from their first implementation.
 
 P0-M002 does not stabilize TOML, JSON, protobuf, or any other wire/storage encoding. Later
 milestones may define encodings around the provider-neutral semantic contract.
+
+## Approvals need the capability that uses them
+
+Since P2-M035, creating a task (`forge task create`, or guided intake) refuses a post-execution
+approval the task could never use:
+
+- `merge_protected_branch` approval requires the `merge_protected_branch` capability, which
+  `forge task integrate` checks;
+- `deploy_production` approval requires the `deploy_production` capability.
+
+The refusal names the flag to add (`add --capability merge_protected_branch`). Before this, such a
+task could be accepted and approved, and then `forge task integrate` refused it, with no way to
+amend the contract (dogfooding finding 21). `publish_release` and the pre-execution approvals have
+no matching capability and are unaffected. The rule applies when a task is created; stored tasks
+still load.
