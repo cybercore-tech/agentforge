@@ -6,6 +6,20 @@ All notable AgentForge changes are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-09-25
+
+The first release with an **attested SBOM**: `agentforge-0.3.1.cdx.json` lists everything built into
+`forge` and `forged`, and every archive carries an SBOM attestation next to its build provenance
+(`gh attestation verify <archive> -R cybercore-tech/agentforge --predicate-type
+https://cyclonedx.org/bom`). It also ships the fixes found by rehearsing two hosts in containers
+with network chaos. **Upgrade if you run remote workers:**
+- `v0.3.0` workers abandon finished work when a result upload is lost;
+- they can lose a lease claimed late;
+- they need GhostPort v0.1.2 or later, since older GhostPort throttles busy workers.
+
+Setting up a worker host is now two commands (`scripts/worker-bundle`, then
+`scripts/worker-host-setup`).
+
 ### Added
 
 - Releases include a CycloneDX SBOM of `forge` and `forged` (`agentforge-<version>.cdx.json`),
@@ -259,7 +273,8 @@ coding agent (Claude Code), with hermetic gates, audited agent evidence, and ope
 - Release artifacts are intended for evaluation and controlled local use, not unattended production
   deployment.
 
-[Unreleased]: https://github.com/cybercore-tech/agentforge/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/cybercore-tech/agentforge/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/cybercore-tech/agentforge/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/cybercore-tech/agentforge/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/cybercore-tech/agentforge/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/cybercore-tech/agentforge/releases/tag/v0.1.0

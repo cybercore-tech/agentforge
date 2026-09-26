@@ -2,9 +2,10 @@
 
 ## Current release
 
-- Workspace version: `0.3.0`
-- Release line: `0.3.x` alpha; `v0.3.0` (P5-M005) is the first release with keyless
-  build-provenance attestations. It follows `v0.2.0` (P5-M002) and `v0.1.0` (P5-M001).
+- Workspace version: `0.3.1`
+- Release line: `0.3.x` alpha; `v0.3.1` (P5-M007) is the first release with an attested SBOM and
+  the rehearsal's remote-worker fixes. `v0.3.0` (P5-M005) was the first with provenance
+  attestations, after `v0.2.0` (P5-M002) and `v0.1.0` (P5-M001).
 
 ## Current phase
 
@@ -15,7 +16,7 @@ agent-built milestones, Phase 4 remote-worker wiring, the P3 tool gateway, and P
 ## Active milestone
 
 No active milestone. P2-M035 — agent task hygiene — is complete.
-`v0.3.0` (P5-M005) is the latest release, and every completed milestone is tagged `milestone/<ID>`.
+`v0.3.1` (P5-M007) is the latest release, and every completed milestone is tagged `milestone/<ID>`.
 
 ## Known issues
 

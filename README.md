@@ -7,8 +7,8 @@ It treats models as replaceable workers—not as the source of truth. The durabl
 the repository: plans, task contracts, permissions, isolated worktrees, quality-gate evidence,
 CI observations, audit records, and human decisions. 🧭
 
-> **Status:** `0.3.0-alpha` · latest release
-> ([v0.3.0](https://github.com/cybercore-tech/agentforge/releases/tag/v0.3.0), attested builds) · alpha: evolving
+> **Status:** `0.3.1-alpha` · latest release
+> ([v0.3.1](https://github.com/cybercore-tech/agentforge/releases/tag/v0.3.1), attested builds and SBOM) · alpha: evolving
 > APIs, local-first, not for unattended production use
 >
 > **Canonical repository:** [`cybercore-tech/agentforge`](https://github.com/cybercore-tech/agentforge).
@@ -586,6 +586,9 @@ paths and restored reliable CI:
   agent-run durations;
 - **P5-M003** the release upload is rehearsed on every manual release run (upload to a draft
   release, verify every asset, delete it), so publish defects surface before a tag;
+- **P5-M007** release
+  [`v0.3.1`](https://github.com/cybercore-tech/agentforge/releases/tag/v0.3.1): the first with an
+  attested SBOM, and the remote-worker fixes from the two-host rehearsal;
 - **P2-M035** agent task hygiene: tasks that could never be integrated are refused at creation, and
   agents can run the scripts in their own allowed paths;
 - **P5-M006** releases ship an attested CycloneDX SBOM, implemented by Claude Code through
@@ -617,7 +620,7 @@ Candidate next milestones, each still requiring its own approved plan:
 
 - a two-machine remote-worker run over a real network (P4);
 - external MCP servers behind the gateway's capability map (P3);
-- `v0.3.1`: the first release with an attested SBOM, and the remote-worker fixes from P4-M012 (P5).
+- external MCP servers behind the gateway's capability map (P3), and the real two-machine run (P4).
 
 ## Contributing 🤝
 

@@ -38,7 +38,7 @@ itself ran it.
 ## Version policy
 
 The workspace version is the release version. Tags must use `vMAJOR.MINOR.PATCH` and must match the
-workspace version exactly. The current line is `0.3.x` (latest release `v0.3.0`, the first with attested archives; the first tag was `v0.1.0`) because APIs and operator workflows are still
+workspace version exactly. The current line is `0.3.x` (latest release `v0.3.1`, the first with an attested SBOM; `v0.3.0` was the first with attested archives, and the first tag was `v0.1.0`) because APIs and operator workflows are still
 evolving.
 
 - Patch releases contain compatible fixes and documentation corrections.
@@ -128,8 +128,8 @@ created as an explicit release decision below, starts a release.
 5. Create and push the matching tag, for example:
 
    ```bash
-   git tag -a v0.3.0 -m "AgentForge v0.3.0"
-   git push origin v0.3.0
+   git tag -a v0.3.1 -m "AgentForge v0.3.1"
+   git push origin v0.3.1
    ```
 
 6. Check the run before announcing the release. Since P5-M003, the publish step downloads every
