@@ -586,6 +586,8 @@ paths and restored reliable CI:
   agent-run durations;
 - **P5-M003** the release upload is rehearsed on every manual release run (upload to a draft
   release, verify every asset, delete it), so publish defects surface before a tag;
+- **P5-M006** releases ship an attested CycloneDX SBOM, implemented by Claude Code through
+  AgentForge using the MCP gateway;
 - **P4-M012** a two-host rehearsal in containers with network chaos, which found and fixed four
   real defects (including one in GhostPort);
 - **P4-M011** worker-host setup in two commands (`scripts/worker-bundle`, then
@@ -613,7 +615,7 @@ Candidate next milestones, each still requiring its own approved plan:
 
 - a two-machine remote-worker run over a real network (P4);
 - external MCP servers behind the gateway's capability map (P3);
-- an SBOM attestation alongside build provenance (P5).
+- `v0.3.1`: the first release with an attested SBOM, and the remote-worker fixes from P4-M012 (P5).
 
 ## Contributing 🤝
 

@@ -168,6 +168,18 @@ gates, review, accept, integrate. This file is the run log and the list of frict
     claimed a 6 s lease late (slow handshakes on a lossy link) lost it before its first renewal,
     and its finished work was refused. **Resolved in P4-M012:** a claim restarts the window, and
     `CLAIM` reports the new expiry.
+21. **A task can be created that can never be integrated.** Found during P5-M006: the operator
+    created `P5-M006-T0001` with `--approval merge_protected_branch` but without the
+    `merge_protected_branch` capability. Accept and approve succeeded, and `forge task integrate`
+    then refused ("task lacks merge_protected_branch capability"), correctly, with no way to amend
+    the contract. `task create` should refuse (or warn about) an approval boundary whose capability
+    the task lacks. **Open.**
+22. **The agent cannot run the project's own scripts.** Found by the same run: the Claude Code
+    bridge's tool allow-list permits `cargo`, `./scripts/gate.sh`, and some `git` commands, so the
+    agent could not execute the self-tests it wrote (`scripts/sbom-merge --self-test`,
+    `scripts/publish-release --self-test`). It reported this honestly, and the operator ran them in
+    review. Options include allowing the task's own allowed script paths, or offering them as gates
+    through `run_gate`. **Open.**
 
 
 ## P1-M007 run log (2026-09-24)
@@ -237,3 +249,17 @@ the P4-M011 scripts. Runs, in order:
 | 6 | scenario 2 FAIL | lease expired from the grant (finding 20) |
 | 7, 8 | all 15 PASS | this tree's build (findings 19 and 20 fixed): imported under ~150–160 ms of delay and 5% loss with 4 renewals; recovered from a 30 s partition in one process |
 | 9 | exactly 2 FAIL | `--break-heal`: only scenario 3's recovery checks fail, as designed |
+
+## P5-M006 agent run log (2026-09-25)
+
+The first agent-built milestone to use the MCP task-tool gateway.
+
+| Step | Evidence |
+| --- | --- |
+| Task | `P5-M006-T0001`: `read_repository`, `write_owned_paths`, `run_local_commands`, `use_mcp_tools`; 9 allowed paths; gate `workspace` |
+| Agent run | Claude Code via the bridge with the gateway wired in, 12 min 40 s, `agent-exit=0` |
+| Gateway calls | `ToolInvoked` #38 `task_contract`, #39 `run_gate` (workspace), #40 `check_changes` (9 paths, 0 denied) |
+| Commit | `14efd83` by the bridge, 9 files, +722/−13; pre-commit gate passed; orchestrator gate 1/1 |
+| Review | the operator ran both self-tests (not runnable by the agent, finding 22), a real-output merge, and read the workflow diff |
+| Landing | `forge task integrate` refused (no merge capability, finding 21); `main` fast-forwarded to the reviewed `14efd83` |
+| Proof | release rehearsal `36206324690`: SBOM generated, attested for 4 archives, 10 assets verified; `gh attestation verify --predicate-type` passed from this machine |

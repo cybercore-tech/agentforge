@@ -2,7 +2,11 @@
 
 ## Repository state
 
-- Active milestone: none. P4-M012 is complete (`4316279`): run `scripts/rehearse-two-hosts` (with
+- Active milestone: none. P5-M006 is complete (`14efd83`, agent-built): releases carry an attested
+  CycloneDX SBOM (`scripts/sbom-merge`, ADR-0054). **When creating an agent task that must be
+  integrated, give it `--capability merge_protected_branch` as well as the approval** (finding 21).
+  The agent cannot run project scripts (finding 22), so run them in review.
+- P4-M012 is complete (`4316279`): run `scripts/rehearse-two-hosts` (with
   `--forge-archive` for a build under test) after any change to the remote-worker path. Remote
   workers need **GhostPort ≥ 0.1.2**. A claim now restarts the lease window, and a lost `RESULT` is
   retried (findings 19 and 20; not yet released).

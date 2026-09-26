@@ -14,13 +14,23 @@ agent-built milestones, Phase 4 remote-worker wiring, the P3 tool gateway, and P
 
 ## Active milestone
 
-No active milestone. P4-M012 — two-host container rehearsal — is complete.
+No active milestone. P5-M006 — SBOM attestation (agent-built) — is complete.
 `v0.3.0` (P5-M005) is the latest release, and every completed milestone is tagged `milestone/<ID>`.
 
 ## Known issues
 
-- None open. Dogfooding findings 16 (spawned `forged` lost its sweep) and 17 (workers could not
-  retry a task) were found and resolved in P4-M010.
+- Dogfooding findings 21 (a task can be created with an approval boundary but without its
+  capability, so it can never be integrated) and 22 (the Claude Code bridge cannot run project
+  scripts such as self-tests) are open.
+- Findings 19 and 20 (a lost remote result, and leases expiring from the grant) are fixed on `main`
+  but not released; `v0.3.0` has them.
+
+## P5-M006 completion evidence
+
+- Approved plan: `.plans/P5-M006-sbom-attestation.plan.md`.
+- Implementation commit: `14efd83`, by Claude Code through AgentForge with the MCP gateway. CI
+  `36206311396` and `36206485625` are green; rehearsal `36206324690` attested and verified the SBOM
+  for 4 archives.
 
 ## P4-M012 completion evidence
 

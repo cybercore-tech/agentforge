@@ -1,6 +1,6 @@
 # Plan: P5-M006 — SBOM attestation for releases (agent-built)
 
-Status: Approved
+Status: Complete
 Milestone: P5-M006
 Created: 2026-09-25
 Owner: AgentForge project
@@ -160,9 +160,43 @@ RELEASE, OPERATIONS, ADR-0054, DOGFOODING (the agent run log); CHANGELOG and REA
 
 ## Acceptance criteria
 
-- [ ] Releases carry an attested CycloneDX SBOM per archive, verified by the workflow on the uploaded
+- [x] Releases carry an attested CycloneDX SBOM per archive, verified by the workflow on the uploaded
       assets.
-- [ ] The implementation was produced by Claude Code through AgentForge with the MCP gateway, and its
+- [x] The implementation was produced by Claude Code through AgentForge with the MCP gateway, and its
       tool calls are in the audit log.
-- [ ] A release rehearsal and an independent `gh attestation verify --predicate-type` pass.
-- [ ] Docs; CI evidence; closed and tagged correctly.
+- [x] A release rehearsal and an independent `gh attestation verify --predicate-type` pass.
+- [x] Docs; CI evidence; closed and tagged correctly.
+
+## Completion record
+
+Implementation commit: `14efd83` (by Claude Code through AgentForge; task `P5-M006-T0001`)
+CI run: `36206311396` (push) and `36206485625` (dispatched repeat); release rehearsal `36206324690`
+CI result: green on all seven jobs in both runs; the rehearsal is green on all five jobs
+Completed: 2026-09-25
+Notes:
+- **Agent run:** 12 min 40 s, `agent-exit=0`, committed by the bridge (pre-commit gate passed),
+  and the orchestrator's `workspace` gate passed 1/1. The agent used the MCP gateway as intended:
+  `ToolInvoked` #38 `task_contract`, #39 `run_gate` (workspace), and #40 `check_changes` (9 changed
+  paths, all in scope). It is the gateway's first use on real work.
+- **Operator review:** the agent reported that it could not run its own self-tests (see finding
+  22). The operator ran both: `sbom-merge` passed, and `publish-release` (with the new SBOM cases)
+  passed. The merge was checked on real cargo-cyclonedx 0.5.9 output: 54 components, `serde_json`
+  present, and byte-identical output across input order. The workflow diff was read before
+  integration.
+- **Integration:** `forge task integrate` refused, correctly, because the task lacked the
+  `merge_protected_branch` capability. The operator created it with `--approval
+  merge_protected_branch` but without the capability (finding 21). Accept and approve were recorded
+  against `14efd83`, and `main` (the task's base, `6ee9463`) was fast-forwarded to that exact
+  reviewed commit, the same route as the operator's own commits. The worktree is retired and the
+  branch kept.
+- **Rehearsal `36206324690`:** generated `agentforge-snapshot-14efd83ac09d.cdx.json` (76 KB),
+  included in `SHA256SUMS`; "Attestation created for 4 subjects" twice (provenance, then SBOM); and
+  "verified 10 assets ... (names, bytes, SHA256SUMS, 4 attestations, 4 SBOM attestations)".
+  Checked from this machine: `gh attestation verify --predicate-type https://cyclonedx.org/bom`
+  passes on the Linux archive. The attested SBOM (64 components with `--target all`) includes
+  `serde_json` and `agentforge-mcp`, and a tampered copy fails.
+- **Open findings from this run:** 21 (task creation should refuse an approval boundary without its
+  capability) and 22 (the bridge's tool allow-list keeps the agent from running project scripts,
+  including self-tests it writes).
+- `scripts/sbom-merge` is committed without the executable bit, and CI calls it with `python3`,
+  consistently. Left as is.
