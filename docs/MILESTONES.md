@@ -70,6 +70,7 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 | P2-M032 | complete | macOS daemon stop flake | `forge daemon stop` treats macOS EINVAL on a reset socket as transport loss, with repeated green CI on macOS. |
 | P2-M033 | complete | HUD view of agent runs | `forge hud` shows recent agent runs with exit status, gate results, and evidence paths; built by Claude Code and landed through `forge task integrate`. |
 | P2-M034 | complete | Closure and documentation-index integrity | The tagger decides only from committed history, refuses uncommitted or unclosed milestones, and keeps every existing tag; `xtask validate` enforces a complete ADR registry and README documentation map in CI. |
+| P2-M035 | complete | Agent task hygiene | Task creation refuses a post-execution approval without its exercising capability (finding 21), and the Claude Code bridge lets `run_local_commands` tasks run files in their allowed paths (finding 22). |
 
 ## Phase 3 — external systems and Mission Control
 

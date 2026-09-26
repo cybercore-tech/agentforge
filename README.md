@@ -586,6 +586,8 @@ paths and restored reliable CI:
   agent-run durations;
 - **P5-M003** the release upload is rehearsed on every manual release run (upload to a draft
   release, verify every asset, delete it), so publish defects surface before a tag;
+- **P2-M035** agent task hygiene: tasks that could never be integrated are refused at creation, and
+  agents can run the scripts in their own allowed paths;
 - **P5-M006** releases ship an attested CycloneDX SBOM, implemented by Claude Code through
   AgentForge using the MCP gateway;
 - **P4-M012** a two-host rehearsal in containers with network chaos, which found and fixed four

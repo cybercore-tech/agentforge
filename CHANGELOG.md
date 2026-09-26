@@ -24,6 +24,12 @@ All notable AgentForge changes are documented here. The format follows
 
 ### Fixed
 
+- `forge task create` refuses a `merge_protected_branch` or `deploy_production` approval when the
+  task lacks the matching capability, which would make it impossible to integrate (P2-M035,
+  finding 21).
+- The Claude Code bridge lets a task holding `run_local_commands` run the files in its own allowed
+  paths, such as self-tests the agent writes (P2-M035, finding 22).
+
 - A remote worker no longer abandons finished work when its result upload fails in transit: it
   retries, and reports a refused retry as possibly imported (P4-M012, finding 19).
 - Claiming a lease restarts its window, so a worker that claims late no longer loses the lease

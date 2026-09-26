@@ -14,16 +14,19 @@ agent-built milestones, Phase 4 remote-worker wiring, the P3 tool gateway, and P
 
 ## Active milestone
 
-No active milestone. P5-M006 — SBOM attestation (agent-built) — is complete.
+No active milestone. P2-M035 — agent task hygiene — is complete.
 `v0.3.0` (P5-M005) is the latest release, and every completed milestone is tagged `milestone/<ID>`.
 
 ## Known issues
 
-- Dogfooding findings 21 (a task can be created with an approval boundary but without its
-  capability, so it can never be integrated) and 22 (the Claude Code bridge cannot run project
-  scripts such as self-tests) are open.
+- No dogfooding findings are open (21 and 22 were resolved in P2-M035).
 - Findings 19 and 20 (a lost remote result, and leases expiring from the grant) are fixed on `main`
   but not released; `v0.3.0` has them.
+
+## P2-M035 completion evidence
+
+- Approved plan: `.plans/P2-M035-agent-task-hygiene.plan.md`.
+- Implementation commit: `7ba86dc`. CI `36209894691` and `36210058596` are green.
 
 ## P5-M006 completion evidence
 

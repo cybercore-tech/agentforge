@@ -1,6 +1,6 @@
 # Plan: P2-M035 — Agent task hygiene: integrable tasks, runnable scripts
 
-Status: Approved
+Status: Complete
 Milestone: P2-M035
 Created: 2026-09-25
 Owner: AgentForge project
@@ -127,6 +127,21 @@ TASK_CONTRACT, AGENT_PROFILES, DOGFOODING; CHANGELOG at closure.
 
 ## Acceptance criteria
 
-- [ ] Task creation refuses a post-execution approval without its exercising capability.
-- [ ] The bridge lets a `run_local_commands` task run files in its allowed paths.
-- [ ] Docs; CI evidence; closed and tagged correctly.
+- [x] Task creation refuses a post-execution approval without its exercising capability.
+- [x] The bridge lets a `run_local_commands` task run files in its allowed paths.
+- [x] Docs; CI evidence; closed and tagged correctly.
+
+## Completion record
+
+Implementation commit: `7ba86dc`
+CI run: `36209894691` (push) and `36210058596` (dispatched repeat)
+CI result: green on all seven jobs in both runs
+Completed: 2026-09-25
+Notes:
+- Finding 21: the refusal is in `build_task`, the creation path, so this repository's stored
+  `P5-M006-T0001` (which has the mismatch) still loads (`forge task inspect` checked).
+  Neutralising the check fails both the intake test and the CLI test.
+- Finding 22: self-review caught a bug before commit. `lstrip("./")` would have turned
+  `.github/...` (one of P5-M006's allowed paths) into `github/...`. Now only a literal `./` prefix
+  is removed, and the `lstrip` version fails the self-test.
+- The gate's text policy caught an extra trailing newline in TASK_CONTRACT.md before commit.

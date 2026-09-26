@@ -2,7 +2,10 @@
 
 ## Repository state
 
-- Active milestone: none. P5-M006 is complete (`14efd83`, agent-built): releases carry an attested
+- Active milestone: none. P2-M035 is complete (`7ba86dc`): findings 21 and 22 are resolved. Task
+  creation refuses the merge approval without the capability, and the bridge lets
+  `run_local_commands` agents run files in their allowed paths.
+- P5-M006 is complete (`14efd83`, agent-built): releases carry an attested
   CycloneDX SBOM (`scripts/sbom-merge`, ADR-0054). **When creating an agent task that must be
   integrated, give it `--capability merge_protected_branch` as well as the approval** (finding 21).
   The agent cannot run project scripts (finding 22), so run them in review.
