@@ -8,10 +8,23 @@ All notable AgentForge changes are documented here. The format follows
 
 ### Added
 
+- `scripts/rehearse-two-hosts` rehearses the two-machine remote-worker run with two clean
+  containers, real GhostPort, and network chaos (delay, loss, partition) (P4-M012).
+
 - `scripts/worker-bundle` (on the coordinator) and `scripts/worker-host-setup` (on the worker host)
   set up a remote worker in two commands: registration, enrollment, clone, identity, hooks, secret,
   agent profile, GhostPort key and config, env file, and the optional systemd unit. The worker-host
   script is idempotent and ends with `forge worker remote doctor` (P4-M011).
+
+### Fixed
+
+- A remote worker no longer abandons finished work when its result upload fails in transit: it
+  retries, and reports a refused retry as possibly imported (P4-M012, finding 19).
+- Claiming a lease restarts its window, so a worker that claims late no longer loses the lease
+  before its first renewal (P4-M012, finding 20).
+- `scripts/worker-host-setup` is idempotent on hosts without `cmp`.
+- Remote workers need GhostPort v0.1.2 or later: earlier versions throttled busy authenticated
+  peers (finding 18, fixed in GhostPort).
 
 ## [0.3.0] - 2026-09-25
 

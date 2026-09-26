@@ -96,6 +96,7 @@ Status values are `planned`, `active`, `complete`, `blocked`, `split`, and `supe
 | P4-M009 | complete | Worker-host doctor | `forge worker remote doctor` checks clone, identity, hooks, profile paths, secret, and an authenticated `PING`; `worker remote run` refuses on any failing check; remote renewals are reported. |
 | P4-M010 | complete | Remote-worker visibility and supervision | `forge hud` shows workers (capacity, last seen) and active leases; a remote worker rides out coordinator outages, stops on refusals, and runs under a systemd user-unit template; spawned `forged` keeps its sweep alive, and workers can retry a task. |
 | P4-M011 | complete | Worker-host setup scripts | `scripts/worker-bundle` and `scripts/worker-host-setup` set up a remote worker in two commands, idempotently, ending in a passing doctor; tested in CI and rehearsed live through real GhostPort. |
+| P4-M012 | complete | Two-host container rehearsal | `scripts/rehearse-two-hosts` runs coordinator and worker as clean containers over real GhostPort with delay, loss, and a partition; it found and fixed four defects (incl. GhostPort v0.1.2 and lost-result/lease-window bugs) and passes repeatedly. |
 
 ## Phase 1 — multi-agent scheduling and integration
 

@@ -14,13 +14,21 @@ agent-built milestones, Phase 4 remote-worker wiring, the P3 tool gateway, and P
 
 ## Active milestone
 
-No active milestone. P4-M011 — worker-host setup scripts — is complete.
+No active milestone. P4-M012 — two-host container rehearsal — is complete.
 `v0.3.0` (P5-M005) is the latest release, and every completed milestone is tagged `milestone/<ID>`.
 
 ## Known issues
 
 - None open. Dogfooding findings 16 (spawned `forged` lost its sweep) and 17 (workers could not
   retry a task) were found and resolved in P4-M010.
+
+## P4-M012 completion evidence
+
+- Approved plan: `.plans/P4-M012-two-host-rehearsal.plan.md` (three amendments).
+- Implementation commit: `4316279`; GhostPort fix `ebd7639` (v0.1.2). CI `36203766588` and
+  `36203932301` are green.
+- The rehearsal passes repeatedly (20/20 released; 15/15 twice with this tree), and `--break-heal`
+  fails exactly scenario 3. Findings 18–20 are resolved; the released `v0.3.0` still has 19 and 20.
 
 ## P4-M011 completion evidence
 

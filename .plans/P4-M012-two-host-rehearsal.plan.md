@@ -1,6 +1,6 @@
 # Plan: P4-M012 — Two-host rehearsal in containers, with network chaos
 
-Status: Approved
+Status: Complete
 Milestone: P4-M012
 Created: 2026-09-25
 Owner: AgentForge project
@@ -147,10 +147,10 @@ REMOTE_WORKERS, DOGFOODING, OPERATIONS; CHANGELOG at closure.
 
 ## Acceptance criteria
 
-- [ ] `scripts/rehearse-two-hosts` passes every check, and a broken run fails.
-- [ ] The worker host is set up only by the P4-M011 scripts, using the verified `v0.3.0` release.
-- [ ] Remote work survives delay, loss, and a partition, with evidence from both sides.
-- [ ] Docs; CI evidence; closed and tagged correctly.
+- [x] `scripts/rehearse-two-hosts` passes every check, and a broken run fails.
+- [x] The worker host is set up only by the P4-M011 scripts, using the verified `v0.3.0` release.
+- [x] Remote work survives delay, loss, and a partition, with evidence from both sides.
+- [x] Docs; CI evidence; closed and tagged correctly.
 
 ## Amendment 1 (2026-09-25)
 
@@ -227,3 +227,25 @@ the coordinator's clock again.
 Test (operator): a lease granted with a 6 s window and claimed 5 s later expires 6 s after the
 claim, not after the grant. The rehearsal must pass repeatedly after this (two consecutive passing
 runs, then the `--break-heal` run failing only scenario 3).
+
+## Completion record
+
+Implementation commit: `4316279`; GhostPort `ebd7639` (released as `v0.1.2`, Amendment 2)
+CI run: `36203766588` (push) and `36203932301` (dispatched repeat); GhostPort CI `36202005391`
+and release run `36202095131`
+CI result: green on all seven AgentForge jobs in both runs; GhostPort CI and release green
+Completed: 2026-09-25
+Notes:
+- **Evidence:** the released `v0.3.0` with GhostPort `v0.1.2` passed all 20 checks (run 5). This
+  tree's build passed two consecutive full runs, 15/15 each (runs 7 and 8): imported under about
+  150–160 ms of delay and 5% loss with 4 renewals, and recovered from a 30 s partition in one
+  process. The `--break-heal` run failed exactly scenario 3's two recovery checks. No containers or
+  networks were left behind. The full run log is in DOGFOODING.md.
+- **Four real defects found and fixed**, each amended before code changed: `cmp` on a clean host
+  (Amendment 1); GhostPort throttling authenticated peers (finding 18, fixed upstream in v0.1.2);
+  finished work abandoned when a result upload was lost (finding 19); and leases expiring from the
+  grant (finding 20). None was visible to the one-host rehearsals or to CI.
+- **Deviations from the plan text:** GhostPort comes from its published v0.1.2 release, not the
+  host's build, because the host's build predated the fix. The rehearsal accepts each imported task
+  before the next, as an operator would.
+- The released `v0.3.0` still has findings 19 and 20. They ship in the next release.

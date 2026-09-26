@@ -586,6 +586,8 @@ paths and restored reliable CI:
   agent-run durations;
 - **P5-M003** the release upload is rehearsed on every manual release run (upload to a draft
   release, verify every asset, delete it), so publish defects surface before a tag;
+- **P4-M012** a two-host rehearsal in containers with network chaos, which found and fixed four
+  real defects (including one in GhostPort);
 - **P4-M011** worker-host setup in two commands (`scripts/worker-bundle`, then
   `scripts/worker-host-setup`), rehearsed through real GhostPort;
 - **P5-M005** release

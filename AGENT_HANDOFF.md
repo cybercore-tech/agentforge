@@ -2,7 +2,11 @@
 
 ## Repository state
 
-- Active milestone: none. P4-M011 is complete (`3358a30`): for the two-machine run, use
+- Active milestone: none. P4-M012 is complete (`4316279`): run `scripts/rehearse-two-hosts` (with
+  `--forge-archive` for a build under test) after any change to the remote-worker path. Remote
+  workers need **GhostPort ≥ 0.1.2**. A claim now restarts the lease window, and a lost `RESULT` is
+  retried (findings 19 and 20; not yet released).
+- P4-M011 is complete (`3358a30`): for the two-machine run, use
   `scripts/worker-bundle` on the coordinator and `scripts/worker-host-setup` on the worker host
   (REMOTE_WORKERS.md). **When rehearsing under a scratch `HOME`, also unset `XDG_CONFIG_HOME`**, or
   the files land in the real config.
