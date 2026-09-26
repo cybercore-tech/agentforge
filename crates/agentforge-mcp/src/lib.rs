@@ -9,6 +9,9 @@
 //! The gateway never grants authority, records approvals, commits, or changes task state. Gate runs
 //! are advisory; the orchestrator's gates after the agent's run stay authoritative.
 
+pub mod config;
+pub mod upstream;
+
 use agentforge_audit::{AuditEvent, AuditEventKind, AuditStore, FileAuditStore};
 use agentforge_core::agent::{AgentTask, Capability};
 use agentforge_gate::{GateOutcome, GateProfileStore, GateRunner};
@@ -18,6 +21,7 @@ use serde_json::{Value, json};
 use std::io::{self, BufRead, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use upstream::{Upstream, UpstreamError};
 
 /// Protocol versions this server speaks, newest first. A client asking for another version is
 /// answered with the newest, as the specification requires; the client then decides.
@@ -68,6 +72,8 @@ pub struct Gateway {
     worktree: PathBuf,
     root: Option<PathBuf>,
     initialized: bool,
+    /// External MCP servers declared in the project (P3-M006), started at `initialize`.
+    upstreams: Vec<Upstream>,
 }
 
 impl Gateway {
@@ -80,6 +86,7 @@ impl Gateway {
             worktree: worktree.into(),
             root,
             initialized: false,
+            upstreams: Vec::new(),
         }
     }
 
@@ -188,6 +195,9 @@ impl Gateway {
             .iter()
             .find(|supported| **supported == requested)
             .unwrap_or(&SUPPORTED_PROTOCOL_VERSIONS[0]);
+        if !self.initialized {
+            self.start_upstreams();
+        }
         self.initialized = true;
         success(
             id,
@@ -205,23 +215,69 @@ impl Gateway {
         )
     }
 
-    /// The tools this task may call, in [`TOOL_POLICY`] order.
+    /// Starts the project's declared external servers; a server that fails is logged to stderr
+    /// and skipped, and the others still start (P3-M006).
+    fn start_upstreams(&mut self) {
+        let Some(root) = &self.root else { return };
+        let (configs, errors) = config::load_server_configs(root);
+        for error in errors {
+            let _ = writeln!(io::stderr().lock(), "agentforge-mcp: skipped: {error}");
+        }
+        for config in configs {
+            let name = config.name.clone();
+            match Upstream::start(config) {
+                Ok(upstream) => self.upstreams.push(upstream),
+                Err(error) => {
+                    let _ = writeln!(
+                        io::stderr().lock(),
+                        "agentforge-mcp: server {name} skipped: {error}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// The tools this task may call: the native ones in [`TOOL_POLICY`] order, then each external
+    /// server's mapped tools as `<server>__<tool>`.
     #[must_use]
     pub fn listed_tools(&self) -> Vec<Value> {
-        TOOL_POLICY
+        let mut tools = TOOL_POLICY
             .iter()
             .filter(|(name, _)| self.availability(name).is_ok())
             .map(|(name, _)| self.descriptor(name))
-            .collect()
+            .collect::<Vec<_>>();
+        for upstream in &self.upstreams {
+            for (tool, described) in &upstream.tools {
+                let name = format!("{}__{tool}", upstream.config.name);
+                if self.availability(&name).is_ok() {
+                    let mut descriptor = described.clone();
+                    descriptor["name"] = json!(name);
+                    let description = described["description"].as_str().unwrap_or_default();
+                    descriptor["description"] =
+                        json!(format!("[{}] {description}", upstream.config.name));
+                    tools.push(descriptor);
+                }
+            }
+        }
+        tools
     }
 
-    /// Whether this task may call `tool`, with the policy's reason when not.
-    fn availability(&self, tool: &str) -> Result<(), String> {
-        let (_, required) = TOOL_POLICY
+    /// Splits `<server>__<tool>` into the upstream index and its tool name, when such a server
+    /// offers such a mapped tool.
+    fn upstream_tool(&self, name: &str) -> Option<(usize, String)> {
+        let (server, tool) = name.split_once("__")?;
+        let index = self
+            .upstreams
             .iter()
-            .find(|(name, _)| *name == tool)
-            .ok_or_else(|| format!("unknown tool: {tool}"))?;
-        for capability in *required {
+            .position(|upstream| upstream.config.name == server)?;
+        self.upstreams[index]
+            .tools
+            .contains_key(tool)
+            .then(|| (index, tool.to_owned()))
+    }
+
+    fn policy_allows(&self, capabilities: &[Capability]) -> Result<(), String> {
+        for capability in capabilities {
             let request = PolicyRequest {
                 capability: *capability,
                 paths: Vec::new(),
@@ -233,6 +289,20 @@ impl Gateway {
                 return Err(violation.to_string());
             }
         }
+        Ok(())
+    }
+
+    /// Whether this task may call `tool`, with the policy's reason when not.
+    fn availability(&self, tool: &str) -> Result<(), String> {
+        if let Some((index, upstream_tool)) = self.upstream_tool(tool) {
+            let mapped = self.upstreams[index].config.tools[&upstream_tool];
+            return self.policy_allows(&[Capability::UseMcpTools, mapped]);
+        }
+        let (_, required) = TOOL_POLICY
+            .iter()
+            .find(|(name, _)| *name == tool)
+            .ok_or_else(|| format!("unknown tool: {tool}"))?;
+        self.policy_allows(required)?;
         if tool == "run_gate" {
             if self.task.required_gates.is_empty() {
                 return Err("the task requires no gates".into());
@@ -294,7 +364,7 @@ impl Gateway {
         }
     }
 
-    fn call(&self, id: &Value, params: &Value) -> Value {
+    fn call(&mut self, id: &Value, params: &Value) -> Value {
         let Some(tool) = params.get("name").and_then(Value::as_str) else {
             return error(id, INVALID_PARAMS, "tools/call needs a tool name");
         };
@@ -323,6 +393,9 @@ impl Gateway {
             }
         };
         drop(audit);
+        if let Some((index, upstream_tool)) = self.upstream_tool(tool) {
+            return self.call_upstream(id, tool, index, &upstream_tool, &arguments);
+        }
         let outcome = match tool {
             "task_contract" => Ok(self.task_contract()),
             "check_changes" => self.check_changes(),
@@ -348,6 +421,52 @@ impl Gateway {
             ""
         }
         .to_owned();
+        if let Err(failure) = self.record(tool, "allowed", &reason, &fields) {
+            return error(
+                id,
+                INTERNAL_ERROR,
+                &format!("the call ran but could not be recorded: {failure}"),
+            );
+        }
+        success(id, result)
+    }
+
+    /// Forwards one call to an external server and returns its result unchanged; failures become
+    /// `isError` results. Recorded like native calls, with `server` and `upstream_tool` (P3-M006).
+    fn call_upstream(
+        &mut self,
+        id: &Value,
+        tool: &str,
+        index: usize,
+        upstream_tool: &str,
+        arguments: &Value,
+    ) -> Value {
+        let server = self.upstreams[index].config.name.clone();
+        let (result, outcome, reason) = match self.upstreams[index].call(upstream_tool, arguments) {
+            Ok(result) => {
+                let failed = result.get("isError") == Some(&Value::Bool(true));
+                let outcome = if failed { "error" } else { "ok" };
+                (result, outcome, String::new())
+            }
+            Err(failure) => {
+                let outcome = if failure == UpstreamError::Timeout {
+                    "timeout"
+                } else {
+                    "error"
+                };
+                let text = format!("{server}: {failure}");
+                (
+                    json!({ "content": [{ "type": "text", "text": text }], "isError": true }),
+                    outcome,
+                    text,
+                )
+            }
+        };
+        let fields = [
+            ("server".to_owned(), server),
+            ("upstream_tool".to_owned(), upstream_tool.to_owned()),
+            ("outcome".to_owned(), outcome.to_owned()),
+        ];
         if let Err(failure) = self.record(tool, "allowed", &reason, &fields) {
             return error(
                 id,
@@ -627,7 +746,7 @@ fn tail(bytes: &[u8]) -> String {
     String::from_utf8_lossy(&bytes[start..]).into_owned()
 }
 
-fn bounded(text: &str) -> String {
+pub(crate) fn bounded(text: &str) -> String {
     text.chars().take(256).collect()
 }
 

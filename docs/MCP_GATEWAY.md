@@ -111,8 +111,46 @@ Verified with a real Claude Code session (P3-M005). Through `forge run`, the age
 the file within scope, and the bridge committed it. The orchestrator's gate passed 1/1, and all
 three calls are `ToolInvoked` events in the project's audit log.
 
+## External MCP servers (P3-M006)
+
+The gateway can also front external MCP servers, such as a GitHub, filesystem, or search server,
+under the same rules (ADR-0055). Declare each server in the project:
+
+```text
+# .forge/mcp/everything.conf        (the server name is the file stem: [a-z0-9-])
+version=1
+executable=/home/you/.local/share/mise/installs/node/26.10.0/bin/node
+argument=/path/to/@modelcontextprotocol/server-everything/dist/index.js
+argument=stdio
+env.LOG_LEVEL=warn             # literal; the server gets a cleared environment
+pass_env=GITHUB_TOKEN          # copied from the gateway's environment (keep secrets out of files)
+timeout_ms=20000               # per call; default 30 s, maximum 10 min
+tool.echo=read_repository      # expose `echo`, requiring read_repository
+tool.get-sum=read_repository
+```
+
+- **Unmapped means invisible.** Only tools with a `tool.` line are ever listed or callable. The
+  reference server offers 13 tools, including `get-env`, which prints its environment; unless it is
+  mapped, an agent never sees it.
+- Mapped tools appear as `<server>__<tool>` (for example `everything__get-sum`), with the server's
+  own description (prefixed with `[server]`) and input schema. Each needs `use_mcp_tools` plus the
+  mapped capability, checked on list and on call.
+- Calls are forwarded unchanged. An upstream error, a timeout, or a crash becomes an `isError`
+  result, and a server that cannot start is skipped (reason on stderr), while the rest keep working.
+- Every call is recorded as `ToolInvoked`, with `server`, `upstream_tool`, and `outcome` (`ok`,
+  `error`, or `timeout`) added.
+- Servers start when the gateway's session initializes, and only with `--root`.
+
+Verified with the real `@modelcontextprotocol/server-everything` (2026.8.31, protocol 2025-06-18):
+- only `everything__echo` and `everything__get-sum` were listed;
+- `get-sum` returned "The sum of 19 and 23 is 42";
+- `get-env` was refused as unknown;
+- a Claude Code session called `everything__get-sum` through the gateway ("The sum of 1234 and
+  5678 is 6912").
+
+Every call was audited.
+
 ## Not yet
 
-- Proxying external MCP servers (for example GitHub's) behind the same capability map is a
-  later P3 milestone.
-- No network transport: the gateway is always a child of the agent's MCP client.
+- Remote (HTTP or SSE) MCP servers, and upstream resources, prompts, or sampling.
+- No network transport for the gateway itself: it is always a child of the agent's MCP client.
