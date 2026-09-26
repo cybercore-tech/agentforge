@@ -1,6 +1,6 @@
 # Plan: P3-M006 — External MCP servers behind the gateway
 
-Status: Draft
+Status: Approved
 Milestone: P3-M006
 Created: 2026-09-25
 Owner: AgentForge project
