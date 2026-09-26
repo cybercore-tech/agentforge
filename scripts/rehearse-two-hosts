@@ -12,7 +12,7 @@
 #      renewals;
 #   3. a partition while idle (100% loss): the worker retries, recovers in the same process, and
 #      claims new work.
-# forge/forged come from the published v0.3.0 release archive, verified on the host with
+# forge/forged come from the published v0.3.1 release archive, verified on the host with
 # sha256sum and gh attestation verify, unless --forge-archive gives one. ghostport comes from the
 # published GhostPort v0.1.2 release, checksum-verified (it must include the handshake-limiter fix,
 # AgentForge finding 18), unless --ghostport gives a binary.
@@ -90,10 +90,10 @@ ghostport_bin="$(readlink -f "$ghostport_bin")"   # docker cp copies a symlink a
 
 # 0. The release archive, verified before it is trusted.
 if [ -z "$archive" ]; then
-  (cd "$work" && gh release download v0.3.0 -R cybercore-tech/agentforge \
+  (cd "$work" && gh release download v0.3.1 -R cybercore-tech/agentforge \
     -p SHA256SUMS -p '*x86_64-unknown-linux-gnu.tar.gz') >> "$transcript" 2>&1 \
-    || die "cannot download the v0.3.0 release"
-  archive="$work/agentforge-0.3.0-x86_64-unknown-linux-gnu.tar.gz"
+    || die "cannot download the v0.3.1 release"
+  archive="$work/agentforge-0.3.1-x86_64-unknown-linux-gnu.tar.gz"
   check "release archive checksum" \
     bash -c "cd '$work' && sha256sum --quiet -c --ignore-missing SHA256SUMS"
   check "release archive attestation" gh attestation verify "$archive" -R cybercore-tech/agentforge \
@@ -121,8 +121,8 @@ for host in "$coord" "$worker"; do
     && install -m755 agentforge-*/forge agentforge-*/forged /usr/local/bin/'
 done
 installed="$(docker exec "$worker" forge version)"
-check "forge from the release on the worker host reports 0.3.0 ($installed)" \
-  test "$installed" = "AgentForge 0.3.0"
+check "forge from the release on the worker host reports 0.3.1 ($installed)" \
+  test "$installed" = "AgentForge 0.3.1"
 
 # 2. The coordinator: project, tasks, forged, git origin, GhostPort key, worker bundle.
 on "$coord" coord '

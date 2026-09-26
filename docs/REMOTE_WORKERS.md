@@ -485,7 +485,7 @@ worker host, with separate filesystems, users, and network namespaces, joined on
 bridge network, and real GhostPort between them.
 
 ```bash
-scripts/rehearse-two-hosts            # released v0.3.0 (checksum + attestation verified)
+scripts/rehearse-two-hosts            # released v0.3.1 (checksum + attestation verified)
 scripts/rehearse-two-hosts --forge-archive <archive.tar.gz>   # a build under test
 ```
 
