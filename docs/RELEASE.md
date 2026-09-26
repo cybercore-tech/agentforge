@@ -77,6 +77,42 @@ gh attestation verify agentforge-<version>-<target>.tar.gz -R cybercore-tech/age
 A modified archive, or one built anywhere else, fails. `v0.1.0` and `v0.2.0` predate attestations
 and are verifiable by checksum only.
 
+### SBOM
+
+Since P5-M006 each release also contains `agentforge-<version>.cdx.json`, a CycloneDX 1.5 **software
+bill of materials** for `forge` and `forged` (ADR-0054). It lists every crate the two binaries are
+built from, at its exact version, including those used on only some of the four targets.
+`SHA256SUMS` covers it.
+
+The publish job makes it from the commit's own `Cargo.lock`. It installs `cargo-cyclonedx` 0.5.9
+with `cargo install --locked`, sets `SOURCE_DATE_EPOCH` to the commit time, and runs:
+
+```bash
+cargo cyclonedx --format json --spec-version 1.5 --describe binaries --no-build-deps --target all
+scripts/sbom-merge --name agentforge --version <version> \
+  crates/agentforge-cli/forge_bin.cdx.json crates/agentforge-daemon/forged_bin.cdx.json
+```
+
+`scripts/sbom-merge` merges the two per-binary documents into one, deduplicates components by
+`bom-ref`, merges the dependency edges, and derives the serial number from the content, so the same
+commit gives a byte-identical SBOM. It refuses malformed input, anything other than CycloneDX 1.5, and
+components that conflict. Its `--self-test` runs in CI. `cargo cyclonedx` writes `*_bin.cdx.json`
+files next to every `Cargo.toml`; do not commit them.
+
+Every archive also carries an **SBOM attestation**: the same keyless signature as the provenance,
+binding the SBOM to the archive's SHA-256. Verify it and print the SBOM it attests:
+
+```bash
+gh attestation verify agentforge-<version>-<target>.tar.gz -R cybercore-tech/agentforge \
+  --predicate-type https://cyclonedx.org/bom \
+  --signer-workflow cybercore-tech/agentforge/.github/workflows/release.yml
+gh attestation verify agentforge-<version>-<target>.tar.gz -R cybercore-tech/agentforge \
+  --predicate-type https://cyclonedx.org/bom --format json \
+  | jq '.[0].verificationResult.statement.predicate.components[].name'
+```
+
+`v0.1.0` to `v0.3.0` have no SBOM.
+
 ## Milestone tags versus release tags
 
 `milestone/<ID>` tags mark milestone closure commits (ADR-0044, `scripts/tag-milestone`). They do
@@ -99,7 +135,8 @@ created as an explicit release decision below, starts a release.
 6. Check the run before announcing the release. Since P5-M003, the publish step downloads every
    uploaded asset back and fails unless the asset names equal the selected files, each asset is
    byte-identical, and `SHA256SUMS` passes `sha256sum -c`. Since P5-M004 each downloaded archive
-must also pass `gh attestation verify` against `release.yml`. Still download one archive yourself and
+must also pass `gh attestation verify` against `release.yml`, and since P5-M006 its SBOM attestation
+must pass too. Still download one archive yourself and
    check that the extracted `forge version` prints the release version.
 
 Tag the exact commit that passed CI and the packaging dry run. Never move a published release tag;
@@ -129,7 +166,12 @@ Then fix the workflow for the next release. Two releases were published this way
   create dist/*` failed on a directory. The recovery above already removed those directories, but
   the P5-M001 workflow fix did not.
 
-If **Attest build provenance** fails (for example a Sigstore outage), nothing was uploaded: re-run
+A release published this way has neither attestations nor an SBOM. If the run got as far as
+**Generate the release SBOM**, you can publish `agentforge-<version>.cdx.json` too, but it would not
+be attested.
+
+If **Generate the release SBOM**, **Attest build provenance**, or **Attest the SBOM** fails (for
+example a crates.io or Sigstore outage), nothing was uploaded: re-run
 the failed job, and do not move the tag. If the upload succeeded but its verification failed, the
 release already exists. Do not move the
 tag: compare the release's assets with the run's artifacts, and replace the wrong assets (`gh release
@@ -144,7 +186,8 @@ them through the same `gh release create` into a **draft** release named
 visible only to maintainers. The rehearsal verifies the uploaded assets exactly as a tag run does,
 then deletes the draft, even when verification fails, and fails if a tag with the draft's name
 exists afterwards. Since P5-M004 a rehearsal also attests its snapshot archives and verifies those
-attestations on the downloaded draft assets, so the signing path is rehearsed too. The snapshot
+attestations on the downloaded draft assets, so the signing path is rehearsed too. Since P5-M006
+it also generates, attests, and verifies an `agentforge-snapshot-<sha12>.cdx.json` SBOM. The snapshot
 attestations stay on GitHub. They are harmless: they describe snapshot archives that were never
 released. Run one before tagging a release after any change to the release workflow:
 
@@ -165,7 +208,9 @@ gh release delete rehearsal-<run id>-<attempt> -R cybercore-tech/agentforge --ye
 
 `scripts/publish-release --self-test` (run in CI) checks both modes against a fake `gh`: a missing,
 corrupted, or stale-checksum asset fails verification, a failed rehearsal still deletes its draft,
-and a staging directory is refused before anything is uploaded.
+and a staging directory is refused before anything is uploaded. With a signer workflow, an archive
+without a provenance attestation fails, and so does one without an SBOM attestation when the release
+has an SBOM.
 
 ## Support expectations
 

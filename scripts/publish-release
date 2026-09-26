@@ -19,7 +19,10 @@
 #
 # With ATTESTATION_SIGNER_WORKFLOW set (`<owner>/<repo>/.github/workflows/<file>`), every downloaded
 # archive must also carry a build-provenance attestation signed by that workflow
-# (`gh attestation verify`), so the check covers the assets as uploaded (P5-M004).
+# (`gh attestation verify`), so the check covers the assets as uploaded (P5-M004). When the release
+# also has a CycloneDX SBOM (`*.cdx.json`), every archive must carry an SBOM attestation from that
+# workflow too (`--predicate-type https://cyclonedx.org/bom`, P5-M006). Older releases have no SBOM
+# and are verified without that check.
 
 set -euo pipefail
 
@@ -27,6 +30,8 @@ fail() {
   echo "publish-release: $*" >&2
   exit 1
 }
+
+SBOM_PREDICATE_TYPE=https://cyclonedx.org/bom
 
 repo_args=()
 if [ -n "${GITHUB_REPOSITORY:-}" ]; then
@@ -67,15 +72,27 @@ verify() {
     || { rm -rf "$check"; fail "$name: SHA256SUMS does not verify on the downloaded assets"; }
   local checks="names, bytes, SHA256SUMS"
   if [ -n "${ATTESTATION_SIGNER_WORKFLOW:-}" ]; then
-    local archive attested=0
+    local archive sbom attested=0 sboms=0 has_sbom=0
+    for sbom in "$check"/*.cdx.json; do
+      if [ -e "$sbom" ]; then has_sbom=1; fi
+    done
     for archive in "$check"/*.tar.gz; do
       [ -e "$archive" ] || continue
       gh attestation verify "$archive" "${repo_args[@]}" \
         --signer-workflow "$ATTESTATION_SIGNER_WORKFLOW" > /dev/null \
         || { rm -rf "$check"; fail "$name: $(basename "$archive") has no valid provenance attestation"; }
       attested=$((attested + 1))
+      if [ "$has_sbom" = 1 ]; then
+        gh attestation verify "$archive" "${repo_args[@]}" --predicate-type "$SBOM_PREDICATE_TYPE" \
+          --signer-workflow "$ATTESTATION_SIGNER_WORKFLOW" > /dev/null \
+          || { rm -rf "$check"; fail "$name: $(basename "$archive") has no valid SBOM attestation"; }
+        sboms=$((sboms + 1))
+      fi
     done
     checks="$checks, $attested attestations"
+    if [ "$has_sbom" = 1 ]; then
+      checks="$checks, $sboms SBOM attestations"
+    fi
   fi
   count="$(listing "$check" | wc -l)"
   rm -rf "$check"
@@ -139,6 +156,9 @@ rehearse() {
 # A fake gh that keeps releases and tags in $FAKE_GH_STATE. FAKE_GH_DROP and FAKE_GH_CORRUPT name
 # an asset to lose or damage on upload; FAKE_GH_LEAK_TAG=1 makes a draft create a tag anyway.
 # Uploaded archives count as attested (by their original digest) unless named by FAKE_GH_UNATTESTED.
+# When the upload includes a *.cdx.json, its archives also count as SBOM-attested unless named by
+# FAKE_GH_SBOM_UNATTESTED. `attestation verify --predicate-type https://cyclonedx.org/bom` checks
+# those; any other predicate type is refused.
 write_fake_gh() {
   cat > "$1/gh" <<'FAKE'
 #!/usr/bin/env bash
@@ -147,7 +167,7 @@ state="${FAKE_GH_STATE:?}"
 mkdir -p "$state/releases" "$state/tags"
 command="$1 ${2:-}"
 shift 2 || true
-positional=() ; draft=0 ; verify_tag=0 ; dir=""
+positional=() ; draft=0 ; verify_tag=0 ; dir="" ; predicate=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --draft) draft=1 ;;
@@ -155,6 +175,7 @@ while [ $# -gt 0 ]; do
     --generate-notes|--yes) ;;
     --repo|--target|--title|--notes|--signer-workflow) shift ;;
     --dir) dir="$2"; shift ;;
+    --predicate-type) predicate="$2"; shift ;;
     *) positional+=("$1") ;;
   esac
   shift
@@ -167,11 +188,19 @@ case "$command" in
       echo "tag $name doesn't exist in the repo" >&2; exit 1
     fi
     mkdir "$state/releases/$name"
+    with_sbom=0
+    for file in "${positional[@]:1}"; do
+      if [[ "$file" == *.cdx.json ]]; then with_sbom=1; fi
+    done
     for file in "${positional[@]:1}"; do
       [ -f "$file" ] || { echo "read $file: is a directory" >&2; exit 1; }
       base="$(basename "$file")"
       if [[ "$base" == *.tar.gz ]] && [ "$base" != "${FAKE_GH_UNATTESTED:-}" ]; then
         sha256sum "$file" | cut -d' ' -f1 >> "$state/attested"
+      fi
+      if [[ "$base" == *.tar.gz ]] && [ "$with_sbom" = 1 ] \
+        && [ "$base" != "${FAKE_GH_SBOM_UNATTESTED:-}" ]; then
+        sha256sum "$file" | cut -d' ' -f1 >> "$state/sbom-attested"
       fi
       [ "$base" = "${FAKE_GH_DROP:-}" ] && continue
       cp "$file" "$state/releases/$name/$base"
@@ -188,8 +217,13 @@ case "$command" in
     rm -rf "$state/releases/$name"
     ;;
   "attestation verify")
+    case "$predicate" in
+      "") store="$state/attested" ;;
+      https://cyclonedx.org/bom) store="$state/sbom-attested" ;;
+      *) echo "fake gh: unsupported predicate type: $predicate" >&2; exit 2 ;;
+    esac
     digest="$(sha256sum "$name" | cut -d' ' -f1)"
-    grep -qx "$digest" "$state/attested" 2>/dev/null \
+    grep -qx "$digest" "$store" 2>/dev/null \
       || { echo "Error: no attestations found for $name" >&2; exit 1; }
     ;;
   "api "*)
@@ -238,6 +272,7 @@ self_test() {
     status=$?
     set -e
     LAST_STATE="$state"
+    LAST_OUTPUT="$output"
     if { [ "$want" = pass ] && [ "$status" -eq 0 ]; } \
       || { [ "$want" != pass ] && [ "$status" -ne 0 ] && [[ "$output" == *"$want"* ]]; }; then
       echo "ok   $description"
@@ -289,12 +324,36 @@ self_test() {
   no_leftovers "rehearse: the stale-checksum draft is still deleted"
   PRE_TAG=v9.9.9 expect "attestations: attested archives pass" pass \
     ATTESTATION_SIGNER_WORKFLOW=test/repo/.github/workflows/release.yml -- tag v9.9.9 "$work/files"
+  # The fake records no SBOM attestations for an upload without *.cdx.json, so checking one fails.
+  [[ "$LAST_OUTPUT" == *"2 attestations)"* ]] \
+    && echo "ok   sbom: a release without an SBOM is verified without the SBOM check" \
+    || { echo "FAIL sbom: a release without an SBOM is verified without the SBOM check: $LAST_OUTPUT"; failures=$((failures + 1)); }
   expect "attestations: an unattested archive fails the rehearsal" "has no valid provenance attestation" \
     ATTESTATION_SIGNER_WORKFLOW=test/repo/.github/workflows/release.yml \
     FAKE_GH_UNATTESTED=agentforge-9.9.9-aarch64-apple-darwin.tar.gz -- rehearse rehearsal-1-9 "$sha" "$work/files"
   no_leftovers "attestations: the unattested draft is still deleted"
   expect "attestations: not checked without a signer workflow" pass \
     FAKE_GH_UNATTESTED=agentforge-9.9.9-aarch64-apple-darwin.tar.gz -- rehearse rehearsal-1-10 "$sha" "$work/files"
+
+  mkdir "$work/with-sbom" && cp "$work/files"/*.tar.gz* "$work/with-sbom/"
+  printf '{"bomFormat":"CycloneDX","specVersion":"1.5"}\n' > "$work/with-sbom/agentforge-9.9.9.cdx.json"
+  (cd "$work/with-sbom" && sha256sum -- *.tar.gz *.cdx.json > SHA256SUMS)
+  PRE_TAG=v9.9.9 expect "sbom: SBOM-attested archives pass" pass \
+    ATTESTATION_SIGNER_WORKFLOW=test/repo/.github/workflows/release.yml -- tag v9.9.9 "$work/with-sbom"
+  [[ "$LAST_OUTPUT" == *"2 attestations, 2 SBOM attestations"* ]] \
+    && echo "ok   sbom: every archive's SBOM attestation is checked" \
+    || { echo "FAIL sbom: every archive's SBOM attestation is checked: $LAST_OUTPUT"; failures=$((failures + 1)); }
+  expect "sbom: an archive without an SBOM attestation fails the rehearsal" "has no valid SBOM attestation" \
+    ATTESTATION_SIGNER_WORKFLOW=test/repo/.github/workflows/release.yml \
+    FAKE_GH_SBOM_UNATTESTED=agentforge-9.9.9-x86_64-unknown-linux-gnu.tar.gz \
+    -- rehearse rehearsal-1-11 "$sha" "$work/with-sbom"
+  no_leftovers "sbom: the draft without an SBOM attestation is still deleted"
+  expect "sbom: provenance is still required with an SBOM" "has no valid provenance attestation" \
+    ATTESTATION_SIGNER_WORKFLOW=test/repo/.github/workflows/release.yml \
+    FAKE_GH_UNATTESTED=agentforge-9.9.9-aarch64-apple-darwin.tar.gz -- rehearse rehearsal-1-12 "$sha" "$work/with-sbom"
+  expect "sbom: not checked without a signer workflow" pass \
+    FAKE_GH_SBOM_UNATTESTED=agentforge-9.9.9-x86_64-unknown-linux-gnu.tar.gz \
+    -- rehearse rehearsal-1-13 "$sha" "$work/with-sbom"
   mkdir "$work/no-sums" && cp "$work/files"/*.tar.gz* "$work/no-sums/"
   expect "input: missing SHA256SUMS is refused" "has no SHA256SUMS" -- rehearse rehearsal-1-7 "$sha" "$work/no-sums"
 

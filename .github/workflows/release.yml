@@ -83,7 +83,9 @@ jobs:
     # files through the same `gh release create` into a draft release, which creates no tag,
     # verifies every asset, and deletes the draft, so the upload is proven without a release
     # (P5-M003). Tag runs verify their published assets the same way. Both attest the archives'
-    # build provenance keylessly and verify the uploaded assets' attestations (P5-M004).
+    # build provenance keylessly and verify the uploaded assets' attestations (P5-M004). Both also
+    # release a CycloneDX SBOM of forge and forged, attest it for every archive, and verify those
+    # attestations on the uploaded assets (P5-M006).
     name: Publish GitHub release
     needs: build
     runs-on: ubuntu-24.04
@@ -93,7 +95,8 @@ jobs:
       attestations: write
       artifact-metadata: write
     steps:
-      # Checked out first: checkout cleans the workspace. It provides scripts/publish-release only.
+      # Checked out first: checkout cleans the workspace. It provides scripts/publish-release,
+      # scripts/sbom-merge, and the Cargo metadata the SBOM is generated from.
       - name: Check out publish script
         uses: actions/checkout@v7
         with:
@@ -105,24 +108,61 @@ jobs:
           path: dist
           merge-multiple: true
 
+      # The SBOM (P5-M006, ADR-0054) describes forge and forged from this commit's own Cargo.lock:
+      # cargo-cyclonedx reads the repository's cargo metadata and builds nothing. It is made
+      # before the release files are selected so that SHA256SUMS covers it.
+      - name: Install stable Rust and cargo-cyclonedx
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          cargo install --locked cargo-cyclonedx@0.5.9
+
+      - name: Generate the release SBOM
+        id: sbom
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="snapshot-${GITHUB_SHA:0:12}"
+          fi
+          SOURCE_DATE_EPOCH="$(git log -1 --format=%ct HEAD)"
+          export SOURCE_DATE_EPOCH
+          cargo cyclonedx --format json --spec-version 1.5 --describe binaries --no-build-deps --target all
+          mkdir sbom
+          python3 scripts/sbom-merge --name agentforge --version "${version}" \
+            crates/agentforge-cli/forge_bin.cdx.json crates/agentforge-daemon/forged_bin.cdx.json \
+            > "sbom/agentforge-${version}.cdx.json"
+          echo "path=release/agentforge-${version}.cdx.json" >> "$GITHUB_OUTPUT"
+
       - name: Select release files and create consolidated checksums
         # Artifacts also contain each target's staging directory; only regular files are
-        # released. Exactly four archives, each with its .sha256, are required.
+        # released. Exactly four archives, each with its .sha256, and exactly one SBOM are
+        # required.
         run: |
           set -euo pipefail
           mkdir release
           find dist -maxdepth 1 -type f \( -name '*.tar.gz' -o -name '*.tar.gz.sha256' \) -exec cp {} release/ \;
+          find sbom -maxdepth 1 -type f -name '*.cdx.json' -exec cp {} release/ \;
           cd release
           archives=$(find . -maxdepth 1 -name '*.tar.gz' -type f | wc -l)
           if [ "$archives" -ne 4 ]; then
             echo "expected 4 archives, found $archives" >&2
             exit 1
           fi
+          sboms=$(find . -maxdepth 1 -name '*.cdx.json' -type f | wc -l)
+          if [ "$sboms" -ne 1 ]; then
+            echo "expected 1 SBOM (*.cdx.json), found $sboms" >&2
+            exit 1
+          fi
+          test -f "../${{ steps.sbom.outputs.path }}" \
+            || { echo "missing ${{ steps.sbom.outputs.path }}" >&2; exit 1; }
           for archive in *.tar.gz; do
             test -f "$archive.sha256" || { echo "missing $archive.sha256" >&2; exit 1; }
             sha256sum -c "$archive.sha256"
           done
-          find . -maxdepth 1 -name '*.tar.gz' -type f -printf '%f\0' | sort -z | xargs -0 sha256sum > SHA256SUMS
+          find . -maxdepth 1 -type f \( -name '*.tar.gz' -o -name '*.cdx.json' \) -printf '%f\0' | sort -z | xargs -0 sha256sum > SHA256SUMS
           sha256sum -c SHA256SUMS
           echo "release files:"
           ls -l
@@ -133,6 +173,15 @@ jobs:
         uses: actions/attest@v4
         with:
           subject-path: release/*.tar.gz
+
+      # The same keyless signing, binding the SBOM to every archive (ADR-0054). Verify with
+      # `gh attestation verify <archive> -R cybercore-tech/agentforge --predicate-type
+      # https://cyclonedx.org/bom`.
+      - name: Attest the SBOM
+        uses: actions/attest@v4
+        with:
+          subject-path: release/*.tar.gz
+          sbom-path: ${{ steps.sbom.outputs.path }}
 
       - name: Publish release and verify the uploaded assets
         if: startsWith(github.ref, 'refs/tags/v')

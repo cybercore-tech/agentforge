@@ -51,6 +51,9 @@ jobs:
       - name: Self-test release publisher
         run: ./scripts/publish-release --self-test
 
+      - name: Self-test release SBOM merge
+        run: python3 scripts/sbom-merge --self-test
+
   stable-code:
     name: Stable code gate
     timeout-minutes: 30

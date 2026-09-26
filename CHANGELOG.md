@@ -8,6 +8,12 @@ All notable AgentForge changes are documented here. The format follows
 
 ### Added
 
+- Releases include a CycloneDX SBOM of `forge` and `forged` (`agentforge-<version>.cdx.json`),
+  generated with `cargo-cyclonedx` 0.5.9 and merged by `scripts/sbom-merge`. Every archive carries
+  an SBOM attestation. Verify it with `gh attestation verify <archive> -R cybercore-tech/agentforge
+  --predicate-type https://cyclonedx.org/bom`, and the publish job verifies it on the uploaded
+  assets (P5-M006, ADR-0054).
+
 - `scripts/rehearse-two-hosts` rehearses the two-machine remote-worker run with two clean
   containers, real GhostPort, and network chaos (delay, loss, partition) (P4-M012).
 

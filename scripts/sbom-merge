@@ -1,0 +1,489 @@
+#!/usr/bin/env python3
+"""Merge per-binary CycloneDX 1.5 SBOMs into one release SBOM (P5-M006, ADR-0054).
+
+Usage:
+  scripts/sbom-merge --name <name> --version <version> <in.cdx.json>... > out.cdx.json
+  scripts/sbom-merge --self-test
+
+The inputs are the `<binary>_bin.cdx.json` files written by `cargo cyclonedx --format json
+--spec-version 1.5 --describe binaries` (0.5.9), one per released binary. The output is a single
+CycloneDX 1.5 JSON document:
+
+- its metadata component is `<name>` at `<version>`, whose components are the inputs' metadata
+  components (the binaries' packages, with their binary targets nested);
+- components are deduplicated by `bom-ref` (or `purl` when a component has no `bom-ref`). A crate
+  that is one input's metadata component and another input's dependency is kept once, under the
+  metadata component. Two components with the same key and different content are refused;
+- dependency edges are merged per `ref`, and the root depends on every binary's package;
+- every `ref` and `dependsOn` entry must name a component in the document;
+- the timestamp is `SOURCE_DATE_EPOCH` when set, and omitted otherwise;
+- `serialNumber` is a UUID derived from the rest of the document.
+
+Components, dependencies, and edges are sorted, so the same inputs give byte-identical output in
+any order. Malformed JSON and anything other than CycloneDX 1.5 are refused.
+"""
+
+import argparse
+import copy
+import datetime
+import json
+import os
+import subprocess
+import sys
+import tempfile
+import uuid
+
+SPEC_VERSION = "1.5"
+
+
+class MergeError(Exception):
+    pass
+
+
+def key_of(component, where):
+    if not isinstance(component, dict):
+        raise MergeError(f"{where}: a component is not an object")
+    key = component.get("bom-ref") or component.get("purl")
+    if not isinstance(key, str) or not key:
+        raise MergeError(f"{where}: component {component.get('name', '?')!r} has no bom-ref or purl")
+    return key
+
+
+def nested_keys(component, where):
+    """The keys of a component and every component nested in it."""
+    keys = [key_of(component, where)]
+    children = component.get("components", [])
+    if not isinstance(children, list):
+        raise MergeError(f"{where}: nested components are not a list")
+    for child in children:
+        keys.extend(nested_keys(child, where))
+    return keys
+
+
+def load(path):
+    try:
+        with open(path, encoding="utf-8") as handle:
+            document = json.load(handle)
+    except OSError as error:
+        raise MergeError(f"{path}: {error.strerror}") from error
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise MergeError(f"{path}: not valid JSON: {error}") from error
+    if not isinstance(document, dict):
+        raise MergeError(f"{path}: not a JSON object")
+    if document.get("bomFormat") != "CycloneDX":
+        raise MergeError(f"{path}: bomFormat is {document.get('bomFormat')!r}, not 'CycloneDX'")
+    if document.get("specVersion") != SPEC_VERSION:
+        raise MergeError(
+            f"{path}: specVersion is {document.get('specVersion')!r}, not {SPEC_VERSION!r}"
+        )
+    metadata = document.get("metadata")
+    if not isinstance(metadata, dict) or not isinstance(metadata.get("component"), dict):
+        raise MergeError(f"{path}: no metadata component")
+    for field in ("components", "dependencies"):
+        if not isinstance(document.get(field, []), list):
+            raise MergeError(f"{path}: {field} is not a list")
+    return document
+
+
+def tool_entries(metadata, where):
+    """Normalise legacy (array) and 1.5 (`components`) tool lists to 1.5 tool components."""
+    tools = metadata.get("tools", [])
+    if isinstance(tools, dict):
+        entries = tools.get("components", [])
+    elif isinstance(tools, list):
+        entries = []
+        for tool in tools:
+            if not isinstance(tool, dict) or not tool.get("name"):
+                raise MergeError(f"{where}: a metadata tool has no name")
+            entry = {"type": "application", "name": tool["name"]}
+            if tool.get("vendor"):
+                entry["publisher"] = tool["vendor"]
+            if tool.get("version"):
+                entry["version"] = tool["version"]
+            entries.append(entry)
+    else:
+        raise MergeError(f"{where}: metadata tools are neither a list nor an object")
+    if not isinstance(entries, list) or not all(isinstance(entry, dict) for entry in entries):
+        raise MergeError(f"{where}: metadata tool components are not a list of objects")
+    return entries
+
+
+def canonical(value):
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+
+
+def timestamp_from_environment(environ):
+    epoch = environ.get("SOURCE_DATE_EPOCH")
+    if epoch is None or epoch == "":
+        return None
+    if not epoch.isdigit():
+        raise MergeError(f"SOURCE_DATE_EPOCH is not a non-negative integer: {epoch!r}")
+    moment = datetime.datetime.fromtimestamp(int(epoch), tz=datetime.timezone.utc)
+    return moment.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def merge(name, version, documents, timestamp=None):
+    """Merge (path, document) pairs into one CycloneDX 1.5 document."""
+    root_ref = f"{name}@{version}"
+    binaries = {}
+    for path, document in documents:
+        component = document["metadata"]["component"]
+        key = key_of(component, f"{path} metadata")
+        if key in binaries:
+            raise MergeError(f"{path}: metadata component {key!r} is already merged")
+        binaries[key] = (path, component)
+
+    metadata_keys = {root_ref}
+    for key, (path, component) in binaries.items():
+        for nested in nested_keys(component, f"{path} metadata"):
+            if nested in metadata_keys:
+                raise MergeError(f"{path}: metadata component {nested!r} is already merged")
+            metadata_keys.add(nested)
+
+    components = {}
+    tools = {}
+    edges = {}
+    for path, document in documents:
+        for entry in tool_entries(document["metadata"], path):
+            tools[canonical(entry)] = entry
+        for component in document.get("components", []):
+            key = key_of(component, path)
+            if key in metadata_keys:
+                continue
+            known = components.get(key)
+            if known is not None and canonical(known[1]) != canonical(component):
+                raise MergeError(f"{path}: component {key!r} differs from the one in {known[0]}")
+            components[key] = (path, component)
+        for dependency in document.get("dependencies", []):
+            if not isinstance(dependency, dict) or not isinstance(dependency.get("ref"), str):
+                raise MergeError(f"{path}: a dependency has no ref")
+            depends_on = dependency.get("dependsOn", [])
+            if not isinstance(depends_on, list) or not all(isinstance(r, str) for r in depends_on):
+                raise MergeError(f"{path}: dependsOn of {dependency['ref']!r} is not a list of refs")
+            edges.setdefault(dependency["ref"], set()).update(depends_on)
+
+    edges.setdefault(root_ref, set()).update(binaries)
+    known_refs = metadata_keys | set(components)
+    for ref, depends_on in edges.items():
+        for target in [ref, *depends_on]:
+            if target not in known_refs:
+                raise MergeError(f"dependency {target!r} names no component in the merged SBOM")
+
+    tools[canonical(merge_tool())] = merge_tool()
+    metadata = {}
+    if timestamp is not None:
+        metadata["timestamp"] = timestamp
+    ordered_tools = sorted(tools.items(), key=lambda item: (str(item[1].get("name", "")), item[0]))
+    metadata["tools"] = {"components": [tool for _, tool in ordered_tools]}
+    metadata["component"] = {
+        "type": "application",
+        "bom-ref": root_ref,
+        "name": name,
+        "version": version,
+        "components": [copy.deepcopy(binaries[key][1]) for key in sorted(binaries)],
+    }
+    bom = {
+        "bomFormat": "CycloneDX",
+        "specVersion": SPEC_VERSION,
+        "version": 1,
+        "metadata": metadata,
+        "components": [copy.deepcopy(components[key][1]) for key in sorted(components)],
+        "dependencies": [
+            {"ref": ref, "dependsOn": sorted(edges[ref])} for ref in sorted(edges)
+        ],
+    }
+    serial = uuid.uuid5(uuid.NAMESPACE_URL, "agentforge-sbom:" + canonical(bom))
+    return {
+        "bomFormat": bom["bomFormat"],
+        "specVersion": bom["specVersion"],
+        "serialNumber": f"urn:uuid:{serial}",
+        "version": bom["version"],
+        "metadata": bom["metadata"],
+        "components": bom["components"],
+        "dependencies": bom["dependencies"],
+    }
+
+
+def merge_tool():
+    return {"type": "application", "group": "agentforge", "name": "sbom-merge"}
+
+
+def render(bom):
+    return json.dumps(bom, indent=2, ensure_ascii=True) + "\n"
+
+
+def run(argv, environ):
+    parser = argparse.ArgumentParser(prog="sbom-merge", description="Merge CycloneDX 1.5 SBOMs.")
+    parser.add_argument("--name", required=True)
+    parser.add_argument("--version", required=True)
+    parser.add_argument("inputs", nargs="+", metavar="in.cdx.json")
+    args = parser.parse_args(argv)
+    if not args.name.strip() or not args.version.strip():
+        raise MergeError("--name and --version must not be empty")
+    documents = [(path, load(path)) for path in args.inputs]
+    return render(merge(args.name, args.version, documents, timestamp_from_environment(environ)))
+
+
+# Fixtures shaped like cargo-cyclonedx 0.5.9 output: `forged`'s package also depends on the
+# `forge` package, as a workspace crate can, so it appears in both files.
+def fixture_forge():
+    platform = "path+file:///w/crates/agentforge-cli#agentforge-platform@0.3.0"
+    return {
+        "bomFormat": "CycloneDX",
+        "specVersion": "1.5",
+        "serialNumber": "urn:uuid:00000000-0000-0000-0000-000000000001",
+        "version": 1,
+        "metadata": {
+            "timestamp": "2026-09-25T00:00:00.000000000Z",
+            "tools": [{"vendor": "CycloneDX", "name": "cargo-cyclonedx", "version": "0.5.9"}],
+            "component": {
+                "type": "application",
+                "bom-ref": platform,
+                "name": "agentforge-platform",
+                "version": "0.3.0",
+                "components": [
+                    {
+                        "type": "application",
+                        "bom-ref": platform + " bin-target-0",
+                        "name": "forge",
+                        "version": "0.3.0",
+                    }
+                ],
+            },
+        },
+        "components": [
+            library("path+file:///w/crates/agentforge-core#0.3.0", "agentforge-core", "0.3.0"),
+            library(crates_io("serde", "1.0.228"), "serde", "1.0.228"),
+            library(crates_io("serde_json", "1.0.145"), "serde_json", "1.0.145"),
+        ],
+        "dependencies": [
+            {
+                "ref": platform,
+                "dependsOn": [
+                    "path+file:///w/crates/agentforge-core#0.3.0",
+                    crates_io("serde_json", "1.0.145"),
+                ],
+            },
+            {
+                "ref": "path+file:///w/crates/agentforge-core#0.3.0",
+                "dependsOn": [crates_io("serde", "1.0.228")],
+            },
+            {"ref": crates_io("serde", "1.0.228"), "dependsOn": []},
+            {"ref": crates_io("serde_json", "1.0.145"), "dependsOn": [crates_io("serde", "1.0.228")]},
+        ],
+    }
+
+
+def fixture_forged():
+    daemon = "path+file:///w/crates/agentforge-daemon#0.3.0"
+    platform = "path+file:///w/crates/agentforge-cli#agentforge-platform@0.3.0"
+    return {
+        "bomFormat": "CycloneDX",
+        "specVersion": "1.5",
+        "serialNumber": "urn:uuid:00000000-0000-0000-0000-000000000002",
+        "version": 1,
+        "metadata": {
+            "timestamp": "2026-09-25T00:00:01.000000000Z",
+            "tools": [{"vendor": "CycloneDX", "name": "cargo-cyclonedx", "version": "0.5.9"}],
+            "component": {
+                "type": "application",
+                "bom-ref": daemon,
+                "name": "agentforge-daemon",
+                "version": "0.3.0",
+                "components": [
+                    {
+                        "type": "application",
+                        "bom-ref": daemon + " bin-target-0",
+                        "name": "forged",
+                        "version": "0.3.0",
+                    }
+                ],
+            },
+        },
+        "components": [
+            library(platform, "agentforge-platform", "0.3.0"),
+            library("path+file:///w/crates/agentforge-core#0.3.0", "agentforge-core", "0.3.0"),
+            library(crates_io("serde", "1.0.228"), "serde", "1.0.228"),
+            library(crates_io("libc", "0.2.177"), "libc", "0.2.177"),
+        ],
+        "dependencies": [
+            {
+                "ref": daemon,
+                "dependsOn": [
+                    crates_io("libc", "0.2.177"),
+                    "path+file:///w/crates/agentforge-core#0.3.0",
+                    platform,
+                ],
+            },
+            {"ref": platform, "dependsOn": ["path+file:///w/crates/agentforge-core#0.3.0"]},
+            {
+                "ref": "path+file:///w/crates/agentforge-core#0.3.0",
+                "dependsOn": [crates_io("serde", "1.0.228")],
+            },
+            {"ref": crates_io("serde", "1.0.228"), "dependsOn": []},
+            {"ref": crates_io("libc", "0.2.177"), "dependsOn": []},
+        ],
+    }
+
+
+def crates_io(name, version):
+    return f"registry+https://github.com/rust-lang/crates.io-index#{name}@{version}"
+
+
+def library(ref, name, version):
+    return {
+        "type": "library",
+        "bom-ref": ref,
+        "name": name,
+        "version": version,
+        "purl": f"pkg:cargo/{name}@{version}",
+    }
+
+
+def self_test():
+    script = os.path.realpath(__file__)
+    failures = 0
+
+    def check(description, condition, detail=""):
+        nonlocal failures
+        if condition:
+            print(f"ok   {description}")
+        else:
+            print(f"FAIL {description}" + (f": {detail}" if detail else ""))
+            failures += 1
+
+    with tempfile.TemporaryDirectory() as work:
+
+        def write(name, value):
+            path = os.path.join(work, name)
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write(value if isinstance(value, str) else json.dumps(value, indent=2))
+            return path
+
+        def invoke(*paths, epoch="1758758400", name="agentforge", version="0.3.0"):
+            environ = {key: value for key, value in os.environ.items() if key != "SOURCE_DATE_EPOCH"}
+            if epoch is not None:
+                environ["SOURCE_DATE_EPOCH"] = epoch
+            result = subprocess.run(
+                [sys.executable, script, "--name", name, "--version", version, *paths],
+                env=environ,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
+            )
+            return result.returncode, result.stdout, result.stderr
+
+        def refuses(description, want, *paths, **options):
+            status, output, errors = invoke(*paths, **options)
+            check(description, status != 0 and want in errors and output == "",
+                  f"exit {status}, stderr {errors.strip()!r}")
+
+        forge = write("forge_bin.cdx.json", fixture_forge())
+        forged = write("forged_bin.cdx.json", fixture_forged())
+
+        status, output, errors = invoke(forge, forged)
+        check("merge: two binaries merge", status == 0, errors.strip())
+        bom = json.loads(output) if status == 0 else {}
+        root = bom.get("metadata", {}).get("component", {})
+        check("merge: CycloneDX 1.5 with a derived serialNumber",
+              bom.get("bomFormat") == "CycloneDX" and bom.get("specVersion") == "1.5"
+              and bom.get("serialNumber", "").startswith("urn:uuid:")
+              and bom.get("serialNumber") not in (fixture_forge()["serialNumber"],
+                                                  fixture_forged()["serialNumber"]))
+        check("merge: the root is the release at its version",
+              root.get("name") == "agentforge" and root.get("version") == "0.3.0"
+              and root.get("bom-ref") == "agentforge@0.3.0")
+        binaries = [child["name"] for child in root.get("components", [])]
+        check("merge: the root holds both binaries' packages",
+              binaries == ["agentforge-platform", "agentforge-daemon"], binaries)
+        nested = [c["components"][0]["name"] for c in root.get("components", [])]
+        check("merge: binary targets stay nested", nested == ["forge", "forged"], nested)
+        names = [component["name"] for component in bom.get("components", [])]
+        check("dedupe: shared crates appear once",
+              names == ["agentforge-core", "libc", "serde", "serde_json"], names)
+        refs = [c["bom-ref"] for c in bom.get("components", [])]
+        check("dedupe: a package that is also a dependency is kept only as metadata",
+              "path+file:///w/crates/agentforge-cli#agentforge-platform@0.3.0" not in refs)
+        edges = {d["ref"]: d["dependsOn"] for d in bom.get("dependencies", [])}
+        platform = "path+file:///w/crates/agentforge-cli#agentforge-platform@0.3.0"
+        check("dependencies: edges from both inputs are merged and sorted",
+              edges.get(platform) == sorted(["path+file:///w/crates/agentforge-core#0.3.0",
+                                             crates_io("serde_json", "1.0.145")]),
+              edges.get(platform))
+        check("dependencies: the root depends on both packages",
+              edges.get("agentforge@0.3.0") == sorted(
+                  [platform, "path+file:///w/crates/agentforge-daemon#0.3.0"]))
+        check("dependencies: sorted by ref", list(edges) == sorted(edges))
+        tools = [tool["name"] for tool in bom.get("metadata", {}).get("tools", {}).get("components", [])]
+        check("metadata: tools are cargo-cyclonedx once, and sbom-merge",
+              tools == ["cargo-cyclonedx", "sbom-merge"], tools)
+        check("metadata: SOURCE_DATE_EPOCH sets the timestamp",
+              bom.get("metadata", {}).get("timestamp") == "2025-09-25T00:00:00Z",
+              bom.get("metadata", {}).get("timestamp"))
+
+        again = invoke(forge, forged)[1]
+        reversed_order = invoke(forged, forge)[1]
+        check("determinism: the same inputs give byte-identical output", output == again)
+        check("determinism: input order does not matter", output == reversed_order)
+        other_epoch = invoke(forge, forged, epoch="1758758401")[1]
+        check("determinism: the serialNumber follows the content",
+              json.loads(other_epoch)["serialNumber"] != bom.get("serialNumber"))
+        unset = invoke(forge, forged, epoch=None)
+        check("determinism: without SOURCE_DATE_EPOCH there is no timestamp",
+              unset[0] == 0 and "timestamp" not in json.loads(unset[1])["metadata"]
+              and unset[1] == invoke(forge, forged, epoch=None)[1])
+
+        refuses("input: malformed JSON is refused", "not valid JSON",
+                forge, write("broken.cdx.json", '{"bomFormat": "CycloneDX",'))
+        spdx = write("spdx.json", {"spdxVersion": "SPDX-2.3", "SPDXID": "SPDXRef-DOCUMENT"})
+        refuses("input: a non-CycloneDX document is refused", "bomFormat", forge, spdx)
+        old = fixture_forged()
+        old["specVersion"] = "1.4"
+        refuses("input: another CycloneDX version is refused", "specVersion",
+                forge, write("old.cdx.json", old))
+        refuses("input: a JSON array is refused", "not a JSON object", write("list.json", "[]"))
+        no_meta = fixture_forged()
+        del no_meta["metadata"]["component"]
+        refuses("input: a document without a metadata component is refused",
+                "no metadata component", forge, write("no-meta.cdx.json", no_meta))
+        refuses("input: the same binary twice is refused", "already merged", forge, forge)
+        conflict = fixture_forged()
+        conflict["components"][2]["version"] = "1.0.999"
+        refuses("dedupe: conflicting components with one bom-ref are refused", "differs",
+                forge, write("conflict.cdx.json", conflict))
+        dangling = fixture_forged()
+        dangling["dependencies"][0]["dependsOn"].append(crates_io("ghost", "0.0.1"))
+        refuses("dependencies: an edge to an unknown component is refused", "names no component",
+                forge, write("dangling.cdx.json", dangling))
+        anonymous = fixture_forged()
+        del anonymous["components"][3]["bom-ref"]
+        del anonymous["components"][3]["purl"]
+        refuses("input: a component without bom-ref or purl is refused", "no bom-ref or purl",
+                forge, write("anonymous.cdx.json", anonymous))
+        refuses("input: a missing file is refused", "No such file", os.path.join(work, "absent.json"))
+        refuses("input: a bad SOURCE_DATE_EPOCH is refused", "SOURCE_DATE_EPOCH",
+                forge, forged, epoch="yesterday")
+        refuses("input: an empty version is refused", "must not be empty", forge, version="")
+
+    if failures:
+        print(f"sbom-merge self-test: {failures} failure(s)", file=sys.stderr)
+        return 1
+    print("sbom-merge self-test passed")
+    return 0
+
+
+def main():
+    if sys.argv[1:] == ["--self-test"]:
+        return self_test()
+    try:
+        output = run(sys.argv[1:], os.environ)
+    except MergeError as error:
+        print(f"sbom-merge: {error}", file=sys.stderr)
+        return 1
+    sys.stdout.write(output)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

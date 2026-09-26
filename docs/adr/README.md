@@ -59,3 +59,4 @@ ADRs are permanent numbered records of consequential design decisions.
 | ADR-0051 | Accepted | Remote execution and exact-SHA import |
 | ADR-0052 | Accepted | MCP task-tool gateway |
 | ADR-0053 | Accepted | Keyless build provenance for releases |
+| ADR-0054 | Accepted | An attested CycloneDX SBOM for every release |
