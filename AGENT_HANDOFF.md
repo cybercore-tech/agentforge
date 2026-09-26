@@ -2,7 +2,10 @@
 
 ## Repository state
 
-- Active milestone: none. P2-M035 is complete (`7ba86dc`): findings 21 and 22 are resolved. Task
+- Active milestone: none. P5-M007 is complete: **`v0.3.1` is published** (tag on `899d3d1`), the
+  first release with an attested SBOM and the remote-worker fixes. `scripts/rehearse-two-hosts`
+  now defaults to it.
+- P2-M035 is complete (`7ba86dc`): findings 21 and 22 are resolved. Task
   creation refuses the merge approval without the capability, and the bridge lets
   `run_local_commands` agents run files in their allowed paths.
 - P5-M006 is complete (`14efd83`, agent-built): releases carry an attested

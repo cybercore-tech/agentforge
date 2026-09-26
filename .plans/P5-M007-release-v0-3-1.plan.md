@@ -1,6 +1,6 @@
 # Plan: P5-M007 — Release v0.3.1
 
-Status: Approved
+Status: Complete
 Milestone: P5-M007
 Created: 2026-09-25
 Owner: AgentForge project
@@ -125,7 +125,30 @@ CHANGELOG, README, site, RELEASE; closure records.
 
 ## Acceptance criteria
 
-- [ ] `v0.3.1` is published by the workflow with archives, `.sha256` files, the SBOM, and
+- [x] `v0.3.1` is published by the workflow with archives, `.sha256` files, the SBOM, and
       `SHA256SUMS`, with every archive's provenance and SBOM attested and verified.
-- [ ] Version metadata, the CHANGELOG, and the docs agree on `0.3.1`.
-- [ ] The two-host rehearsal passes against the published release; closed and tagged.
+- [x] Version metadata, the CHANGELOG, and the docs agree on `0.3.1`.
+- [x] The two-host rehearsal passes against the published release; closed and tagged.
+
+## Completion record
+
+Implementation commit: `899d3d1` (release preparation, tagged `v0.3.1`); the rehearsal default
+follows in the commit after it
+CI run: `36210741767` (push) and `36210896132` (dispatched repeat) on `899d3d1`; rehearsal
+`36210742242`; tag run `36211060790`
+CI result: green on all seven jobs in both CI runs; the rehearsal and the tag run are green on all
+five jobs
+Completed: 2026-09-25
+Notes:
+- **Published by the workflow:** "verified 10 assets of v0.3.1 (names, bytes, SHA256SUMS, 4
+  attestations, 4 SBOM attestations)". Attestations 50351744 (provenance) and 50351746 (SBOM).
+  https://github.com/cybercore-tech/agentforge/releases/tag/v0.3.1 is marked Latest.
+- **Checked independently from this machine:** a fresh full download passes `sha256sum -c
+  SHA256SUMS` (five files, including the SBOM). All four archives pass provenance verification
+  (`--source-ref refs/tags/v0.3.1`) and SBOM verification (`--predicate-type
+  https://cyclonedx.org/bom`). The SBOM is `agentforge 0.3.1` with 64 components. The binaries
+  print `0.3.1`.
+- **Two-host rehearsal against the published release:** all 18 checks pass, the first release
+  rehearsed with findings 19 and 20 fixed.
+- Release notes: the CHANGELOG section, install and verification steps (provenance and SBOM), and
+  provenance, including that the SBOM feature was written by Claude Code through AgentForge.

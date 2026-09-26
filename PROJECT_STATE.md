@@ -15,14 +15,22 @@ agent-built milestones, Phase 4 remote-worker wiring, the P3 tool gateway, and P
 
 ## Active milestone
 
-No active milestone. P2-M035 — agent task hygiene — is complete.
+No active milestone. P5-M007 — release v0.3.1 — is complete.
 `v0.3.1` (P5-M007) is the latest release, and every completed milestone is tagged `milestone/<ID>`.
 
 ## Known issues
 
 - No dogfooding findings are open (21 and 22 were resolved in P2-M035).
-- Findings 19 and 20 (a lost remote result, and leases expiring from the grant) are fixed on `main`
-  but not released; `v0.3.0` has them.
+- Findings 19 and 20 are released in `v0.3.1`; `v0.3.0` workers still have them.
+
+## P5-M007 completion evidence
+
+- Approved plan: `.plans/P5-M007-release-v0-3-1.plan.md`.
+- `v0.3.1` was tagged on `899d3d1` (CI `36210741767` and `36210896132`, rehearsal `36210742242`).
+  Tag run `36211060790` published it and verified its own 10 assets, 4 provenance attestations, and
+  4 SBOM attestations.
+- Verified from this machine (checksums, both attestation types on all archives, the SBOM, and the
+  version); the two-host rehearsal against the release passes 18/18.
 
 ## P2-M035 completion evidence
 
