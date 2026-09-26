@@ -234,6 +234,11 @@ pub fn load_server_configs(root: &Path) -> (Vec<ServerConfig>, Vec<String>) {
 mod tests {
     use super::{Capability, capability_named, parse_server_config, valid_server_name};
 
+    /// An absolute path on every platform (`/bin/x` is not absolute on Windows).
+    fn absolute() -> String {
+        std::env::temp_dir().join("server").display().to_string()
+    }
+
     #[test]
     fn capability_names_round_trip() {
         for capability in [
@@ -258,13 +263,13 @@ mod tests {
 
     #[test]
     fn a_full_declaration_parses() {
-        let config = parse_server_config(
-            "docs-search",
-            "version=1\n# comment\nexecutable=/usr/bin/server\nargument=--stdio\nenv.MODE=ci\n\
+        let text = format!(
+            "version=1\n# comment\nexecutable={}\nargument=--stdio\nenv.MODE=ci\n\
              pass_env=API_TOKEN\ntimeout_ms=5000\ntool.search=read_repository\n\
              tool.open-issue=write_github\n",
-        )
-        .expect("valid");
+            absolute()
+        );
+        let config = parse_server_config("docs-search", &text).expect("valid");
         assert_eq!(config.arguments, ["--stdio"]);
         assert_eq!(config.env["MODE"], "ci");
         assert_eq!(config.pass_env, ["API_TOKEN"]);
@@ -275,57 +280,56 @@ mod tests {
 
     #[test]
     fn bad_declarations_are_refused_with_their_line() {
-        let base = "version=1\nexecutable=/bin/x\n";
-        for (text, needle) in [
-            ("executable=/bin/x\n", "version=1 is missing"),
-            ("version=1\n", "executable is missing"),
+        let exe = absolute();
+        let base = format!("version=1\nexecutable={exe}\n");
+        let cases = [
+            (format!("executable={exe}\n"), "version=1 is missing"),
+            ("version=1\n".to_owned(), "executable is missing"),
             (
-                "version=1\nexecutable=bin/x\n",
+                "version=1\nexecutable=bin/x\n".to_owned(),
                 "line 2: executable must be an absolute path",
             ),
             (
-                "version=2\nexecutable=/bin/x\n",
+                format!("version=2\nexecutable={exe}\n"),
                 "line 1: unsupported version",
             ),
             (
-                &format!("{base}colour=blue\n"),
+                format!("{base}colour=blue\n"),
                 "line 3: unknown or repeated key",
             ),
             (
-                &format!("{base}executable=/bin/y\n"),
+                format!("{base}executable={exe}\n"),
                 "line 3: unknown or repeated key",
             ),
             (
-                &format!("{base}tool.bad name=read_repository\n"),
+                format!("{base}tool.bad name=read_repository\n"),
                 "line 3: invalid tool name",
             ),
+            (format!("{base}tool.x=root\n"), "line 3: unknown capability"),
             (
-                &format!("{base}tool.x=root\n"),
-                "line 3: unknown capability",
-            ),
-            (
-                &format!("{base}tool.x=read_repository\ntool.x=use_network\n"),
+                format!("{base}tool.x=read_repository\ntool.x=use_network\n"),
                 "line 4: tool x is mapped twice",
             ),
             (
-                &format!("{base}timeout_ms=0\n"),
+                format!("{base}timeout_ms=0\n"),
                 "line 3: timeout_ms must be a positive",
             ),
             (
-                &format!("{base}timeout_ms=600001\n"),
+                format!("{base}timeout_ms=600001\n"),
                 "line 3: timeout_ms exceeds",
             ),
             (
-                &format!("{base}env.1BAD=x\n"),
+                format!("{base}env.1BAD=x\n"),
                 "line 3: invalid variable name",
             ),
-            (&format!("{base}nonsense\n"), "line 3: expected key=value"),
-        ] {
+            (format!("{base}nonsense\n"), "line 3: expected key=value"),
+        ];
+        for (text, needle) in &cases {
             let error = parse_server_config("s", text).expect_err(text);
             assert!(error.contains(needle), "{text:?}: {error}");
         }
         assert!(!valid_server_name("Has_Upper"));
         assert!(!valid_server_name("a__b"));
-        assert!(parse_server_config("a__b", base).is_err());
+        assert!(parse_server_config("a__b", &base).is_err());
     }
 }
