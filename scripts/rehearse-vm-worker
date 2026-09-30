@@ -1,0 +1,360 @@
+#!/usr/bin/env bash
+# Two-machine remote-worker rehearsal with a KVM virtual machine as the worker host (P4-M013).
+#
+# Usage:
+#   scripts/rehearse-vm-worker [--keep] [--forge-archive <tar.gz>] [--ghostport <binary>]
+#
+# This host is the real coordinator (forged, git daemon, and a GhostPort server, all on loopback).
+# The worker host is a clean Arch Linux cloud VM under KVM: its own kernel, filesystem, and
+# network stack, reaching the host only through QEMU's user-mode network (the host is 10.0.2.2
+# inside the VM). The VM is set up only by scripts/worker-host-setup from a bundle made by
+# scripts/worker-bundle, as a real second machine would be. Then it checks:
+#   1. a clean remote run, imported at the worker's exact commit;
+#   2. a run under tc netem (150 ms +/- 50 ms delay, 5% loss) on the VM's interface, with renewals;
+#   3. a partition of the GhostPort traffic while idle: the worker retries, recovers in the same
+#      process, and claims new work.
+#
+# Inputs are verified first: forge/forged from the published v0.3.1 release (sha256sum and gh
+# attestation verify) unless --forge-archive is given, GhostPort v0.1.2 from its release
+# (sha256sum) unless --ghostport is given, and the official Arch cloud image against its published
+# SHA256. The image is cached in ${XDG_CACHE_HOME:-~/.cache}/agentforge-rehearsal and never
+# modified (the VM runs on a throwaway overlay). No operator credentials enter the VM.
+#
+# Prints PASS/FAIL per check and a transcript path. Every process it starts is stopped by PID at
+# the end (unless --keep). --break-heal leaves the partition in place, so scenario 3 must fail.
+
+set -euo pipefail
+
+here="$(cd "$(dirname "$0")/.." && pwd)"
+keep=0 archive="" ghostport_bin="" break_heal=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --keep) keep=1; shift ;;
+    --break-heal) break_heal=1; shift ;;
+    --forge-archive) archive="$2"; shift 2 ;;
+    --ghostport) ghostport_bin="$2"; shift 2 ;;
+    *) sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
+  esac
+done
+
+mirror="https://geo.mirror.pkgbuild.com/images/latest"
+cache="${XDG_CACHE_HOME:-$HOME/.cache}/agentforge-rehearsal"
+work="$(mktemp -d "${TMPDIR:-/tmp}/agentforge-vm-rehearsal.XXXXXX")"
+transcript="$work/transcript.log"
+failures=0
+qemu_pid="" server_pid="" forged_root=""
+SSH=/usr/bin/ssh
+SCP=/usr/bin/scp
+
+log() { printf '%s\n' "$*" | tee -a "$transcript"; }
+pass() { log "PASS $*"; }
+fail() { log "FAIL $*"; failures=$((failures + 1)); }
+check() { local name="$1"; shift; if "$@"; then pass "$name"; else fail "$name"; fi; }
+die() { log "ABORT $*"; exit 1; }
+
+free_port() {
+  python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1])'
+}
+
+stop_everything() {
+  [ -n "$server_pid" ] && kill "$server_pid" 2> /dev/null || true
+  [ -f "$work/git-daemon.pid" ] && kill "$(cat "$work/git-daemon.pid")" 2> /dev/null || true
+  if [ -n "$forged_root" ]; then
+    forge daemon stop "$forged_root" > /dev/null 2>&1 || true
+  fi
+  if [ -n "$qemu_pid" ]; then
+    kill "$qemu_pid" 2> /dev/null || true
+    for _ in $(seq 1 50); do kill -0 "$qemu_pid" 2> /dev/null || break; sleep 0.1; done
+    kill -9 "$qemu_pid" 2> /dev/null || true
+  fi
+}
+
+cleanup() {
+  local status=$?
+  if [ "$keep" = 0 ]; then
+    stop_everything
+    # The transcript and console log survive the work directory.
+    cp "$transcript" "$work.transcript.log" 2> /dev/null || true
+    cp "$work/console.log" "$work.console.log" 2> /dev/null || true
+    rm -rf "$work"
+    echo "transcript: $work.transcript.log"
+  else
+    echo "kept: work directory $work (QEMU pid $qemu_pid, ssh port ${ssh_port:-?})"
+    echo "transcript: $transcript"
+  fi
+  exit "$status"
+}
+trap cleanup EXIT
+
+for tool in qemu-system-x86_64 qemu-img xorriso ssh-keygen gh git python3 curl; do
+  command -v "$tool" > /dev/null || die "$tool is required"
+done
+[ -x "$SSH" ] && [ -x "$SCP" ] || die "OpenSSH (/usr/bin/ssh, /usr/bin/scp) is required"
+[ -r /dev/kvm ] && [ -w /dev/kvm ] || die "/dev/kvm is not usable by this user"
+log "rehearsal work directory: $work"
+
+# 0. Inputs, verified before they are trusted.
+mkdir -p "$work/in" "$cache"
+if [ -z "$archive" ]; then
+  (cd "$work/in" && gh release download v0.3.1 -R cybercore-tech/agentforge \
+    -p SHA256SUMS -p '*x86_64-unknown-linux-gnu.tar.gz') >> "$transcript" 2>&1 \
+    || die "cannot download AgentForge v0.3.1"
+  archive="$work/in/agentforge-0.3.1-x86_64-unknown-linux-gnu.tar.gz"
+  check "AgentForge v0.3.1 archive checksum" \
+    bash -c "cd '$work/in' && sha256sum --quiet -c --ignore-missing SHA256SUMS"
+  check "AgentForge v0.3.1 archive attestation" gh attestation verify "$archive" \
+    -R cybercore-tech/agentforge \
+    --signer-workflow cybercore-tech/agentforge/.github/workflows/release.yml
+fi
+if [ -z "$ghostport_bin" ]; then
+  (cd "$work/in" && gh release download v0.1.2 -R cybercore-tech/ghostport \
+    -p 'ghostport-x86_64-unknown-linux-gnu.tar.gz*') >> "$transcript" 2>&1 \
+    || die "cannot download GhostPort v0.1.2"
+  check "GhostPort v0.1.2 archive checksum" bash -c \
+    "cd '$work/in' && sha256sum --quiet -c ghostport-x86_64-unknown-linux-gnu.tar.gz.sha256"
+  mkdir -p "$work/in/ghostport"
+  tar xzf "$work/in/ghostport-x86_64-unknown-linux-gnu.tar.gz" -C "$work/in/ghostport"
+  ghostport_bin="$(find "$work/in/ghostport" -type f -name ghostport | head -1)"
+fi
+ghostport_bin="$(readlink -f "$ghostport_bin")"
+mkdir -p "$work/bin"
+tar xzf "$archive" -C "$work/in"
+install -m755 "$(find "$work/in" -type f -name forge | head -1)" \
+  "$(find "$work/in" -type f -name forged | head -1)" "$ghostport_bin" "$work/bin/"
+export PATH="$work/bin:$PATH"
+unset XDG_CONFIG_HOME
+check "coordinator forge from the archive ($(forge version))" forge version
+
+image_name="$(curl -fsS "$mirror/" | grep -o 'Arch-Linux-x86_64-cloudimg-[0-9.]*\.qcow2"' \
+  | tr -d '"' | sort -u | tail -1)"
+[ -n "$image_name" ] || die "cannot find the Arch cloud image on $mirror"
+curl -fsS "$mirror/$image_name.SHA256" -o "$work/in/image.SHA256" || die "cannot fetch the checksum"
+if [ ! -f "$cache/$image_name" ]; then
+  log "downloading $image_name (cached in $cache)"
+  curl -fsS "$mirror/$image_name" -o "$cache/$image_name.part" || die "image download failed"
+  mv "$cache/$image_name.part" "$cache/$image_name"
+fi
+check "Arch cloud image checksum ($image_name)" bash -c \
+  "cd '$cache' && sha256sum --quiet -c '$work/in/image.SHA256'"
+
+# 1. The VM: throwaway overlay, scratch key, cloud-init seed, KVM.
+ssh-keygen -q -t ed25519 -N '' -C agentforge-rehearsal -f "$work/id"
+qemu-img create -q -f qcow2 -b "$cache/$image_name" -F qcow2 "$work/overlay.qcow2" 10G
+mkdir -p "$work/seed"
+cat > "$work/seed/meta-data" << META
+instance-id: agentforge-rehearsal-$$
+local-hostname: worker-vm
+META
+cat > "$work/seed/user-data" << USER
+#cloud-config
+users:
+  - name: worker
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - $(cat "$work/id.pub")
+runcmd:
+  - [ bash, -c, "pacman -Sy --noconfirm --needed git iproute2 && touch /var/lib/agentforge-ready" ]
+USER
+xorriso -as mkisofs -quiet -output "$work/seed.iso" -volid cidata -joliet -rock \
+  "$work/seed/user-data" "$work/seed/meta-data" 2>> "$transcript"
+ssh_port="$(free_port)"
+qemu-system-x86_64 -enable-kvm -machine q35,accel=kvm -cpu host -smp 2 -m 2048 \
+  -display none -serial "file:$work/console.log" -pidfile "$work/qemu.pid" -daemonize \
+  -drive "file=$work/overlay.qcow2,if=virtio,format=qcow2" \
+  -drive "file=$work/seed.iso,if=virtio,format=raw,readonly=on" \
+  -nic "user,model=virtio-net-pci,hostfwd=tcp:127.0.0.1:$ssh_port-:22" \
+  >> "$transcript" 2>&1 || die "QEMU failed to start"
+qemu_pid="$(cat "$work/qemu.pid")"
+log "VM started (QEMU pid $qemu_pid, ssh on 127.0.0.1:$ssh_port)"
+
+ssh_options=(-i "$work/id" -p "$ssh_port" -o StrictHostKeyChecking=no
+  -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o BatchMode=yes -o ConnectTimeout=5)
+vm() { "$SSH" "${ssh_options[@]}" worker@127.0.0.1 "$@"; }
+to_vm() { "$SCP" -q -i "$work/id" -P "$ssh_port" -o StrictHostKeyChecking=no \
+  -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o BatchMode=yes "$@"; }
+ready=0
+for _ in $(seq 1 120); do
+  if vm test -f /var/lib/agentforge-ready 2> /dev/null; then ready=1; break; fi
+  sleep 5
+done
+[ "$ready" = 1 ] || die "the VM did not become ready within 10 minutes (see $work/console.log)"
+host_kernel="$(uname -r)"
+vm_kernel="$(vm uname -r)"
+log "kernels: host $host_kernel, VM $vm_kernel"
+check "the VM runs its own kernel under KVM" test "$host_kernel" != "$vm_kernel"
+
+# 2. The coordinator, on this host.
+project="$work/project"
+gp_control="$(free_port)" gp_data="$(free_port)" git_port="$(free_port)" api_port="$(free_port)"
+mkdir -p "$work/coord-home/.config/ghostport"
+(
+  set -e
+  git init -q -b main "$project" && cd "$project"
+  git config user.name Coordinator && git config user.email c@example.invalid
+  printf '.forge/\n' > .gitignore && echo "# VM rehearsal" > README.md
+  git add . && git commit -qm init
+  forge init . > /dev/null
+  for task in 1 2 3; do
+    forge task create . "P4-M013-T000$task" P4-M013 implementer "VM rehearsal task $task" \
+      --allowed rehearsal.txt --capability run_local_commands > /dev/null
+  done
+  ghostport keygen --out "$work/coord-home/.config/ghostport/server.key" > /dev/null
+  "$here/scripts/worker-bundle" . remote-1 --origin "git://10.0.2.2:$git_port/project" \
+    --server 10.0.2.2 --control-port "$gp_control" --data-port "$gp_data" \
+    --server-key "$work/coord-home/.config/ghostport/server.key.pub" \
+    --api-port "$api_port" --tunnel-port 47500 --out "$work/bundle" > "$work/bundle.log"
+  forge daemon start "$project" > /dev/null
+) >> "$transcript" 2>&1 || die "coordinator setup failed"
+forged_root="$project"
+git daemon --reuseaddr --listen=127.0.0.1 --port="$git_port" --base-path="$work" --export-all \
+  --pid-file="$work/git-daemon.pid" --detach "$project"
+
+# 3. The operator copies the bundle and the tools to the worker host.
+vm mkdir -p bin
+to_vm -r "$work/bundle" worker@127.0.0.1:worker-remote-1.bundle
+to_vm "$work/bin/forge" "$work/bin/forged" "$work/bin/ghostport" \
+  "$here/scripts/worker-host-setup" "$here/contrib/rehearsal/rehearsal-agent" worker@127.0.0.1:bin/
+vm 'sudo install -m755 ~/bin/forge ~/bin/forged ~/bin/ghostport ~/bin/worker-host-setup \
+  ~/bin/rehearsal-agent /usr/local/bin/'
+check "forge in the VM reports $(forge version)" \
+  test "$(vm forge version)" = "$(forge version)"
+
+# 4. Worker-host setup: first run (tunnel down), then the coordinator side, then again.
+setup='worker-host-setup ~/worker-remote-1.bundle --repo ~/src/project --profile rehearsal \
+  --agent-executable /usr/local/bin/rehearsal-agent --git-name "Remote Worker" \
+  --git-email w@example.invalid'
+first="$(vm "$setup" 2>&1 || true)"
+printf '%s\n' "$first" >> "$transcript"
+check "first setup fails only the endpoint check" bash -c \
+  "[ \"\$(printf '%s\n' \"\$0\" | grep -c '^doctor fail')\" = 1 ] \
+   && printf '%s\n' \"\$0\" | grep -q '^doctor fail endpoint'" "$first"
+worker_key="$(printf '%s\n' "$first" | sed -n 's/^public_key = "\(.*\)"$/\1/p')"
+[ -n "$worker_key" ] || die "setup printed no worker key"
+cat > "$work/coord-home/.config/ghostport/server.toml" << TOML
+role = "server"
+private_key_path = "$work/coord-home/.config/ghostport/server.key"
+listen_control = "127.0.0.1:$gp_control"
+listen_data = "127.0.0.1:$gp_data"
+
+[[peers]]
+name = "remote-1-host"
+public_key = "$worker_key"
+links = ["agentforge-remote-1"]
+
+[[links]]
+id = "agentforge-remote-1"
+mode = "forward"
+target = "127.0.0.1:$api_port"
+TOML
+ghostport check "$work/coord-home/.config/ghostport/server.toml" >> "$transcript" 2>&1 \
+  || die "server config invalid"
+ghostport run "$work/coord-home/.config/ghostport/server.toml" --socket "$work/gp-server.sock" \
+  > "$work/ghostport-server.log" 2>&1 &
+server_pid=$!
+vm 'setsid -f ghostport run ~/.config/ghostport/agentforge-remote-1.toml \
+  --socket ~/gp-client.sock > ~/ghostport-client.log 2>&1 < /dev/null'
+sleep 3
+second="$(vm "$setup" 2>&1 || true)"
+printf '%s\n' "$second" >> "$transcript"
+check "second setup passes the doctor through the tunnel" bash -c \
+  "printf '%s' \"\$0\" | grep -q 'remote-1 doctor: 0 failing'" "$second"
+check "second setup changes nothing" bash -c \
+  "! printf '%s' \"\$0\" | grep -qE '^worker-host-setup: (wrote|cloned|installed|generated)'" \
+  "$second"
+
+run_once='set -a; . ~/.config/agentforge/worker-remote-1.env; set +a
+forge worker remote run --endpoint "$AGENTFORGE_ENDPOINT" --worker remote-1 \
+  --secret-file "$AGENTFORGE_SECRET_FILE" --repo "$AGENTFORGE_REPO" \
+  --profile "$AGENTFORGE_PROFILE"'
+grant() { forge lease grant "$project" "$1" --worker remote-1 --ttl-ms "$2" --actor op > /dev/null; }
+accept() { forge task accept "$project" "$1" --actor op > /dev/null; }
+coord_head() { git -C "$project" rev-parse "agentforge/task/$1" 2> /dev/null; }
+# Mean TCP connect time from the VM to the host, in ms (ICMP through user-mode networking is not
+# dependable).
+rtt() {
+  vm "for i in 1 2 3 4 5; do s=\$(date +%s%N); (exec 3<>/dev/tcp/10.0.2.2/$git_port) 2>/dev/null; \
+      e=\$(date +%s%N); echo \$(( (e - s) / 1000 )); done" \
+    | awk '{ total += $1 } END { printf "%.1f", total / NR / 1000 }'
+}
+iface="$(vm "ip route show default | awk '{print \$5; exit}'")"
+
+# Scenario 1: a clean run.
+grant P4-M013-T0001 60000
+out="$(vm "$run_once --once" 2>&1 || true)"
+printf '%s\n' "$out" >> "$transcript"
+head="$(printf '%s\n' "$out" | sed -n 's/^result head=//p')"
+check "scenario 1: imported" bash -c "printf '%s' \"\$0\" | grep -q 'claimed=1 imported=1'" "$out"
+check "scenario 1: coordinator holds the worker's exact commit" \
+  test -n "$head" -a "$head" = "$(coord_head P4-M013-T0001)"
+accept P4-M013-T0001 || true
+
+# Scenario 2: a bad network, with renewals across it.
+before="$(rtt)"
+vm "sudo tc qdisc add dev $iface root netem delay 150ms 50ms loss 5%"
+after="$(rtt)"
+log "connect time to the host: ${before} ms before netem, ${after} ms under netem ($iface)"
+check "scenario 2: the chaos is real (connect time rose by at least 100 ms)" \
+  awk -v a="$after" -v b="$before" 'BEGIN { exit !(a - b >= 100) }'
+grant P4-M013-T0002 6000
+out="$(vm "$run_once --once" 2>&1 || true)"
+printf '%s\n' "$out" >> "$transcript"
+renewed="$(printf '%s\n' "$out" | sed -n 's/^lease renewed \([0-9]*\) time(s).*/\1/p')"
+check "scenario 2: imported under delay and loss" \
+  bash -c "printf '%s' \"\$0\" | grep -q 'claimed=1 imported=1'" "$out"
+check "scenario 2: the lease was renewed across the bad link (${renewed:-0} times)" \
+  test "${renewed:-0}" -ge 1
+vm "sudo tc qdisc del dev $iface root"
+accept P4-M013-T0002 || true
+
+# Scenario 3: a partition of the GhostPort traffic while the worker idles. Only packets to the
+# coordinator's GhostPort ports are dropped, so the operator's SSH session keeps working.
+vm "setsid -f bash -c '$run_once > ~/supervised.log 2>&1' < /dev/null"
+sleep 5
+pid_before="$(vm 'pgrep -x forge | head -1' || true)"
+vm "sudo tc qdisc add dev $iface root handle 1: prio \
+ && sudo tc qdisc add dev $iface parent 1:3 handle 30: netem loss 100% \
+ && sudo tc filter add dev $iface parent 1:0 protocol ip u32 match ip dport $gp_control 0xffff flowid 1:3 \
+ && sudo tc filter add dev $iface parent 1:0 protocol ip u32 match ip dport $gp_data 0xffff flowid 1:3"
+log "partition: GhostPort traffic dropped for 30 s"
+sleep 30
+if [ "$break_heal" = 0 ]; then
+  vm "sudo tc qdisc del dev $iface root"
+  log "partition healed"
+fi
+grant P4-M013-T0003 60000
+imported=0
+for _ in $(seq 1 75); do
+  if vm "grep -q '^imported ' ~/supervised.log" 2> /dev/null; then imported=1; break; fi
+  sleep 2
+done
+supervised="$(vm 'cat ~/supervised.log' || true)"
+printf '%s\n' "$supervised" >> "$transcript"
+pid_after="$(vm 'pgrep -x forge | head -1' || true)"
+unreachable="$(printf '%s\n' "$supervised" | grep -c 'coordinator unreachable' || true)"
+check "scenario 3: the worker retried during the partition ($unreachable reports)" \
+  test "$unreachable" -ge 2
+check "scenario 3: the worker recovered" \
+  bash -c "printf '%s' \"\$0\" | grep -q 'coordinator reachable again'" "$supervised"
+check "scenario 3: work claimed and imported after the partition" test "$imported" = 1
+check "scenario 3: one worker process throughout (pid ${pid_before:-none})" \
+  test -n "$pid_before" -a "$pid_before" = "$pid_after"
+
+forge hud "$project" | sed -n '/^workers:/,/^worktrees/p' >> "$transcript" 2>&1 || true
+if [ "$keep" = 0 ]; then
+  stop_everything
+  left=""
+  kill -0 "$qemu_pid" 2> /dev/null && left="$left qemu"
+  kill -0 "$server_pid" 2> /dev/null && left="$left ghostport"
+  [ -f "$work/git-daemon.pid" ] && kill -0 "$(cat "$work/git-daemon.pid")" 2> /dev/null \
+    && left="$left git-daemon"
+  forge daemon status "$project" > /dev/null 2>&1 && left="$left forged"
+  check "cleanup: no rehearsal processes left${left:+ ($left)}" test -z "$left"
+  qemu_pid="" server_pid="" forged_root=""
+fi
+if [ "$failures" -eq 0 ]; then
+  log "rehearsal passed"
+else
+  log "rehearsal FAILED: $failures check(s)"
+  exit 1
+fi
