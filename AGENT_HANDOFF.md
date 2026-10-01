@@ -253,7 +253,7 @@
   policy, stable, MSRV, CLI smoke, Linux, macOS, and Windows after the Windows daemon teardown
   test passed on the failed-job rerun.
 - P2-M017 Pages deployment: exact workflow `35553651453` is green for the same implementation SHA;
-  the public site is live at `https://darkstardevx.github.io/agentforge/`.
+  the public site is live at `https://cybercore-tech.github.io/agentforge/`.
 - P2-M017 closure commit: `96e02c3`; exact closure CI `35553972640` and Pages deployment
   `35553972643` are green for that exact closure SHA.
 - P2-M017 Pages workflow repair: `7d2b45b`; exact CI `35554310599` and Pages deployment
