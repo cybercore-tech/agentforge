@@ -12,8 +12,8 @@ CI observations, audit records, and human decisions. 🧭
 > APIs, local-first, not for unattended production use
 >
 > **Canonical repository:** [`cybercore-tech/agentforge`](https://github.com/cybercore-tech/agentforge).
-> The earlier [`darkstardevx/agentforge`](https://github.com/darkstardevx/agentforge) holds history
-> up to `976c4f9` and is no longer updated.
+> Its earlier history (up to `976c4f9`) came over from the old `darkstardevx/agentforge` copy,
+> which is now retired.
 
 [![CI](https://github.com/cybercore-tech/agentforge/actions/workflows/ci.yml/badge.svg)](https://github.com/cybercore-tech/agentforge/actions/workflows/ci.yml)
 [![Rust 1.85+](https://img.shields.io/badge/rust-1.85%2B-orange?logo=rust)](https://www.rust-lang.org/)

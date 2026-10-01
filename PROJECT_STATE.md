@@ -563,7 +563,7 @@ publication.
 - The README now matches the P2-M017 baseline and explicitly documents alpha limitations, trust
   boundaries, operator responsibilities, safe first-run checks, and failure inspection paths.
 - The public Pages CTA opens a local accessible README dialog with a full-document link; the
-  repository About homepage is `https://darkstardevx.github.io/agentforge/`.
+  repository About homepage is `https://cybercore-tech.github.io/agentforge/`.
 
 ## P2-M017 completion evidence
 
@@ -582,7 +582,7 @@ publication.
   green, with the deployment environment URL expression validated on the repaired SHA.
 - Pages workflow repair closure: `24d1571`; exact CI `35554451233` and Pages deployment
   `35554451229` are green for the exact closure SHA.
-- The public site is live at `https://darkstardevx.github.io/agentforge/`. It is dependency-free,
+- The public site is live at `https://cybercore-tech.github.io/agentforge/`. It is dependency-free,
   responsive, keyboard-accessible, reduced-motion aware, and keeps the alpha/pre-release warning
   visible. The repository and its durable evidence remain authoritative.
 
