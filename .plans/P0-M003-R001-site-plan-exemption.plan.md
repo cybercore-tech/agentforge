@@ -1,6 +1,6 @@
 # Plan: P0-M003-R001 — Exempt the GitHub Pages site from implementation authority
 
-Status: Draft
+Status: Approved
 Milestone: P0-M003
 Created: 2026-10-02
 
