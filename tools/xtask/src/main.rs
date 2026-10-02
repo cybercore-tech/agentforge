@@ -383,7 +383,8 @@ fn validate_implementation_authority(
 }
 
 fn is_implementation_path(path: &str) -> bool {
-    path != ".plans/ACTIVE" && !path.ends_with(".md")
+    // `site/` is the static GitHub Pages site (human-facing docs), not product code.
+    path != ".plans/ACTIVE" && !path.ends_with(".md") && !path.starts_with("site/")
 }
 
 fn plan_status(contents: &str) -> Option<&str> {
@@ -525,6 +526,21 @@ mod tests {
         assert!(!is_implementation_path("docs/CI.md"));
         assert!(!is_implementation_path(".plans/P0-M003.plan.md"));
         assert!(!is_implementation_path(".plans/ACTIVE"));
+    }
+
+    #[test]
+    fn pages_site_is_a_control_change() {
+        assert!(!is_implementation_path("site/index.html"));
+        assert!(!is_implementation_path("site/script.js"));
+        assert!(!is_implementation_path("site/styles.css"));
+    }
+
+    #[test]
+    fn site_exemption_does_not_leak_to_code() {
+        assert!(is_implementation_path("sitemap.rs"));
+        assert!(is_implementation_path("site-tools/build.rs"));
+        assert!(is_implementation_path("crates/agentforge-core/src/lib.rs"));
+        assert!(is_implementation_path(".github/workflows/pages.yml"));
     }
 
     #[test]
