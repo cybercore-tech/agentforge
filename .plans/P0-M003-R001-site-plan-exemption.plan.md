@@ -1,6 +1,6 @@
 # Plan: P0-M003-R001 — Exempt the GitHub Pages site from implementation authority
 
-Status: Approved
+Status: Complete
 Milestone: P0-M003
 Created: 2026-10-02
 
@@ -129,14 +129,22 @@ add one line noting the `site/` exemption.
 
 ## Acceptance criteria
 
-- [ ] `site/` changes pass the Repository policy job
-- [ ] all other classifications unchanged, proven by unit tests
-- [ ] `main` CI green after the closure checkpoint
+- [x] `site/` changes pass the Repository policy job
+- [x] all other classifications unchanged, proven by unit tests
+- [x] `main` CI green after the closure checkpoint
 
 ## Completion record
 
-Implementation commit:
-CI run:
-CI result:
-Completed:
-Notes:
+Implementation commit: 5fc6c1a (squash merge of #5)
+CI run: https://github.com/cybercore-tech/agentforge/actions/runs/37081086848
+CI result: success
+Completed: 2026-10-02
+Notes: `is_implementation_path` now also excludes paths under `site/`.
+
+Evidence:
+
+- the Draft plan (#3) and the separate Approved checkpoint (#4) preceded the repair;
+- the repair commit changed only `tools/xtask/src/main.rs`: one condition and two unit tests;
+- tests pin `site/` paths as control changes and keep `sitemap.rs`, `site-tools/`, crate sources and workflows as implementation;
+- `./scripts/gate.sh full` passed on the repair head, and the PR passed all CI jobs (Linux, macOS, Windows, MSRV 1.85, Repository policy);
+- post-merge `main` CI for 5fc6c1a succeeded.
